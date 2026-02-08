@@ -14,14 +14,28 @@ function spawnEnemy(x, y, type) {
         boss: { hp: 500, speed: 18, dmg: 25, r: 16, xp: 100 }
     };
     const t = types[type] || types.grunt;
-    G.enemies.push({
+    const enemy = {
         x, y, vx: 0, vy: 0,
         hp: t.hp * floorMult, maxHp: t.hp * floorMult,
         speed: t.speed, dmg: t.dmg * floorMult,
         r: t.r, el, color: elDef.color, lightColor: elDef.light,
         type, flash: 0, knockX: 0, knockY: 0, dead: false,
-        attackCd: 0
-    });
+        attackCd: 0, spawnAnim: 0.4
+    };
+    // Boss-specific phase tracking
+    if (type === 'boss') {
+        enemy.phase = 1;
+        enemy.chargeTimer = 0;
+        enemy.chargeCd = 5;
+        enemy.shockwaveCd = 8;
+        enemy.entranceTimer = 1.5; // entrance freeze
+        enemy.enraged = false;
+        // Boss entrance announcement
+        G.floorAnnounce = { text: '\u26a0 BOSS INCOMING \u26a0', timer: 2.5 };
+        triggerFlash('#ff0000', 0.3);
+        shake(4, 0.3);
+    }
+    G.enemies.push(enemy);
 }
 
 function spawnWave() {
@@ -46,6 +60,9 @@ function updateEnemies(dt) {
         const e = G.enemies[i];
         if (e.dead) { G.enemies.splice(i, 1); continue; }
 
+        // Spawn animation timer
+        if (e.spawnAnim > 0) e.spawnAnim -= dt;
+
         // Flash timer
         if (e.flash > 0) e.flash -= dt;
 
@@ -56,9 +73,79 @@ function updateEnemies(dt) {
             e.knockX *= 0.9; e.knockY *= 0.9;
         }
 
-        // Chase player
+        // Chase player (with boss-specific AI)
         const dx = P.x - e.x, dy = P.y - e.y;
         const d = Math.hypot(dx, dy);
+
+        if (e.type === 'boss') {
+            // Boss entrance freeze
+            if (e.entranceTimer > 0) {
+                e.entranceTimer -= dt;
+                continue; // boss doesn't move during entrance
+            }
+
+            // Phase transitions
+            const hpPct = e.hp / e.maxHp;
+            if (hpPct < 0.3 && e.phase < 3) {
+                e.phase = 3;
+                e.enraged = true;
+                e.speed *= 2;
+                e.dmg *= 1.5;
+                G.floorAnnounce = { text: '\ud83d\udd25 BOSS ENRAGED! \ud83d\udd25', timer: 2 };
+                triggerFlash('#ff4400', 0.3);
+                triggerChromatic(3);
+                shake(5, 0.3);
+                spawnElementParticles(e.x, e.y, e.el, 20, 80);
+            } else if (hpPct < 0.6 && e.phase < 2) {
+                e.phase = 2;
+                e.speed *= 1.3;
+                G.floorAnnounce = { text: '\u26a1 BOSS PHASE 2 \u26a1', timer: 1.5 };
+                triggerFlash('#ffaa00', 0.2);
+            }
+
+            // Boss charge attack (Phase 2+)
+            if (e.phase >= 2) {
+                e.chargeCd -= dt;
+                if (e.chargeCd <= 0 && d < 200) {
+                    e.chargeCd = e.enraged ? 3 : 5;
+                    // Lunge toward player
+                    const chargeSpeed = e.enraged ? 400 : 250;
+                    e.knockX = (dx / d) * chargeSpeed * 0.02;
+                    e.knockY = (dy / d) * chargeSpeed * 0.02;
+                    shake(3, 0.1);
+                    spawnElementParticles(e.x, e.y, e.el, 6, 40);
+                }
+            }
+
+            // Boss shockwave (Phase 3 — enrage)
+            if (e.enraged) {
+                e.shockwaveCd -= dt;
+                if (e.shockwaveCd <= 0) {
+                    e.shockwaveCd = 4;
+                    // AoE shockwave damage to player if nearby
+                    if (d < 80 && P.invincible <= 0) {
+                        const dr = getBondDmgReduction();
+                        P.hp -= e.dmg * 0.5 * (1 - dr);
+                        P.damageFlash = 0.2;
+                        P.invincible = 0.5;
+                        shake(4, 0.15);
+                    }
+                    // Visual shockwave ring
+                    G.bullets.push({
+                        x: e.x, y: e.y, type: 'aoe_ring', r: 80,
+                        color: ELEMENTS[e.el].light, el: e.el,
+                        life: 0.5, maxLife: 0.5
+                    });
+                    spawnElementParticles(e.x, e.y, e.el, 12, 60);
+                    triggerChromatic(1.5);
+                }
+                // Enrage visual: ambient particle pulsing
+                if (Math.random() < 0.3) {
+                    spawnParticles(e.x + rng(-15, 15), e.y + rng(-15, 15), '#ff4400', 1, 20);
+                }
+            }
+        }
+
         if (d > 5) {
             e.x += (dx / d) * e.speed * dt;
             e.y += (dy / d) * e.speed * dt;
@@ -113,7 +200,9 @@ function checkLevelUp() {
         G.state = 'LEVEL_UP';
         generateLevelUpChoices();
         spawnParticles(P.x, P.y, '#ffff00', 20, 80);
+        spawnElementParticles(P.x, P.y, P.element, 15, 60);
         shake(3, 0.15);
+        triggerFlash('#ffffff', 0.2);
         SFX.levelUp();
         // Track bonding XP
         if (G.bonding) G.bonding.xpEarned = (G.bonding.xpEarned || 0) + 5;
@@ -122,6 +211,15 @@ function checkLevelUp() {
 
 function generateLevelUpChoices() {
     const choices = [];
+
+    // Check for evolution opportunity first
+    if (typeof getEvolutionChoice === 'function') {
+        const evoChoice = getEvolutionChoice();
+        if (evoChoice) {
+            choices.push(evoChoice);
+        }
+    }
+
     const available = WEAPON_DEFS.filter(w => {
         // Can upgrade existing weapons
         const existing = G.weapons.find(ew => ew.id === w.id);
@@ -132,9 +230,10 @@ function generateLevelUpChoices() {
         if (w.type === 'passive') return true;
         return false;
     });
-    // Pick 3 random
+    // Pick remaining slots (3 total, minus evolution if present)
+    const remaining = 3 - choices.length;
     const shuffled = available.sort(() => Math.random() - 0.5);
-    for (let i = 0; i < Math.min(3, shuffled.length); i++) {
+    for (let i = 0; i < Math.min(remaining, shuffled.length); i++) {
         const def = shuffled[i];
         const existing = G.weapons.find(w => w.id === def.id);
         choices.push({
@@ -163,6 +262,15 @@ function handleLevelUpClick(mx, my) {
 
 function selectLevelUpChoice(choice) {
     const def = choice.def;
+
+    // Handle evolution
+    if (choice.isEvolution && def.isEvolution) {
+        applyEvolution(def);
+        G.state = 'PLAYING';
+        G.levelUpChoices = [];
+        return;
+    }
+
     if (def.type === 'passive') {
         applyPassive(def);
     } else {
@@ -260,5 +368,17 @@ function nextFloor() {
     P.x = G.arenaW / 2; P.y = G.arenaH / 2;
     P.hp = Math.min(P.hp + P.maxHp * 0.3, P.maxHp); // heal 30% between floors
     spawnParticles(P.x, P.y, '#ffff00', 30, 100);
+    spawnElementParticles(P.x, P.y, P.element, 20, 80);
     shake(4, 0.2);
+    triggerFlash('#ffffff', 0.3);
+    triggerSpeedLines(0.5);
+
+    // Show biome name
+    if (typeof getBiome === 'function') {
+        const biome = getBiome();
+        G.floorAnnounce = { text: `Floor ${G.floor} — ${biome.name}`, timer: 2.5 };
+    }
+
+    // Re-init ambient particles for new biome
+    if (typeof initAmbientParticles === 'function') initAmbientParticles();
 }

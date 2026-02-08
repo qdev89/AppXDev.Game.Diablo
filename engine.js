@@ -41,8 +41,9 @@ const P = {
     x: 1000, y: 1000, w: 12, h: 14,
     vx: 0, vy: 0, speed: 100,
     hp: 100, maxHp: 100, xp: 0, xpNeeded: 20, level: 1,
-    element: 'METAL', facing: 1, // 1=right, -1=left
-    invincible: 0, damageFlash: 0
+    element: 'METAL', facing: 1,
+    invincible: 0, damageFlash: 0,
+    dodgeTimer: 0, dodgeCd: 0, dodgeDx: 0, dodgeDy: 0
 };
 
 // --- Input ---
@@ -84,6 +85,22 @@ canvas.addEventListener('click', e => {
     else if (G.state === 'BONDING') handleBondingClick(mx, my);
     else if (G.state === 'GAME_OVER') G.state = 'BONDING';
     else if (G.state === 'LEVEL_UP') handleLevelUpClick(mx, my);
+});
+
+// --- Dodge Roll (Space key) ---
+window.addEventListener('keydown', e => {
+    if (e.code === 'Space' && G.state === 'PLAYING' && P.dodgeCd <= 0 && P.dodgeTimer <= 0) {
+        e.preventDefault();
+        P.dodgeTimer = 0.25;
+        P.dodgeCd = 1.0;
+        P.invincible = 0.3;
+        P.dodgeDx = P.vx !== 0 || P.vy !== 0 ? P.vx : P.facing * 150;
+        P.dodgeDy = P.vy || 0;
+        const len = Math.hypot(P.dodgeDx, P.dodgeDy);
+        if (len > 0) { P.dodgeDx = (P.dodgeDx / len) * 280; P.dodgeDy = (P.dodgeDy / len) * 280; }
+        spawnParticles(P.x, P.y, '#ffffff', 6, 30);
+        SFX.menuClick();
+    }
 });
 
 // --- Resize ---

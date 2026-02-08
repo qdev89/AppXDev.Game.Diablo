@@ -116,9 +116,12 @@ function fireMelee(w, el) {
     G.bullets.push({
         x: P.x + P.facing * 15, y: P.y, type: 'slash',
         angle: baseAngle, arc: arcRad, range, color: el.light,
-        life: 0.15, maxLife: 0.15
+        el: w.el, life: 0.2, maxLife: 0.2
     });
-    shake(1.5, 0.05);
+    shake(2, 0.06);
+    triggerChromatic(0.8);
+    // Fire slash element particles
+    spawnElementParticles(P.x + P.facing * 20, P.y, w.el, 4, 40);
 }
 
 function fireProjectile(w, el) {
@@ -163,9 +166,12 @@ function fireAoE(w, el) {
     }
     G.bullets.push({
         x: P.x, y: P.y, type: 'aoe_ring', r: range, color: el.light,
-        life: 0.3, maxLife: 0.3
+        el: w.el, life: 0.4, maxLife: 0.4
     });
-    shake(2, 0.08);
+    shake(3, 0.1);
+    triggerFlash(el.light, 0.15);
+    triggerChromatic(1.5);
+    spawnElementParticles(P.x, P.y, w.el, 8, 50);
 }
 
 function fireShield(w, el) {
@@ -201,12 +207,13 @@ function damageEnemy(e, dmg, el) {
 
     const elDef = ELEMENTS[el] || ELEMENTS.METAL;
     spawnDmgNum(e.x + rng(-5, 5), e.y - 8, finalDmg, mult > 1.2 ? '#ffff00' : elDef.light, mult > 1.2);
-    spawnParticles(e.x, e.y, elDef.color, 3, 40);
+    spawnElementParticles(e.x, e.y, el, 3, 35);
     SFX.hit();
 
     if (mult > 1.2) {
         spawnDmgNum(e.x, e.y - 20, 0, '#ffff00', true); // shows "EFFECTIVE!"
-        shake(2, 0.06);
+        shake(3, 0.08);
+        triggerChromatic(1.0);
     }
 
     // Yin-Yang: attacks = +Yang
@@ -226,7 +233,9 @@ function killEnemy(e) {
     G.yinYang.yang = clamp(G.yinYang.yang + 1, 0, 100);
 
     const elDef = ELEMENTS[e.el] || ELEMENTS.METAL;
-    spawnParticles(e.x, e.y, elDef.color, 8, 60);
+    // Death explosion with element particles
+    spawnDeathExplosion(e.x, e.y, elDef.color, elDef.light, e.r);
+    spawnElementParticles(e.x, e.y, e.el, 10, 60);
     SFX.kill();
 
     // Drop XP
@@ -244,8 +253,8 @@ function killEnemy(e) {
     }
 
     // Shake on multi-kills
-    if (G.combo % 50 === 0) { shake(4, 0.15); hitStop(0.03); SFX.combo50(); }
-    else if (G.combo % 10 === 0) { shake(2, 0.08); SFX.combo10(); }
+    if (G.combo % 50 === 0) { shake(5, 0.2); hitStop(0.04); triggerFlash('#ffdd00', 0.3); triggerSpeedLines(0.8); SFX.combo50(); }
+    else if (G.combo % 10 === 0) { shake(3, 0.1); triggerChromatic(1.5); SFX.combo10(); }
 
     // Check floor clear
     if (G.enemiesKilled >= G.enemiesNeeded && !G.portalActive) {

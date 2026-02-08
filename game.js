@@ -18,6 +18,7 @@ function startGame() {
     P.hp = 100; P.maxHp = 100; P.xp = 0; P.xpNeeded = 20; P.level = 1;
     P.speed = 100; P.invincible = 0; P.damageFlash = 0;
     P.element = 'METAL';
+    P.dodgeTimer = 0; P.dodgeCd = 0; P.dodgeDx = 0; P.dodgeDy = 0;
 
     // Reset passives
     passives.atkSpd = 0; passives.maxHp = 0; passives.moveSpd = 0;
@@ -30,6 +31,7 @@ function startGame() {
     G.weapons.push(createWeapon(WEAPON_DEFS[0])); // Fire Sword
 
     G.camX = P.x - GAME_W / 2; G.camY = P.y - GAME_H / 2;
+    if (typeof HUD !== 'undefined') { HUD.hpDisplay = 1; HUD.xpDisplay = 0; HUD.killTimer = 0; }
 }
 
 // --- Update Player ---
@@ -62,8 +64,10 @@ function updatePlayer(dt) {
     if (G.yinYang.state === 'CHAOS') spdMult = 1.3;
     else if (G.yinYang.state === 'HARMONY') spdMult = 1.15;
 
-    P.x += dx * spd * spdMult * dt;
-    P.y += dy * spd * spdMult * dt;
+    P.vx = dx * spd * spdMult;
+    P.vy = dy * spd * spdMult;
+    P.x += P.vx * dt;
+    P.y += P.vy * dt;
 
     // Facing
     if (dx > 0.1) P.facing = 1;
@@ -76,6 +80,16 @@ function updatePlayer(dt) {
     // Invincibility / flash
     if (P.invincible > 0) P.invincible -= dt;
     if (P.damageFlash > 0) P.damageFlash -= dt;
+
+    // Dodge roll
+    if (P.dodgeCd > 0) P.dodgeCd -= dt;
+    if (P.dodgeTimer > 0) {
+        P.dodgeTimer -= dt;
+        P.x += P.dodgeDx * dt;
+        P.y += P.dodgeDy * dt;
+        // Trail particles during dodge
+        if (Math.random() < 0.5) spawnParticles(P.x, P.y, '#aaaaff', 1, 15);
+    }
 
     // Yin from idling
     if (len === 0) G.yinYang.yin = clamp(G.yinYang.yin + dt * 5, 0, 100);
@@ -98,8 +112,11 @@ function update(dt) {
             endRunBonding();
             SFX.gameOver();
             G.state = 'GAME_OVER';
-            spawnParticles(P.x, P.y, '#ff0000', 30, 100);
-            shake(5, 0.3);
+            spawnDeathExplosion(P.x, P.y, '#ff2222', '#ff6644', 12);
+            spawnElementParticles(P.x, P.y, P.element, 20, 80);
+            triggerFlash('#ff0000', 0.4);
+            triggerChromatic(3);
+            shake(6, 0.4);
             return; // Stop updating
         }
     }
@@ -122,7 +139,24 @@ function update(dt) {
         const bx = G.arenaW / 2 + rng(-100, 100);
         const by = G.arenaH / 2 + rng(-100, 100);
         spawnEnemy(bx, by, 'boss');
+        triggerFlash('#ff0000', 0.2);
+        triggerChromatic(2);
     }
+
+    // Update ambient particles
+    if (typeof updateAmbientParticles === 'function') updateAmbientParticles(dt);
+
+    // Update evolution popup
+    if (typeof updateEvolutionPopup === 'function') updateEvolutionPopup(dt);
+
+    // Update floor announcement
+    if (G.floorAnnounce) {
+        G.floorAnnounce.timer -= dt;
+        if (G.floorAnnounce.timer <= 0) G.floorAnnounce = null;
+    }
+
+    // Update HUD animations
+    if (typeof updateHUD === 'function') updateHUD(dt);
 }
 
 // --- Main Draw ---
@@ -135,6 +169,8 @@ function draw() {
         drawBondingScreen();
     } else if (G.state === 'PLAYING') {
         drawGame();
+        if (typeof drawEvolutionPopup === 'function') drawEvolutionPopup();
+        drawFloorAnnounce();
     } else if (G.state === 'LEVEL_UP') {
         drawGame();
         drawLevelUpScreen();
