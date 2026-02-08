@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Dynasty Bruhhh Dungeon</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            width: 100vw;
+            height: 100vh;
+            object-fit: contain;
+        }
+
+        @font-face {
+            font-family: 'GameFont';
+            src: local('Courier New'), local('monospace');
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="game"></canvas>
+    <script src="engine.js"></script>
+    <script src="sound.js"></script>
+    <script src="weapons.js"></script>
+    <script src="systems.js"></script>
+    <script src="bonding.js"></script>
+    <script src="renderer.js"></script>
+    <script src="hud.js"></script>
+    <script src="game.js"></script>
+</body>
+
+</html>
