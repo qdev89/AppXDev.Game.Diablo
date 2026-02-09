@@ -12,6 +12,7 @@ function startGame() {
     G.spawnTimer = 0; G.spawnRate = 1.5; G.enemiesPerWave = 8;
     G.enemiesKilled = 0; G.enemiesNeeded = 30;
     G.portalActive = false; G.portal = null;
+    G.treasureRoom = null; G.archerBullets = [];
     G.yinYang = { yin: 0, yang: 0, state: 'NEUTRAL', timer: 0 };
 
     P.x = G.arenaW / 2; P.y = G.arenaH / 2;
@@ -102,6 +103,7 @@ function update(dt) {
     updatePlayer(dt);
     updateWeapons(dt);
     updateEnemies(dt);
+    if (typeof updateArcherProjectiles === 'function') updateArcherProjectiles(dt);
 
     // Death check — MUST be after updateEnemies (where damage is dealt)
     if (P.hp <= 0) {
@@ -112,6 +114,8 @@ function update(dt) {
             endRunBonding();
             SFX.gameOver();
             G.state = 'GAME_OVER';
+            // Save high score
+            if (typeof saveHighScore === 'function') saveHighScore();
             spawnDeathExplosion(P.x, P.y, '#ff2222', '#ff6644', 12);
             spawnElementParticles(P.x, P.y, P.element, 20, 80);
             triggerFlash('#ff0000', 0.4);
@@ -121,26 +125,45 @@ function update(dt) {
         }
     }
 
+    // Dodge roll end shake
+    if (P.dodgeTimer > 0 && P.dodgeTimer - dt <= 0) {
+        shake(1, 0.1);
+    }
+
+    // Combo milestone shakes
+    if (G.combo > 0 && (G.combo === 20 || G.combo === 50 || G.combo === 100)) {
+        if (!G._lastComboShake || G._lastComboShake !== G.combo) {
+            G._lastComboShake = G.combo;
+            shake(2, 0.15);
+            spawnParticles(P.x, P.y, '#ffd700', 10, 50);
+        }
+    }
+
     updatePickups(dt);
     updateYinYang(dt);
     updatePortal(dt);
     updateCamera();
     checkLevelUp();
 
-    // Spawn timer
-    G.spawnTimer -= dt;
-    if (G.spawnTimer <= 0 && G.enemiesKilled < G.enemiesNeeded) {
-        G.spawnTimer = G.spawnRate;
-        spawnWave();
-    }
+    // Treasure room
+    if (typeof updateTreasureRoom === 'function') updateTreasureRoom(dt);
 
-    // Boss on floor 5, 10, etc.
-    if (G.floor % 5 === 0 && G.enemiesKilled === 0 && G.enemies.length === 0) {
-        const bx = G.arenaW / 2 + rng(-100, 100);
-        const by = G.arenaH / 2 + rng(-100, 100);
-        spawnEnemy(bx, by, 'boss');
-        triggerFlash('#ff0000', 0.2);
-        triggerChromatic(2);
+    // Spawn timer (skip in treasure rooms)
+    if (!G.treasureRoom) {
+        G.spawnTimer -= dt;
+        if (G.spawnTimer <= 0 && G.enemiesKilled < G.enemiesNeeded) {
+            G.spawnTimer = G.spawnRate;
+            spawnWave();
+        }
+
+        // Boss on floor 5, 10, etc.
+        if (G.floor % 5 === 0 && G.enemiesKilled === 0 && G.enemies.length === 0) {
+            const bx = G.arenaW / 2 + rng(-100, 100);
+            const by = G.arenaH / 2 + rng(-100, 100);
+            spawnEnemy(bx, by, 'boss');
+            triggerFlash('#ff0000', 0.2);
+            triggerChromatic(2);
+        }
     }
 
     // Update ambient particles
@@ -169,6 +192,8 @@ function draw() {
         drawBondingScreen();
     } else if (G.state === 'PLAYING') {
         drawGame();
+        if (typeof drawTreasureRoom === 'function') drawTreasureRoom();
+        if (typeof drawArcherProjectiles === 'function') drawArcherProjectiles();
         if (typeof drawEvolutionPopup === 'function') drawEvolutionPopup();
         drawFloorAnnounce();
     } else if (G.state === 'LEVEL_UP') {

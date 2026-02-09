@@ -93,4 +93,5 @@ const SFX = {
         playNote(110, 0.5, 'sawtooth', 0.15);
         playNote(82, 0.5, 'sawtooth', 0.12, 0.3);
     },
+    coin() { playNote(1200, 0.06, 'triangle', 0.12); playNote(1600, 0.08, 'triangle', 0.1, 0.04); playNote(2000, 0.06, 'sine', 0.06, 0.08); },
 };

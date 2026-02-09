@@ -10,6 +10,7 @@ function spawnEnemy(x, y, type) {
         grunt: { hp: 20, speed: 35, dmg: 5, r: 6, xp: 3 },
         fast: { hp: 12, speed: 65, dmg: 3, r: 5, xp: 4 },
         tank: { hp: 60, speed: 20, dmg: 10, r: 9, xp: 8 },
+        archer: { hp: 15, speed: 25, dmg: 7, r: 6, xp: 5 },
         elite: { hp: 120, speed: 30, dmg: 15, r: 11, xp: 20 },
         boss: { hp: 500, speed: 18, dmg: 25, r: 16, xp: 100 }
     };
@@ -49,8 +50,9 @@ function spawnWave() {
         const roll = Math.random();
         let type = 'grunt';
         if (roll < 0.05 && G.floor >= 3) type = 'elite';
-        else if (roll < 0.15) type = 'tank';
-        else if (roll < 0.35) type = 'fast';
+        else if (roll < 0.12 && G.floor >= 2) type = 'archer';
+        else if (roll < 0.22) type = 'tank';
+        else if (roll < 0.42) type = 'fast';
         spawnEnemy(x, y, type);
     }
 }
@@ -144,6 +146,36 @@ function updateEnemies(dt) {
                     spawnParticles(e.x + rng(-15, 15), e.y + rng(-15, 15), '#ff4400', 1, 20);
                 }
             }
+        }
+
+        // Archer AI: stop at range and shoot
+        if (e.type === 'archer') {
+            if (!e.shootCd) e.shootCd = 2;
+            e.shootCd -= dt;
+            if (d < 120 && d > 60) {
+                // Stay in range — don't chase closer
+            } else if (d >= 120 && d > 5) {
+                e.x += (dx / d) * e.speed * dt;
+                e.y += (dy / d) * e.speed * dt;
+            } else if (d <= 60 && d > 5) {
+                // Retreat if too close
+                e.x -= (dx / d) * e.speed * 0.5 * dt;
+                e.y -= (dy / d) * e.speed * 0.5 * dt;
+            }
+            // Fire projectile
+            if (e.shootCd <= 0 && d < 150) {
+                e.shootCd = 1.8 + Math.random() * 0.5;
+                if (!G.archerBullets) G.archerBullets = [];
+                const spd = 90;
+                G.archerBullets.push({
+                    x: e.x, y: e.y,
+                    vx: (dx / d) * spd, vy: (dy / d) * spd,
+                    dmg: e.dmg * (1 + (G.floor - 1) * 0.1),
+                    life: 3
+                });
+                spawnParticles(e.x, e.y, '#ff44ff', 3, 20);
+            }
+            continue; // skip normal chase
         }
 
         if (d > 5) {
@@ -362,7 +394,6 @@ function nextFloor() {
     G.portal = null;
     SFX.portalOpen();
     G.enemiesKilled = 0;
-    G.enemiesNeeded = 30 + G.floor * 10;
     G.spawnRate = Math.max(0.5, 1.5 - G.floor * 0.05);
     G.enemiesPerWave = 8 + G.floor * 2;
     P.x = G.arenaW / 2; P.y = G.arenaH / 2;
@@ -373,12 +404,162 @@ function nextFloor() {
     triggerFlash('#ffffff', 0.3);
     triggerSpeedLines(0.5);
 
-    // Show biome name
-    if (typeof getBiome === 'function') {
-        const biome = getBiome();
-        G.floorAnnounce = { text: `Floor ${G.floor} — ${biome.name}`, timer: 2.5 };
+    // Treasure room every 3rd floor
+    if (G.floor % 3 === 0 && G.floor % 5 !== 0) {
+        G.treasureRoom = { timer: 12, chests: [], fountain: null, collected: 0, total: 0 };
+        G.enemiesNeeded = 0;
+        // Spawn chests
+        const numChests = 3 + Math.floor(G.floor / 6);
+        for (let i = 0; i < numChests; i++) {
+            G.treasureRoom.chests.push({
+                x: G.arenaW / 2 + Math.cos(i / numChests * Math.PI * 2) * 80,
+                y: G.arenaH / 2 + Math.sin(i / numChests * Math.PI * 2) * 60,
+                collected: false, pulse: Math.random() * 6, gold: 30 + G.floor * 10
+            });
+        }
+        G.treasureRoom.total = numChests;
+        // HP fountain at center
+        G.treasureRoom.fountain = { x: G.arenaW / 2, y: G.arenaH / 2 - 30, used: false, pulse: 0 };
+        G.floorAnnounce = { text: '🏛️ TREASURE ROOM', timer: 2.5 };
+    } else {
+        G.treasureRoom = null;
+        G.enemiesNeeded = 30 + G.floor * 10;
+        // Show biome name
+        if (typeof getBiome === 'function') {
+            const biome = getBiome();
+            G.floorAnnounce = { text: `Floor ${G.floor} — ${biome.name}`, timer: 2.5 };
+        }
     }
 
     // Re-init ambient particles for new biome
     if (typeof initAmbientParticles === 'function') initAmbientParticles();
 }
+
+// --- Treasure Room Update ---
+function updateTreasureRoom(dt) {
+    const tr = G.treasureRoom;
+    if (!tr) return;
+    tr.timer -= dt;
+    if (tr.fountain) tr.fountain.pulse += dt * 3;
+
+    // Collect chests by walking over them
+    for (const c of tr.chests) {
+        if (c.collected) continue;
+        c.pulse += dt * 4;
+        const d = Math.hypot(P.x - c.x, P.y - c.y);
+        if (d < 20) {
+            c.collected = true;
+            tr.collected++;
+            G.score += c.gold;
+            SFX.coin();
+            spawnDmgNum(c.x, c.y - 10, c.gold, '#ffd700', false);
+            spawnParticles(c.x, c.y, '#ffd700', 8, 40);
+        }
+    }
+
+    // HP fountain
+    if (tr.fountain && !tr.fountain.used) {
+        const fd = Math.hypot(P.x - tr.fountain.x, P.y - tr.fountain.y);
+        if (fd < 20) {
+            tr.fountain.used = true;
+            const heal = Math.floor(P.maxHp * 0.5);
+            P.hp = Math.min(P.hp + heal, P.maxHp);
+            SFX.revive();
+            spawnDmgNum(tr.fountain.x, tr.fountain.y - 15, heal, '#44ff44', false);
+            spawnParticles(tr.fountain.x, tr.fountain.y, '#44ff44', 12, 60);
+        }
+    }
+
+    // Auto-portal when all collected or timer expires
+    if (tr.collected >= tr.total || tr.timer <= 0) {
+        G.treasureRoom = null;
+        nextFloor();
+    }
+}
+
+// --- Draw Treasure Room ---
+function drawTreasureRoom() {
+    const tr = G.treasureRoom;
+    if (!tr) return;
+    ctx.save();
+    ctx.translate(-G.camX, -G.camY);
+
+    // Chests
+    for (const c of tr.chests) {
+        if (c.collected) continue;
+        const bob = Math.sin(c.pulse) * 2;
+        // Chest glow
+        ctx.globalAlpha = 0.15 + Math.sin(c.pulse) * 0.1;
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath(); ctx.arc(c.x, c.y + bob, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        // Chest body
+        ctx.fillStyle = '#8B4513'; ctx.fillRect(c.x - 8, c.y - 6 + bob, 16, 12);
+        ctx.fillStyle = '#DAA520'; ctx.fillRect(c.x - 7, c.y - 3 + bob, 14, 2);
+        ctx.fillStyle = '#ffd700'; ctx.fillRect(c.x - 2, c.y - 5 + bob, 4, 4);
+        ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 1; ctx.strokeRect(c.x - 8, c.y - 6 + bob, 16, 12);
+    }
+
+    // Fountain
+    if (tr.fountain && !tr.fountain.used) {
+        const f = tr.fountain;
+        const glow = Math.sin(f.pulse) * 0.1 + 0.2;
+        ctx.globalAlpha = glow;
+        ctx.fillStyle = '#44ff44';
+        ctx.beginPath(); ctx.arc(f.x, f.y, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        // Fountain base
+        ctx.fillStyle = '#336633'; ctx.fillRect(f.x - 10, f.y - 4, 20, 8);
+        ctx.fillStyle = '#44ff44'; ctx.fillRect(f.x - 6, f.y - 8, 12, 6);
+        ctx.fillStyle = '#88ffaa'; ctx.fillRect(f.x - 2, f.y - 12, 4, 6);
+        drawText('HP', f.x, f.y + 12, { font: 'bold 8px monospace', fill: '#44ff44', align: 'center', outlineWidth: 2 });
+    }
+
+    // Timer
+    const timeLeft = Math.ceil(tr.timer);
+    drawText(`${tr.collected}/${tr.total} chests • ${timeLeft}s`, G.camX + GAME_W / 2, G.camY + 30, { font: 'bold 10px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3 });
+
+    ctx.restore();
+}
+
+// --- Ranged Enemy (Archer) Projectiles ---
+function updateArcherProjectiles(dt) {
+    if (!G.archerBullets) G.archerBullets = [];
+    for (let i = G.archerBullets.length - 1; i >= 0; i--) {
+        const b = G.archerBullets[i];
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.life -= dt;
+        if (b.life <= 0) { G.archerBullets.splice(i, 1); continue; }
+        // Hit player
+        if (P.invincible <= 0 && Math.hypot(P.x - b.x, P.y - b.y) < 8) {
+            const dr = typeof getBondDmgReduction === 'function' ? getBondDmgReduction() : 0;
+            const dmg = b.dmg * (1 - dr);
+            P.hp -= dmg;
+            P.damageFlash = 0.15;
+            P.invincible = 0.3;
+            G.combo = 0;
+            shake(2, 0.1);
+            spawnDmgNum(P.x, P.y - 12, Math.ceil(dmg), '#ff3333', true);
+            spawnParticles(P.x, P.y, '#ff33ff', 4, 30);
+            SFX.playerHit();
+            G.archerBullets.splice(i, 1);
+        }
+    }
+}
+
+function drawArcherProjectiles() {
+    if (!G.archerBullets) return;
+    ctx.save();
+    ctx.translate(-G.camX, -G.camY);
+    for (const b of G.archerBullets) {
+        ctx.fillStyle = '#ff44ff';
+        ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ff88ff';
+        ctx.globalAlpha = 0.4;
+        ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+}
+

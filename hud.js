@@ -154,14 +154,35 @@ function drawHUD() {
         slotIdx++;
     }
 
+    // --- Dodge Cooldown Indicator ---
+    const dodgeCdPct = P.dodgeCd > 0 ? P.dodgeCd / 1.0 : 0;
+    const dodgeBarX = slotStart + slotIdx * (slotSize + 5) + 4;
+    const dodgeBarY = slotY + 4;
+    const dodgeBarW = 28, dodgeBarH = 14;
+    ctx.fillStyle = 'rgba(10,10,20,0.85)'; ctx.fillRect(dodgeBarX, dodgeBarY, dodgeBarW, dodgeBarH);
+    ctx.strokeStyle = dodgeCdPct > 0 ? '#555' : '#aaaaff'; ctx.lineWidth = 1; ctx.strokeRect(dodgeBarX, dodgeBarY, dodgeBarW, dodgeBarH);
+    if (dodgeCdPct > 0) {
+        ctx.fillStyle = '#555566'; ctx.fillRect(dodgeBarX + 1, dodgeBarY + 1, (dodgeBarW - 2) * (1 - dodgeCdPct), dodgeBarH - 2);
+    } else {
+        ctx.fillStyle = '#6666ff'; ctx.fillRect(dodgeBarX + 1, dodgeBarY + 1, dodgeBarW - 2, dodgeBarH - 2);
+        // Ready glow
+        ctx.globalAlpha = Math.sin(G.time * 5) * 0.15 + 0.1;
+        ctx.fillStyle = '#aaaaff'; ctx.fillRect(dodgeBarX + 1, dodgeBarY + 1, dodgeBarW - 2, dodgeBarH - 2);
+        ctx.globalAlpha = 1;
+    }
+    drawText('⚡', dodgeBarX + dodgeBarW / 2, dodgeBarY, { font: 'bold 10px monospace', fill: dodgeCdPct > 0 ? '#666' : '#aaf', align: 'center' });
+
     // --- Boss HP Bar (top center) ---
     drawBossHPBar();
 
     // --- Kill Progress ---
-    if (!G.portalActive) {
+    if (G.treasureRoom) {
+        drawText('🏛️ TREASURE ROOM', GAME_W / 2, 5, { font: 'bold 12px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
+    } else if (!G.portalActive) {
         const kpW = 100, kpH = 6;
         const kpX = GAME_W / 2 - kpW / 2, kpY = 4;
-        drawBar(kpX, kpY, kpW, kpH, G.enemiesKilled / G.enemiesNeeded, '#ff8800', '#1a1a1a', '#555');
+        const kpPct = G.enemiesNeeded > 0 ? G.enemiesKilled / G.enemiesNeeded : 0;
+        drawBar(kpX, kpY, kpW, kpH, kpPct, '#ff8800', '#1a1a1a', '#555');
         drawText(`${G.enemiesKilled}/${G.enemiesNeeded}`, GAME_W / 2, kpY + kpH + 2, { font: 'bold 9px monospace', fill: '#eee', align: 'center' });
     } else {
         drawText('⚡ PORTAL OPEN! ⚡', GAME_W / 2, 5, { font: 'bold 14px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
@@ -367,8 +388,45 @@ function drawMenuScreen() {
     // Controls hint
     drawText('WASD/Arrows: Move • Auto-attack • Space: Dodge Roll', GAME_W / 2, GAME_H / 2 + 75, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
 
+    // High Score Leaderboard
+    const scores = getHighScores();
+    if (scores.length > 0) {
+        drawText('⭐ HIGH SCORES', GAME_W / 2, GAME_H / 2 + 100, { font: 'bold 10px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3 });
+        for (let i = 0; i < Math.min(scores.length, 5); i++) {
+            const s = scores[i];
+            const gradeColor = { S: '#ffd700', A: '#44ff44', B: '#44bbff', C: '#ffaa00', D: '#ff4444' }[s.grade] || '#888';
+            const dateStr = s.date || '';
+            drawText(
+                `${i + 1}. ${s.score}G  F${s.floor}  ${s.grade}  ${dateStr}`,
+                GAME_W / 2, GAME_H / 2 + 115 + i * 13,
+                { font: '8px monospace', fill: i === 0 ? '#ffd700' : '#888', align: 'center', outline: false }
+            );
+        }
+    }
+
     // Version
-    drawText('v0.5.0 — Premium Edition', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
+    drawText('v0.6.0 — Premium Edition', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
+}
+
+// --- High Score System ---
+function getHighScores() {
+    try {
+        return JSON.parse(localStorage.getItem('dbd_highscores') || '[]');
+    } catch (e) { return []; }
+}
+
+function saveHighScore() {
+    const timeAlive = HUD.killTimer || 0;
+    const gradeScore = G.score + G.maxCombo * 5 + G.floor * 100 + P.level * 50;
+    const grade = gradeScore >= 5000 ? 'S' : gradeScore >= 3000 ? 'A' : gradeScore >= 1500 ? 'B' : gradeScore >= 500 ? 'C' : 'D';
+    const now = new Date();
+    const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
+    const entry = { score: G.score, floor: G.floor, level: P.level, grade, date: dateStr, combo: G.maxCombo };
+    const scores = getHighScores();
+    scores.push(entry);
+    scores.sort((a, b) => b.score - a.score);
+    if (scores.length > 10) scores.length = 10;
+    try { localStorage.setItem('dbd_highscores', JSON.stringify(scores)); } catch (e) { }
 }
 
 // --- Game Over Screen (Run Stats) ---
@@ -461,74 +519,118 @@ function drawBondingScreen() {
     }
     ctx.globalAlpha = 1;
 
-    // Title
-    drawText('BROTHERHOOD BONDS', GAME_W / 2, 8, { font: 'bold 14px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
+    // --- Tab state ---
+    if (typeof G.bondingTab === 'undefined') G.bondingTab = 0;
 
-    // Darkness counter
-    drawText(`⬥ ${BondingState.darkness}`, GAME_W - 10, 10, { font: 'bold 10px monospace', fill: '#bb77ff', align: 'right' });
+    // --- Title ---
+    drawText('BROTHERHOOD', GAME_W / 2, 6, { font: 'bold 16px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
 
-    // Bond Selection — 3x3 grid
+    // --- Darkness counter (top-right) ---
+    drawText(`◆ ${BondingState.darkness}`, GAME_W - 15, 8, { font: 'bold 11px monospace', fill: '#bb77ff', align: 'right' });
+
+    // --- Tabs ---
+    const tabY = 26, tabH = 18, tabW = 130;
+    const tab0X = GAME_W / 2 - tabW - 5;
+    const tab1X = GAME_W / 2 + 5;
+
+    // Tab 0: BONDS
+    ctx.fillStyle = G.bondingTab === 0 ? 'rgba(80,60,20,0.9)' : 'rgba(15,12,25,0.7)';
+    ctx.fillRect(tab0X, tabY, tabW, tabH);
+    ctx.strokeStyle = G.bondingTab === 0 ? '#ffd700' : '#444';
+    ctx.lineWidth = G.bondingTab === 0 ? 2 : 1;
+    ctx.strokeRect(tab0X, tabY, tabW, tabH);
+    drawText('⚔ BONDS', tab0X + tabW / 2, tabY + 2, { font: 'bold 11px monospace', fill: G.bondingTab === 0 ? '#ffd700' : '#666', align: 'center', outlineWidth: 2 });
+
+    // Tab 1: ARCANA
+    ctx.fillStyle = G.bondingTab === 1 ? 'rgba(60,40,100,0.9)' : 'rgba(15,12,25,0.7)';
+    ctx.fillRect(tab1X, tabY, tabW, tabH);
+    ctx.strokeStyle = G.bondingTab === 1 ? '#aa88ff' : '#444';
+    ctx.lineWidth = G.bondingTab === 1 ? 2 : 1;
+    ctx.strokeRect(tab1X, tabY, tabW, tabH);
+    drawText('🔮 ARCANA', tab1X + tabW / 2, tabY + 2, { font: 'bold 11px monospace', fill: G.bondingTab === 1 ? '#aa88ff' : '#666', align: 'center', outlineWidth: 2 });
+
+    // --- Tab Content ---
+    if (G.bondingTab === 0) {
+        drawBondsTab();
+    } else {
+        drawArcanaTab();
+    }
+
+    // --- Start button (always visible) ---
+    const btnW = 200, btnH = 28;
+    const btnX = GAME_W / 2 - btnW / 2;
+    const btnY = GAME_H - 38;
+    const pulse = Math.sin(G.time * 4) * 0.1 + 0.9;
+    ctx.fillStyle = `rgba(40,100,40,${pulse})`; ctx.fillRect(btnX, btnY, btnW, btnH);
+    ctx.strokeStyle = '#44ff44'; ctx.lineWidth = 2; ctx.strokeRect(btnX, btnY, btnW, btnH);
+    drawText('⚔ BEGIN DUNGEON ⚔', GAME_W / 2, btnY + 5, { font: 'bold 14px monospace', fill: '#ffffff', align: 'center', outlineWidth: 4 });
+}
+
+// --- BONDS TAB ---
+function drawBondsTab() {
     const factions = ['Shu', 'Wei', 'Wu'];
-    const factionColors = { Shu: '#ff4444', Wei: '#4488ff', Wu: '#44dd44', Other: '#ffd700' };
-    const cardW = 70, cardH = 38, gapX = 6, gapY = 6;
-    const gridStartX = 10, gridStartY = 28;
+    const factionColors = { Shu: '#ff4444', Wei: '#4488ff', Wu: '#44dd44' };
+    const cardW = 210, cardH = 52, gapX = 15, gapY = 8;
+    const gridStartX = GAME_W / 2 - cardW - gapX / 2;
+    const gridStartY = 52;
 
+    let cardIdx = 0;
     for (let fi = 0; fi < factions.length; fi++) {
         const faction = factions[fi];
         const fBonds = BONDS.filter(b => b.faction === faction);
         for (let bi = 0; bi < fBonds.length; bi++) {
             const bond = fBonds[bi];
-            const bx = gridStartX + bi * (cardW + gapX);
-            const by = gridStartY + fi * (cardH + gapY);
+            const col = cardIdx % 2;
+            const row = Math.floor(cardIdx / 2);
+            const bx = gridStartX + col * (cardW + gapX);
+            const by = gridStartY + row * (cardH + gapY);
             const isEquipped = BondingState.equippedBond === bond.id;
             const level = BondingState.bondLevels[bond.id] || 0;
+            cardIdx++;
 
             // Card background
             ctx.fillStyle = isEquipped ? 'rgba(60,40,20,0.95)' : 'rgba(15,12,25,0.9)';
             ctx.fillRect(bx, by, cardW, cardH);
             ctx.strokeStyle = isEquipped ? '#ffd700' : (factionColors[faction] || '#555');
-            ctx.lineWidth = isEquipped ? 2 : 1;
+            ctx.lineWidth = isEquipped ? 2.5 : 1;
             ctx.strokeRect(bx, by, cardW, cardH);
 
             // Equipped glow
             if (isEquipped) {
-                ctx.fillStyle = '#ffd700'; ctx.globalAlpha = 0.15;
+                ctx.fillStyle = '#ffd700'; ctx.globalAlpha = 0.12;
                 ctx.fillRect(bx + 1, by + 1, cardW - 2, cardH - 2);
                 ctx.globalAlpha = 1;
             }
 
-            // Bond name (truncated)
-            const shortName = bond.name.length > 12 ? bond.name.substring(0, 11) + '…' : bond.name;
-            drawText(shortName, bx + cardW / 2, by + 4, { font: 'bold 7px monospace', fill: isEquipped ? '#ffd700' : '#ddd', align: 'center', outlineWidth: 2 });
+            // Faction color strip (left edge)
+            ctx.fillStyle = factionColors[faction]; ctx.globalAlpha = 0.5;
+            ctx.fillRect(bx + 1, by + 1, 4, cardH - 2);
+            ctx.globalAlpha = 1;
 
-            // Level dots
-            for (let l = 0; l < 3; l++) {
-                const dotX = bx + cardW / 2 - 8 + l * 8;
-                ctx.fillStyle = l < level ? '#ffd700' : '#333';
-                ctx.beginPath(); ctx.arc(dotX, by + 17, 2.5, 0, Math.PI * 2); ctx.fill();
-            }
+            // Bond name — FULL, no truncation
+            drawText(bond.name, bx + 12, by + 5, { font: 'bold 11px monospace', fill: isEquipped ? '#ffd700' : '#eee', outlineWidth: 2 });
 
-            // Effect text
+            // Rank stars
+            let starStr = '';
+            for (let l = 0; l < 3; l++) starStr += l < level ? '★' : '☆';
+            drawText(starStr, bx + 12, by + 21, { font: '11px monospace', fill: level > 0 ? '#ffd700' : '#444', outline: false });
+
+            // Faction tag
+            drawText(faction, bx + cardW - 10, by + 5, { font: 'bold 10px monospace', fill: factionColors[faction], align: 'right' });
+
+            // Effect or locked status
             if (level > 0) {
                 const fx = bond.levels[level - 1];
-                const fxShort = fx.name.length > 12 ? fx.name.substring(0, 11) + '…' : fx.name;
-                drawText(fxShort, bx + cardW / 2, by + 24, { font: '6px monospace', fill: '#999', align: 'center', outline: false });
+                drawText(fx.name, bx + 12, by + 36, { font: '9px monospace', fill: '#aaa', outline: false });
             } else {
-                drawText('Locked', bx + cardW / 2, by + 24, { font: '6px monospace', fill: '#555', align: 'center', outline: false });
+                drawText('Locked', bx + 12, by + 36, { font: '9px monospace', fill: '#555', outline: false });
             }
-
-            // Faction label
-            ctx.fillStyle = factionColors[faction]; ctx.globalAlpha = 0.4;
-            ctx.fillRect(bx + 1, by + cardH - 8, cardW - 2, 7);
-            ctx.globalAlpha = 1;
-            drawText(faction, bx + cardW / 2, by + cardH - 8, { font: 'bold 6px monospace', fill: '#fff', align: 'center', outline: false });
         }
     }
+}
 
-    // Skill Tree Section — right side
-    const treeX = GAME_W / 2 + 20;
-    drawText('ARCANA CARDS', treeX + 90, 28, { font: 'bold 11px monospace', fill: '#aa88ff', align: 'center', outlineWidth: 3 });
-
+// --- ARCANA TAB ---
+function drawArcanaTab() {
     // Grasp budget
     const maxGrasp = 5 + Math.floor(BondingState.darkness / 50);
     let usedGrasp = 0;
@@ -536,18 +638,18 @@ function drawBondingScreen() {
         const card = SKILL_TREE.find(c => c.id === id);
         if (card) usedGrasp += card.grasp;
     });
-    drawText(`Grasp: ${usedGrasp}/${maxGrasp}`, treeX + 90, 42, { font: 'bold 9px monospace', fill: usedGrasp <= maxGrasp ? '#88ff88' : '#ff4444', align: 'center' });
-    drawBar(treeX + 30, 54, 120, 5, usedGrasp / maxGrasp, usedGrasp <= maxGrasp ? '#88ff88' : '#ff4444', '#1a1a1a', '#333');
+    drawText(`Grasp: ${usedGrasp}/${maxGrasp}`, GAME_W / 2, 50, { font: 'bold 11px monospace', fill: usedGrasp <= maxGrasp ? '#88ff88' : '#ff4444', align: 'center' });
+    drawBar(GAME_W / 2 - 60, 64, 120, 5, usedGrasp / maxGrasp, usedGrasp <= maxGrasp ? '#88ff88' : '#ff4444', '#1a1a1a', '#333');
 
-    // Draw skill cards in 4 rows
-    const scW = 50, scH = 28, scGap = 4;
-    const rows = [0, 1, 2, 3];
-    let scY = 64;
+    // Skill cards — tiered rows (dynamic width for rows with many cards)
+    const scH = 42, scGap = 8;
+    let scY = 78;
 
-    for (const row of rows) {
+    for (let row = 0; row < 4; row++) {
         const rowCards = SKILL_TREE.filter(c => c.row === row);
+        const scW = rowCards.length >= 5 ? 86 : 130;
         const rowW = rowCards.length * (scW + scGap) - scGap;
-        let scX = treeX + 90 - rowW / 2;
+        let scX = GAME_W / 2 - rowW / 2;
 
         for (const card of rowCards) {
             const isEquipped = BondingState.equippedCards.includes(card.id);
@@ -559,108 +661,113 @@ function drawBondingScreen() {
             ctx.lineWidth = isEquipped ? 2 : 1;
             ctx.strokeRect(scX, scY, scW, scH);
 
-            // Icon + name
-            drawText(card.icon, scX + 4, scY + 4, { font: '10px monospace', fill: isUnlocked ? '#fff' : '#444', outline: false });
-            const sName = card.name.length > 7 ? card.name.substring(0, 6) + '…' : card.name;
-            drawText(sName, scX + 18, scY + 5, { font: 'bold 6px monospace', fill: isEquipped ? '#ffd700' : isUnlocked ? '#ccc' : '#444', outline: false });
+            // Icon + name (adaptive size for narrow cards)
+            const isNarrow = scW < 100;
+            const iconFont = isNarrow ? '10px monospace' : '14px monospace';
+            const nameFont = isNarrow ? 'bold 8px monospace' : 'bold 10px monospace';
+            const nameX = isNarrow ? 18 : 24;
+            drawText(card.icon, scX + 6, scY + (isNarrow ? 6 : 4), { font: iconFont, fill: isUnlocked ? '#fff' : '#444', outline: false });
+            drawText(card.name, scX + nameX, scY + 5, { font: nameFont, fill: isEquipped ? '#ffd700' : isUnlocked ? '#ddd' : '#555', outlineWidth: isNarrow ? 1 : 2 });
 
             // Grasp cost
-            drawText(`◆${card.grasp}`, scX + scW - 4, scY + 18, { font: '6px monospace', fill: isEquipped ? '#ffd700' : '#777', align: 'right', outline: false });
+            drawText(`◆${card.grasp}`, scX + scW - 6, scY + 5, { font: isNarrow ? '7px monospace' : 'bold 9px monospace', fill: isEquipped ? '#ffd700' : '#777', align: 'right', outline: false });
 
-            // Lock icon
+            // Lock / effect
             if (!isUnlocked) {
-                drawText('🔒', scX + 4, scY + 16, { font: '7px monospace', fill: '#555', outline: false });
-                drawText(`${card.cost}⬥`, scX + 18, scY + 17, { font: '6px monospace', fill: '#bb77ff', outline: false });
+                drawText(`🔒 ${card.cost}◆`, scX + 6, scY + 26, { font: '9px monospace', fill: '#bb77ff', outline: false });
+            } else {
+                drawText(card.desc || 'Equipped', scX + 6, scY + 26, { font: '8px monospace', fill: '#888', outline: false });
             }
 
             scX += scW + scGap;
         }
-        scY += scH + scGap + 2;
+        scY += scH + scGap;
     }
-
-    // Start button
-    const btnW = 160, btnH = 24;
-    const btnX = GAME_W / 2 - btnW / 2;
-    const btnY = GAME_H - 40;
-    const pulse = Math.sin(G.time * 4) * 0.1 + 0.9;
-
-    ctx.fillStyle = `rgba(40,100,40,${pulse})`; ctx.fillRect(btnX, btnY, btnW, btnH);
-    ctx.strokeStyle = '#44ff44'; ctx.lineWidth = 2; ctx.strokeRect(btnX, btnY, btnW, btnH);
-    drawText('⚔ BEGIN DUNGEON ⚔', GAME_W / 2, btnY + 5, { font: 'bold 12px monospace', fill: '#ffffff', align: 'center', outlineWidth: 3 });
 }
 
 // --- Handle Bonding Screen Click ---
 function handleBondingClick(mx, my) {
     // Check Start button
-    const btnW = 160, btnH = 24;
+    const btnW = 200, btnH = 28;
     const btnX = GAME_W / 2 - btnW / 2;
-    const btnY = GAME_H - 40;
+    const btnY = GAME_H - 38;
     if (mx >= btnX && mx <= btnX + btnW && my >= btnY && my <= btnY + btnH) {
         SFX.menuClick();
         startGame();
         return;
     }
 
-    // Check bond cards
-    const factions = ['Shu', 'Wei', 'Wu'];
-    const cardW = 70, cardH = 38, gapX = 6, gapY = 6;
-    const gridStartX = 10, gridStartY = 28;
-
-    for (let fi = 0; fi < factions.length; fi++) {
-        const faction = factions[fi];
-        const fBonds = BONDS.filter(b => b.faction === faction);
-        for (let bi = 0; bi < fBonds.length; bi++) {
-            const bond = fBonds[bi];
-            const bx = gridStartX + bi * (cardW + gapX);
-            const by = gridStartY + fi * (cardH + gapY);
-            const level = BondingState.bondLevels[bond.id] || 0;
-
-            if (mx >= bx && mx <= bx + cardW && my >= by && my <= by + cardH) {
-                if (level > 0) {
-                    // Toggle equip/unequip
-                    BondingState.equippedBond = (BondingState.equippedBond === bond.id) ? null : bond.id;
-                    SFX.menuClick();
-                }
-                return;
-            }
-        }
+    // Check tab clicks
+    const tabY = 26, tabH = 18, tabW = 130;
+    const tab0X = GAME_W / 2 - tabW - 5;
+    const tab1X = GAME_W / 2 + 5;
+    if (my >= tabY && my <= tabY + tabH) {
+        if (mx >= tab0X && mx <= tab0X + tabW) { G.bondingTab = 0; SFX.menuClick(); return; }
+        if (mx >= tab1X && mx <= tab1X + tabW) { G.bondingTab = 1; SFX.menuClick(); return; }
     }
 
-    // Check skill tree cards
-    const treeX = GAME_W / 2 + 20;
-    const scW = 50, scH = 28, scGap = 4;
-    const rows = [0, 1, 2, 3];
-    let scY = 64;
+    if (G.bondingTab === 0) {
+        // Check bond cards
+        const factions = ['Shu', 'Wei', 'Wu'];
+        const cardW = 210, cardH = 52, gapX = 15, gapY = 8;
+        const gridStartX = GAME_W / 2 - cardW - gapX / 2;
+        const gridStartY = 52;
 
-    for (const row of rows) {
-        const rowCards = SKILL_TREE.filter(c => c.row === row);
-        const rowW = rowCards.length * (scW + scGap) - scGap;
-        let scX = treeX + 90 - rowW / 2;
+        let cardIdx = 0;
+        for (let fi = 0; fi < factions.length; fi++) {
+            const faction = factions[fi];
+            const fBonds = BONDS.filter(b => b.faction === faction);
+            for (let bi = 0; bi < fBonds.length; bi++) {
+                const bond = fBonds[bi];
+                const col = cardIdx % 2;
+                const row = Math.floor(cardIdx / 2);
+                const bx = gridStartX + col * (cardW + gapX);
+                const by = gridStartY + row * (cardH + gapY);
+                const level = BondingState.bondLevels[bond.id] || 0;
+                cardIdx++;
 
-        for (const card of rowCards) {
-            if (mx >= scX && mx <= scX + scW && my >= scY && my <= scY + scH) {
-                const isUnlocked = card.unlocked || BondingState.unlockedCards.includes(card.id);
-                const isEquipped = BondingState.equippedCards.includes(card.id);
-
-                if (!isUnlocked && BondingState.darkness >= card.cost) {
-                    // Unlock it
-                    BondingState.darkness -= card.cost;
-                    BondingState.unlockedCards.push(card.id);
-                    SFX.goldPickup();
-                } else if (isUnlocked && !isEquipped) {
-                    // Equip it
-                    BondingState.equippedCards.push(card.id);
-                    SFX.menuClick();
-                } else if (isEquipped) {
-                    // Unequip it
-                    BondingState.equippedCards = BondingState.equippedCards.filter(id => id !== card.id);
-                    SFX.menuClick();
+                if (mx >= bx && mx <= bx + cardW && my >= by && my <= by + cardH) {
+                    if (level > 0) {
+                        BondingState.equippedBond = (BondingState.equippedBond === bond.id) ? null : bond.id;
+                        SFX.menuClick();
+                    }
+                    return;
                 }
-                return;
             }
-            scX += scW + scGap;
         }
-        scY += scH + scGap + 2;
+    } else {
+        // Check skill tree cards
+        const scH = 42, scGap = 8;
+        let scY = 78;
+
+        for (let row = 0; row < 4; row++) {
+            const rowCards = SKILL_TREE.filter(c => c.row === row);
+            const scW = rowCards.length >= 5 ? 86 : 130;
+            const rowW = rowCards.length * (scW + scGap) - scGap;
+            let scX = GAME_W / 2 - rowW / 2;
+
+            for (const card of rowCards) {
+                if (mx >= scX && mx <= scX + scW && my >= scY && my <= scY + scH) {
+                    const isUnlocked = card.unlocked || BondingState.unlockedCards.includes(card.id);
+                    const isEquipped = BondingState.equippedCards.includes(card.id);
+
+                    if (!isUnlocked && BondingState.darkness >= card.cost) {
+                        BondingState.darkness -= card.cost;
+                        BondingState.unlockedCards.push(card.id);
+                        SFX.goldPickup();
+                    } else if (isUnlocked && !isEquipped) {
+                        BondingState.equippedCards.push(card.id);
+                        SFX.menuClick();
+                    } else if (isEquipped) {
+                        BondingState.equippedCards = BondingState.equippedCards.filter(id => id !== card.id);
+                        SFX.menuClick();
+                    }
+                    return;
+                }
+                scX += scW + scGap;
+            }
+            scY += scH + scGap;
+        }
     }
 }
 
