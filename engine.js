@@ -48,6 +48,14 @@ const G = {
     treasureRoom: null,
     archerBullets: [],
     bondingTab: 0,
+    // Phase G: Entourage System
+    morale: 0,                // Morale meter 0-100
+    moraleDecayTimer: 0,      // Timer for morale decay (every 5s)
+    allyAura: { dmgReduction: 0, atkSpd: 0, critBonus: 0 }, // Active ally aura buffs
+    // Phase H: Brotherhood Combos & Language
+    brotherhoodGauge: 0,      // Brotherhood combo gauge 0-100
+    brotherhoodCooldown: 0,   // Cooldown between combo activations
+    lang: 'vi',               // Language setting: 'vi' or 'en'
 };
 
 // --- Player ---
@@ -133,6 +141,17 @@ window.addEventListener('keydown', e => {
     if ((e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && G.state === 'PLAYING') {
         e.preventDefault();
         if (typeof fireUltimateSkill === 'function') fireUltimateSkill();
+    }
+    // --- Brotherhood Combo (R key) ---
+    if ((e.code === 'KeyR' || e.key === 'r' || e.key === 'R') && G.state === 'PLAYING') {
+        e.preventDefault();
+        if (typeof executeBrotherhoodCombo === 'function') executeBrotherhoodCombo();
+    }
+    // --- Language Toggle (L key) ---
+    if ((e.code === 'KeyL' || e.key === 'l' || e.key === 'L') && (G.state === 'MENU' || G.state === 'HERO_SELECT' || G.state === 'PLAYING' || G.state === 'PAUSED')) {
+        e.preventDefault();
+        G.lang = G.lang === 'vi' ? 'en' : 'vi';
+        if (typeof setLang === 'function') setLang(G.lang);
     }
 
     // --- Quick Select: Level-Up choices (1/2/3 keys) ---

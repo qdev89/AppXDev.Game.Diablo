@@ -18,17 +18,23 @@ const WEAPON_DEFS = [
     {
         id: 'metal_twin', name: '🪙 Twin Blades', el: 'METAL', type: 'orbital',
         desc: 'Zhou Yu\'s dual swords — fast spinning orbit',
-        dmg: 7, cd: 0.2, range: 40, count: 2, tier: 1, heroOnly: 'assassin'
+        dmg: 6, cd: 0.3, range: 40, count: 2, tier: 1, heroOnly: 'assassin'
     },
     {
         id: 'earth_spear', name: '🟤 Dragon Spear', el: 'EARTH', type: 'melee',
         desc: 'Zhao Yun\'s spear — long reach forward thrust',
-        dmg: 14, cd: 0.7, range: 55, arc: 45, tier: 1, heroOnly: 'vanguard'
+        dmg: 16, cd: 0.7, range: 55, arc: 45, tier: 1, heroOnly: 'vanguard'
     },
     {
         id: 'water_scepter', name: '🔵 Dark Scepter', el: 'WATER', type: 'projectile',
         desc: 'Sima Yi\'s scepter — homing frost bolts',
-        dmg: 13, cd: 1.1, range: 160, speed: 150, homing: true, tier: 1, heroOnly: 'mystic'
+        dmg: 15, cd: 1.0, range: 160, speed: 150, homing: true, tier: 1, heroOnly: 'mystic'
+    },
+    {
+        id: 'wood_shuriken', name: '🌟 Wind Shuriken', el: 'WOOD', type: 'thrown',
+        desc: 'Huang Zhong\'s shuriken — 3-fan spread + pierce',
+        dmg: 10, cd: 0.7, range: 170, speed: 220, spread: 3, spreadAngle: 30,
+        pierce: 1, tier: 1, heroOnly: 'ranger'
     },
 
     // ===== GENERIC WEAPONS (loot/level-up pool) =====
@@ -41,8 +47,8 @@ const WEAPON_DEFS = [
         dmg: 8, cd: 0.3, range: 50, count: 3, tier: 1
     },
     {
-        id: 'water_bolt', name: '🔵 Frost Bolt', el: 'WATER', type: 'projectile', desc: 'Auto-fires at nearest enemy',
-        dmg: 15, cd: 1.2, range: 150, speed: 200, tier: 1
+        id: 'water_bolt', name: '🔵 Chain Frost', el: 'WATER', type: 'projectile', desc: 'Bounces between 3 enemies + slows',
+        dmg: 13, cd: 1.0, range: 160, speed: 240, chain: 3, slowPct: 0.3, slowDur: 1.5, tier: 1
     },
     {
         id: 'wood_vine', name: '🟢 Root Zone', el: 'WOOD', type: 'aoe', desc: 'Healing vines damage nearby foes',
@@ -72,6 +78,17 @@ const WEAPON_DEFS = [
         id: 'earth_quake', name: '🟤 Earthquake', el: 'EARTH', type: 'aoe', desc: 'Ground slam, stuns nearby',
         dmg: 25, cd: 3.0, range: 80, tier: 2
     },
+    // Thrown weapons (Ranger pool)
+    {
+        id: 'fire_kunai', name: '🔴 Flame Kunai', el: 'FIRE', type: 'thrown', desc: 'Piercing flame kunai + burn DOT',
+        dmg: 9, cd: 0.5, range: 130, speed: 260, spread: 2, spreadAngle: 15,
+        pierce: 2, burnDot: 3, tier: 1
+    },
+    {
+        id: 'metal_crossbow', name: '🪙 Repeating Crossbow', el: 'METAL', type: 'thrown', desc: 'Rapid-fire crossbow bolts',
+        dmg: 7, cd: 0.3, range: 140, speed: 300, spread: 1, spreadAngle: 0,
+        pierce: 0, tier: 2
+    },
     // Passives
     { id: 'atk_speed', name: '⚡ Swift Strikes', type: 'passive', desc: '+20% attack speed', stat: 'atkSpd', val: 0.2 },
     { id: 'max_hp', name: '❤️ Vitality', type: 'passive', desc: '+25 max HP', stat: 'maxHp', val: 25 },
@@ -98,7 +115,8 @@ function applyPassive(def) {
 
 // --- Weapon Update ---
 function updateWeapons(dt) {
-    const spdMult = 1 + passives.atkSpd;
+    const auraAtkSpd = (G.allyAura && G.allyAura.atkSpd) ? G.allyAura.atkSpd : 0;
+    const spdMult = 1 + passives.atkSpd + auraAtkSpd;
     for (const w of G.weapons) {
         w.timer -= dt * spdMult;
         if (w.type === 'orbital') {
@@ -116,6 +134,7 @@ function fireWeapon(w) {
     switch (w.type) {
         case 'melee': fireMelee(w, el); break;
         case 'projectile': fireProjectile(w, el); break;
+        case 'thrown': fireThrown(w, el); break;
         case 'orbital': fireOrbital(w, el); break;
         case 'aoe': fireAoE(w, el); break;
         case 'shield': fireShield(w, el); break;
@@ -286,6 +305,94 @@ function fireProjectile(w, el) {
     }
 }
 
+// --- Phase H: Thrown Weapons (Shuriken / Kunai / Crossbow) ---
+function fireThrown(w, el) {
+    // Ranger Eagle Eye passive: +30% range
+    const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
+    const rangeBonus = (hero && hero.passive.stat === 'eagleEye') ? 1.3 : 1;
+
+    let nearest = null, nearDist = (w.range + w.level * 25) * rangeBonus;
+    for (const e of G.enemies) {
+        const d = dist(P, e);
+        if (d < nearDist) { nearDist = d; nearest = e; }
+    }
+    if (!nearest) return;
+    const baseA = Math.atan2(nearest.y - P.y, nearest.x - P.x);
+    const spd = w.speed || 220;
+    const dmg = w.dmg * (1 + w.level * 0.3);
+
+    // Eagle Eye: DMG scales +1% per 10px distance
+    let distBonus = 1;
+    if (hero && hero.passive.stat === 'eagleEye') {
+        distBonus = 1 + Math.min(nearDist * 0.001, 0.5); // Max +50%
+    }
+
+    const count = w.spread || 1;
+    const spreadRad = (w.spreadAngle || 0) * Math.PI / 180;
+    for (let i = 0; i < count; i++) {
+        let a = baseA;
+        if (count > 1) {
+            a = baseA - spreadRad / 2 + (spreadRad / (count - 1)) * i;
+        }
+        G.bullets.push({
+            x: P.x, y: P.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+            dmg: dmg * distBonus, el: w.el, color: el.light,
+            life: 2.5, type: 'thrown_star', r: 3 + w.level,
+            pierce: (w.pierce || 0) + (w.level >= 4 ? 1 : 0),
+            spin: 0, spinSpeed: 12 + Math.random() * 6,
+            burnDot: w.burnDot || 0,
+            weaponId: w.id
+        });
+    }
+
+    // === VFX per weapon ===
+    if (w.id === 'wood_shuriken') {
+        // Shuriken — Green wind trail + leaf burst
+        G.skillEffects.push({
+            type: 'wind_cone', x: P.x, y: P.y,
+            facing: P.facing, angle: spreadRad + 0.3,
+            radius: 3, maxRadius: 25, speed: 180,
+            color: '#88ff22', alpha: 0.2, timer: 0.2
+        });
+        for (let i = 0; i < 3; i++) {
+            G.skillEffects.push({
+                type: 'leaf', x: P.x, y: P.y,
+                vx: Math.cos(baseA) * (50 + Math.random() * 40),
+                vy: Math.sin(baseA) * (50 + Math.random() * 40) - 8,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 10,
+                color: i % 2 === 0 ? '#88ff22' : '#aacc44',
+                alpha: 0.5, timer: 0.35, size: 1.5 + Math.random()
+            });
+        }
+        spawnParticles(P.x + P.facing * 8, P.y, '#88ff22', 3, 30);
+    } else if (w.id === 'fire_kunai') {
+        // Kunai — Red flash + fire embers
+        G.skillEffects.push({
+            type: 'impact_flash', x: P.x + P.facing * 8, y: P.y,
+            radius: 8, color: '#ff4400', alpha: 0.5, timer: 0.08
+        });
+        for (let i = 0; i < 2; i++) {
+            G.skillEffects.push({
+                type: 'ember',
+                x: P.x + P.facing * 6, y: P.y,
+                vx: (Math.random() - 0.5) * 20,
+                vy: -(15 + Math.random() * 25),
+                color: i === 0 ? '#ffd700' : '#ff4400',
+                alpha: 0.6, timer: 0.25 + Math.random() * 0.15,
+                size: 1 + Math.random()
+            });
+        }
+    } else if (w.id === 'metal_crossbow') {
+        // Crossbow — Metal flash + spark
+        G.skillEffects.push({
+            type: 'impact_flash', x: P.x + P.facing * 10, y: P.y,
+            radius: 6, color: '#ccccee', alpha: 0.6, timer: 0.06
+        });
+        spawnParticles(P.x + P.facing * 8, P.y, '#ccccee', 2, 20);
+    }
+}
+
 function fireOrbital(w, el) {
     const orbCount = (w.count || 3) + Math.floor(w.level / 2);
     const range = w.range + w.level * 8;
@@ -364,6 +471,12 @@ function damageEnemy(e, dmg, el) {
     // Phase E: Hero passive multipliers
     const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
 
+    // Phase H: Ranger Eagle Eye — DMG scales with distance
+    if (hero && hero.passive.stat === 'eagleEye') {
+        const d = Math.hypot(e.x - P.x, e.y - P.y);
+        mult *= 1 + Math.min(d * 0.002, 0.3); // Max +30%
+    }
+
     // Berserker: Rage mode = 2x damage
     if (P.rageModeTimer > 0) mult *= 2;
 
@@ -374,10 +487,18 @@ function damageEnemy(e, dmg, el) {
 
     // Assassin: Crit chance (20% for 3x)
     let isCrit = false;
-    if (hero && hero.passive.stat === 'critChance' && Math.random() < 0.20) {
+    const baseCrit = (hero && hero.passive.stat === 'critChance') ? 0.20 : 0;
+    const auraCrit = (G.allyAura && G.allyAura.critBonus) ? G.allyAura.critBonus : 0;
+    if (Math.random() < baseCrit + auraCrit) {
         mult *= 3;
         isCrit = true;
     }
+
+    // Phase G: Morale damage bonus
+    const morale = G.morale || 0;
+    if (morale >= 80) mult *= 1.20;
+    else if (morale >= 60) mult *= 1.10;
+    else if (morale >= 30) mult *= 1.05;
 
     const finalDmg = dmg * mult;
     e.hp -= finalDmg;
@@ -415,8 +536,60 @@ function killEnemy(e) {
     G.enemiesKilled++;
 
     // Phase E: Musou gauge fill
-    const musouGain = e.type === 'fodder' ? 1 : e.type === 'elite' ? 8 : e.type === 'boss' ? 25 : 3;
+    const musouGain = e.type === 'fodder' ? 1 : e.type === 'elite' ? 8 : e.type === 'boss' ? 25 : e.type === 'miniboss' ? 15 : 3;
     P.musou = clamp((P.musou || 0) + musouGain, 0, P.musouMax || 100);
+
+    // Phase G: Morale gain on kill
+    G.morale = clamp((G.morale || 0) + (e.type === 'miniboss' ? 15 : e.type === 'boss' ? 25 : 1), 0, 100);
+    if (G.combo > 0 && G.combo % 10 === 0) G.morale = clamp(G.morale + 2, 0, 100);
+
+    // Phase H: Brotherhood gauge charge on kill
+    const comboCharge = e.type === 'miniboss' ? 15 : e.type === 'boss' ? 25 : e.type === 'elite' ? 8 : 5;
+    if (typeof chargeBrotherhoodGauge === 'function') chargeBrotherhoodGauge(comboCharge);
+
+    // Mini-boss kill rewards
+    if (e.type === 'miniboss') {
+        // Celebration
+        G.floorAnnounce = { text: '\u2694 ' + (e.generalName || 'GENERAL') + ' DEFEATED! \u2694', timer: 2.5 };
+        triggerFlash(e.generalColor || '#ffd700', 0.3);
+        shake(5, 0.3);
+        triggerChromatic(2);
+        triggerSpeedLines(1);
+        spawnElementParticles(e.x, e.y, e.el, 20, 100);
+        spawnParticles(e.x, e.y, '#ffd700', 15, 60);
+
+        // Guaranteed equipment drop
+        const equipTypes = ['armor', 'talisman', 'mount'];
+        const eqType = equipTypes[Math.floor(Math.random() * 3)];
+        const quality = G.floor >= 10 ? 'rare' : G.floor >= 5 ? 'uncommon' : 'common';
+        const qualColor = { common: '#88ff88', uncommon: '#44bbff', rare: '#ff88ff' }[quality];
+        const statBonus = quality === 'rare' ? 3 : quality === 'uncommon' ? 2 : 1;
+
+        // Apply equipment
+        if (!G.equipment) G.equipment = { armor: null, talisman: null, mount: null };
+        G.equipment[eqType] = {
+            type: eqType, quality, statBonus,
+            name: (e.generalName || 'General') + "'s " + eqType.charAt(0).toUpperCase() + eqType.slice(1),
+            el: e.el
+        };
+
+        // Apply stat bonuses
+        if (eqType === 'armor') {
+            P.maxHp += statBonus * 10;
+            P.hp = Math.min(P.hp + statBonus * 10, P.maxHp);
+        } else if (eqType === 'talisman') {
+            P.dmgMult = (P.dmgMult || 1) + statBonus * 0.05;
+        } else if (eqType === 'mount') {
+            P.speed += statBonus * 5;
+        }
+
+        // Equipment pickup notification
+        spawnDmgNum(e.x, e.y - 20, eqType.toUpperCase() + '!', qualColor, false);
+
+        // Bonus gold
+        G.score += 50 + G.floor * 10;
+        spawnDmgNum(e.x + 15, e.y - 10, (50 + G.floor * 10) + 'G', '#ffd700', false);
+    }
 
     // Phase E: Total kill counter
     G.totalKills = (G.totalKills || 0) + 1;
@@ -460,7 +633,7 @@ function killEnemy(e) {
     }
 
     // Chance to drop HP orb
-    if (Math.random() < 0.08) {
+    if (Math.random() < 0.06) {
         G.pickups.push({ x: e.x, y: e.y, type: 'hp', val: 15, color: '#ff4444', r: 4, life: 15 });
     }
 

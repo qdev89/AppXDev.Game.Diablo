@@ -250,3 +250,183 @@ function getBondDmgReduction() {
     if (!G.bonding || !G.bonding.activeEffects) return 0;
     return G.bonding.activeEffects.dmgReduction || 0;
 }
+
+// ============================================================
+// Phase H: BROTHERHOOD COMBOS — Active Combo Attacks
+// ============================================================
+const BROTHERHOOD_COMBOS = [
+    {
+        id: 'peach_rush', bondId: 'peach_oath',
+        name: 'Peach Garden Rush',
+        heroes: ['Liu Bei', 'Guan Yu', 'Zhang Fei'],
+        minAllies: 2, // Need at least 2 of these allies alive
+        dmg: 50, range: 100,
+        type: 'rush', // All allies dash forward
+        color: '#ff6644', vfx: 'triple_charge',
+        cooldown: 30, chargeRate: 2 // Charges per kill with bond allies nearby
+    },
+    {
+        id: 'tiger_roar', bondId: 'five_tigers',
+        name: 'Tiger Generals Roar',
+        heroes: ['Guan Yu', 'Zhang Fei', 'Zhao Yun', 'Huang Zhong', 'Ma Chao'],
+        minAllies: 2,
+        dmg: 35, range: 120,
+        type: 'aoe_stun', // AoE stun + damage buff
+        color: '#ff8800', vfx: 'tiger_blast',
+        cooldown: 35, chargeRate: 1.5
+    },
+    {
+        id: 'dragon_phoenix', bondId: 'dragon_phoenix',
+        name: 'Dragon Phoenix Storm',
+        heroes: ['Zhuge Liang', 'Pang Tong'],
+        minAllies: 1,
+        dmg: 60, range: 150,
+        type: 'element_cross', // Cross-element AoE
+        color: '#aaffaa', vfx: 'elemental_burst',
+        cooldown: 40, chargeRate: 3
+    },
+    {
+        id: 'red_cliffs', bondId: 'red_cliffs',
+        name: 'Red Cliffs Inferno',
+        heroes: ['Zhou Yu', 'Zhuge Liang', 'Huang Gai'],
+        minAllies: 2,
+        dmg: 70, range: 130,
+        type: 'fire_wave', // Massive fire wave
+        color: '#ff6600', vfx: 'inferno',
+        cooldown: 45, chargeRate: 2
+    }
+];
+
+// --- Check if combo is available ---
+function getAvailableBrotherhoodCombo() {
+    if (!G.allies || G.allies.length === 0) return null;
+    const aliveAllyNames = G.allies.filter(a => a.hp > 0).map(a => a.name);
+
+    for (const combo of BROTHERHOOD_COMBOS) {
+        const matchCount = combo.heroes.filter(h => aliveAllyNames.includes(h)).length;
+        if (matchCount >= combo.minAllies) {
+            return combo;
+        }
+    }
+    return null;
+}
+
+// --- Charge brotherhood gauge (called from killEnemy) ---
+function chargeBrotherhoodGauge(amount) {
+    if (!G.brotherhoodGauge && G.brotherhoodGauge !== 0) G.brotherhoodGauge = 0;
+    const combo = getAvailableBrotherhoodCombo();
+    if (!combo) return;
+    G.brotherhoodGauge = clamp((G.brotherhoodGauge || 0) + amount * (combo.chargeRate || 1), 0, 100);
+}
+
+// --- Execute Brotherhood Combo ---
+function executeBrotherhoodCombo() {
+    const combo = getAvailableBrotherhoodCombo();
+    if (!combo) return false;
+    if ((G.brotherhoodGauge || 0) < 100) return false;
+    if (G.brotherhoodCooldown > 0) return false;
+
+    G.brotherhoodGauge = 0;
+    G.brotherhoodCooldown = combo.cooldown;
+
+    // Flash announcement
+    G.floorAnnounce = { text: '⚔ ' + (typeof t === 'function' ? t('combo_' + combo.id) : combo.name) + ' ⚔', timer: 2.5 };
+    triggerFlash(combo.color, 0.5);
+    shake(8, 0.5);
+    triggerChromatic(3);
+    if (typeof triggerSpeedLines === 'function') triggerSpeedLines(1.5);
+
+    // Damage all enemies in range
+    const dmg = combo.dmg * (1 + G.floor * 0.1);
+    for (const e of G.enemies) {
+        if (dist(P, e) < combo.range) {
+            damageEnemy(e, dmg, P.element);
+        }
+    }
+
+    // === TYPE-SPECIFIC EFFECTS ===
+    if (combo.type === 'rush') {
+        // All matching allies dash to nearest enemy
+        for (const ally of G.allies) {
+            if (ally.hp > 0 && combo.heroes.includes(ally.name)) {
+                // Temporary speed + damage boost
+                ally._comboRush = 3; // 3s rush
+                ally._comboDmgMult = 2;
+                spawnParticles(ally.x, ally.y, combo.color, 10, 50);
+            }
+        }
+        // Triple shockwave
+        for (let i = 0; i < 3; i++) {
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 10 + i * 15, maxRadius: combo.range * (0.6 + i * 0.2), speed: 200 + i * 50,
+                color: combo.color, alpha: 0.5 - i * 0.1, lineWidth: 3 - i * 0.5,
+                timer: 0.4 + i * 0.1
+            });
+        }
+    } else if (combo.type === 'aoe_stun') {
+        // Stun all enemies in range
+        for (const e of G.enemies) {
+            if (dist(P, e) < combo.range) {
+                e.stunTimer = (e.stunTimer || 0) + 2;
+                e.speed *= 0.3;
+            }
+        }
+        // Tiger roar shockwave
+        G.skillEffects.push({
+            type: 'shockwave', x: P.x, y: P.y,
+            radius: 5, maxRadius: combo.range, speed: 350,
+            color: '#ff8800', alpha: 0.7, lineWidth: 4, timer: 0.5
+        });
+        // Buff allies
+        for (const ally of G.allies) {
+            if (ally.hp > 0) {
+                ally._comboDmgMult = 1.5;
+                ally._comboRush = 5;
+            }
+        }
+    } else if (combo.type === 'element_cross') {
+        // Cross pattern elemental bolts
+        const angles = [0, Math.PI / 4, Math.PI / 2, Math.PI * 3 / 4, Math.PI, Math.PI * 5 / 4, Math.PI * 3 / 2, Math.PI * 7 / 4];
+        const els = ['WOOD', 'FIRE', 'EARTH', 'METAL', 'WATER', 'WOOD', 'FIRE', 'EARTH'];
+        for (let i = 0; i < 8; i++) {
+            const elDef = ELEMENTS[els[i]];
+            G.bullets.push({
+                x: P.x, y: P.y,
+                vx: Math.cos(angles[i]) * 180, vy: Math.sin(angles[i]) * 180,
+                dmg: combo.dmg * 0.5, el: els[i], color: elDef.light,
+                life: 2, type: 'bullet', r: 5, pierce: 5,
+                weaponId: 'brotherhood'
+            });
+        }
+    } else if (combo.type === 'fire_wave') {
+        // Expanding fire ring
+        G.skillEffects.push({
+            type: 'shockwave', x: P.x, y: P.y,
+            radius: 10, maxRadius: combo.range * 1.5, speed: 150,
+            color: '#ff4400', alpha: 0.8, lineWidth: 6, timer: 0.8
+        });
+        G.skillEffects.push({
+            type: 'fire_aura', x: P.x, y: P.y,
+            radius: combo.range, color: '#ff4400', alpha: 0.5, timer: 1.5
+        });
+        // Burn all enemies
+        for (const e of G.enemies) {
+            if (dist(P, e) < combo.range * 1.2) {
+                e._burnTimer = (e._burnTimer || 0) + 4;
+                e._burnDmg = combo.dmg * 0.15;
+            }
+        }
+    }
+
+    // Epic particle burst at player
+    spawnParticles(P.x, P.y, combo.color, 30, 120);
+    spawnParticles(P.x, P.y, '#ffd700', 20, 80);
+    spawnParticles(P.x, P.y, '#ffffff', 15, 60);
+
+    SFX.combo50();
+    if (typeof SFX.bossSpawn === 'function') SFX.bossSpawn();
+
+    return true;
+}
+

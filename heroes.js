@@ -13,7 +13,7 @@ const HEROES = [
         passive: { name: 'Blood Rage', desc: '+2% DMG per combo (max 50%)', stat: 'comboRage' },
         tactical: {
             id: 'ground_slam', name: 'Ground Slam', icon: '💥',
-            desc: 'AoE stun around player', mpCost: 25, cd: 6, range: 80, dmg: 30, stunDur: 1.5
+            desc: 'AoE stun around player', mpCost: 25, cd: 5, range: 80, dmg: 35, stunDur: 1.5
         },
         ultimate: {
             id: 'rage_mode', name: 'Dynasty Fury', icon: '🔥',
@@ -29,7 +29,7 @@ const HEROES = [
         passive: { name: 'Brilliant Mind', desc: '+30% XP, 4 level-up choices', stat: 'xpBonus' },
         tactical: {
             id: 'wind_burst', name: 'Wind Burst', icon: '🌀',
-            desc: 'Cone knockback + slow', mpCost: 35, cd: 7, range: 100, dmg: 15, knockback: 120
+            desc: 'Cone knockback + slow', mpCost: 35, cd: 7, range: 100, dmg: 20, knockback: 120
         },
         ultimate: {
             id: 'eight_trigrams', name: 'Eight Trigrams', icon: '☯',
@@ -45,7 +45,7 @@ const HEROES = [
         passive: { name: 'Lethal Edge', desc: '20% crit chance, crits deal 3x', stat: 'critChance' },
         tactical: {
             id: 'shadow_strike', name: 'Shadow Strike', icon: '⚡',
-            desc: 'Teleport to nearest + backstab', mpCost: 20, cd: 4, dmg: 50, teleRange: 150
+            desc: 'Teleport to nearest + backstab', mpCost: 20, cd: 4, dmg: 40, teleRange: 150
         },
         ultimate: {
             id: 'blade_storm', name: 'Blade Storm', icon: '🗡️',
@@ -84,6 +84,22 @@ const HEROES = [
             desc: 'Summon Phụng — fire AoE + heal', duration: 10, dmg: 25
         },
         dodgeTrail: '#5588ff'
+    },
+    {
+        id: 'ranger', name: 'Huang Zhong', title: 'The Veteran Archer', element: 'WOOD',
+        colors: { body: '#556633', accent: '#aacc44', glow: '#88ff22', hair: '#333311' },
+        startWeapon: 'wood_shuriken', weaponIcon: '🌟', weaponName: 'Wind Shuriken',
+        hp: 85, speed: 105, mp: 100, mpRegen: 3,
+        passive: { name: 'Eagle Eye', desc: 'Range +30%, DMG scales with distance', stat: 'eagleEye' },
+        tactical: {
+            id: 'arrow_rain', name: 'Arrow Rain', icon: '🎯',
+            desc: 'Shuriken barrage rains down AoE', mpCost: 30, cd: 6, range: 120, dmg: 8, count: 12
+        },
+        ultimate: {
+            id: 'shuriken_storm', name: 'Shuriken Storm', icon: '🌀',
+            desc: 'Whirlwind of 20 homing shuriken', dmg: 20, count: 20, duration: 4
+        },
+        dodgeTrail: '#88ff22'
     }
 ];
 
@@ -131,6 +147,9 @@ const COMPANION_DEFS = {
     'Huang Gai': { behavior: 'tank', hp: 90, dmg: 8, atkRate: 2.0, range: 20, speed: 55, color: '#ff4400' },
     'Sun Ce': { behavior: 'melee', hp: 55, dmg: 16, atkRate: 0.9, range: 20, speed: 100, color: '#44dd44' },
     'Zhou Tai': { behavior: 'tank', hp: 90, dmg: 8, atkRate: 1.8, range: 20, speed: 60, color: '#22aa22' },
+    'Huang Zhong': { behavior: 'ranged', hp: 55, dmg: 20, atkRate: 1.5, range: 140, speed: 55, color: '#aacc44' },
+    'Zhao Yun': { behavior: 'melee', hp: 70, dmg: 14, atkRate: 1.0, range: 20, speed: 100, color: '#ddaa44' },
+    'Huang Zhong': { behavior: 'ranged', hp: 55, dmg: 20, atkRate: 1.5, range: 140, speed: 55, color: '#aacc44' },
 };
 
 // --- Sacred Beast: Phụng (Phoenix) ---

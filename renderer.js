@@ -37,6 +37,72 @@ function drawPlayer() {
     ctx.ellipse(px, py + 7, 7, 3, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // Phase G: Mount Visualization
+    const mount = G.equipment ? G.equipment.mount : null;
+    if (mount) {
+        const mountColors = {
+            'FIRE': { body: '#cc3322', mane: '#ff6644', accent: '#ff4400' },   // Red Hare
+            'METAL': { body: '#6666aa', mane: '#aaaacc', accent: '#ccccee' },  // Shadow Steed
+            'EARTH': { body: '#8B7355', mane: '#D2B48C', accent: '#aa8844' },  // War Horse
+            'WATER': { body: '#3366aa', mane: '#66aadd', accent: '#88ccff' },  // Hex Mark
+            'WOOD': { body: '#44aa66', mane: '#88ddaa', accent: '#66ff99' },   // Jade Qilin
+        };
+        const mc = mountColors[mount.el] || mountColors.EARTH;
+        const isMoving = Math.abs(P.vx) > 10 || Math.abs(P.vy) > 10;
+        const legAnim = isMoving ? Math.sin(G.time * 12) * 3 : 0;
+        const bobY = isMoving ? Math.sin(G.time * 8) * 1 : 0;
+        const myY = py + 2 + bobY;
+
+        ctx.save();
+        // Mount body (oval)
+        ctx.fillStyle = mc.body;
+        ctx.beginPath();
+        ctx.ellipse(px, myY + 3, 11, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mount head (small circle forward)
+        const headX = px + P.facing * 8;
+        ctx.fillStyle = mc.body;
+        ctx.beginPath();
+        ctx.arc(headX, myY - 1, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mane
+        ctx.fillStyle = mc.mane;
+        ctx.fillRect(px + P.facing * 3 - 1, myY - 4, 3, 5);
+
+        // Legs (4 animated)
+        ctx.fillStyle = mc.body;
+        const legOffsets = [-6, -2, 2, 6];
+        for (let li = 0; li < 4; li++) {
+            const legY = myY + 6 + (li % 2 === 0 ? legAnim : -legAnim);
+            ctx.fillRect(px + legOffsets[li] - 1, legY, 2, 4);
+        }
+
+        // Eyes
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(headX + P.facing * 2, myY - 2, 2, 2);
+
+        // Mount accent glow
+        ctx.globalAlpha = 0.15 + Math.sin(G.time * 3) * 0.08;
+        ctx.fillStyle = mc.accent;
+        ctx.beginPath();
+        ctx.ellipse(px, myY + 2, 14, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+
+        // Red Hare fire trail
+        if (isMoving && mount.el === 'FIRE' && Math.random() < 0.5) {
+            G.particles.push({
+                x: px - P.facing * 10 + rng(-3, 3), y: myY + 5,
+                vx: -P.vx * 0.15 + rng(-8, 8), vy: rng(-15, -5),
+                life: 0.3, decay: 3, color: Math.random() > 0.5 ? '#ff4400' : '#ff8800', size: rng(1, 3)
+            });
+        }
+    }
+
     // Invincible ghost effect
     if (P.invincible > 0 && Math.floor(G.time * 20) % 3 === 0) {
         ctx.globalAlpha = 0.3;
@@ -185,10 +251,21 @@ function drawEnemies() {
         ctx.ellipse(ex, ey + e.r * 0.4, e.r * 0.7, e.r * 0.2 + 1, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Elite aura
-        if (e.type === 'elite' || e.type === 'boss') {
-            const auraColor = e.type === 'boss' ? '#ff2222' : '#ffdd00';
-            const auraR = e.r * 1.8;
+        // Elite / mini-boss / boss aura
+        if (e.type === 'elite' || e.type === 'boss' || e.type === 'miniboss') {
+            let auraColor, auraR;
+            if (e.type === 'boss') {
+                auraColor = '#ff2222';
+                auraR = e.r * 1.8;
+            } else if (e.type === 'miniboss') {
+                auraColor = e.generalColor || '#ffaa00';
+                auraR = e.r * 1.6;
+                // Extra element ring
+                drawGlow(ex, ey, auraR * 0.7, e.lightColor || '#ffaa00', 0.15 + Math.sin(G.time * 6) * 0.08);
+            } else {
+                auraColor = '#ffdd00';
+                auraR = e.r * 1.5;
+            }
             drawGlow(ex, ey, auraR, auraColor, 0.2 + Math.sin(G.time * 4) * 0.1);
         }
 
@@ -365,6 +442,45 @@ function drawBullets() {
                 if (e.dead) continue;
                 if (dist(b, e) < b.r + e.r) {
                     damageEnemy(e, b.dmg, b.el);
+
+                    // Phase H: Chain Frost bounce
+                    if (b.weaponId === 'water_bolt' && (b._chainLeft === undefined ? 3 : b._chainLeft) > 0) {
+                        const chainsLeft = (b._chainLeft === undefined ? 3 : b._chainLeft) - 1;
+                        // Find next nearest enemy (not the one we just hit)
+                        let nextTarget = null, nd = 120;
+                        for (const e2 of G.enemies) {
+                            if (e2 === e || e2.dead) continue;
+                            const d = Math.hypot(e2.x - e.x, e2.y - e.y);
+                            if (d < nd) { nd = d; nextTarget = e2; }
+                        }
+                        if (nextTarget && chainsLeft >= 0) {
+                            const a = Math.atan2(nextTarget.y - e.y, nextTarget.x - e.x);
+                            const spd = Math.hypot(b.vx, b.vy) * 0.9;
+                            G.bullets.push({
+                                x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+                                dmg: b.dmg * 0.8, el: b.el, color: b.color,
+                                life: 1.5, type: 'bullet', r: b.r * 0.9,
+                                pierce: 0, weaponId: 'water_bolt', _chainLeft: chainsLeft,
+                                homing: true, homingTarget: nextTarget
+                            });
+                            // Ice crystal trail between chain targets
+                            G.skillEffects.push({
+                                type: 'lightning_trail', x1: e.x, y1: e.y,
+                                x2: nextTarget.x, y2: nextTarget.y,
+                                color: '#aaddff', alpha: 0.5, timer: 0.3, segments: 5
+                            });
+                        }
+                        // Apply slow debuff
+                        e._slowTimer = (e._slowTimer || 0) + 1.5;
+                        e._slowPct = 0.3;
+                        // Ice shatter VFX
+                        spawnParticles(e.x, e.y, '#aaddff', 6, 25);
+                        G.skillEffects.push({
+                            type: 'impact_flash', x: e.x, y: e.y,
+                            radius: 10, color: '#88ccff', alpha: 0.6, timer: 0.12
+                        });
+                    }
+
                     if (b.pierce > 0) { b.pierce--; } else { b.life = 0; }
                     break;
                 }
@@ -403,6 +519,87 @@ function drawBullets() {
             }
 
             ctx.globalAlpha = 1;
+
+            // --- Phase H: Thrown Star / Shuriken Rendering ---
+        } else if (b.type === 'thrown_star') {
+            // Homing logic for shuriken_storm
+            if (b.homing) {
+                let target = b.homingTarget;
+                if (!target || target.dead) {
+                    let nd = 200;
+                    for (const e of G.enemies) {
+                        if (e.dead) continue;
+                        const d = Math.hypot(e.x - b.x, e.y - b.y);
+                        if (d < nd) { nd = d; target = e; }
+                    }
+                    b.homingTarget = target;
+                }
+                if (target && !target.dead) {
+                    const ta = Math.atan2(target.y - b.y, target.x - b.x);
+                    const ca = Math.atan2(b.vy, b.vx);
+                    let da = ta - ca;
+                    while (da > Math.PI) da -= Math.PI * 2;
+                    while (da < -Math.PI) da += Math.PI * 2;
+                    const turnRate = (b.homingStr || 4);
+                    const na = ca + Math.sign(da) * Math.min(Math.abs(da), turnRate * G.dt);
+                    const spd = Math.hypot(b.vx, b.vy);
+                    b.vx = Math.cos(na) * spd;
+                    b.vy = Math.sin(na) * spd;
+                }
+            }
+            b.x += b.vx * G.dt; b.y += b.vy * G.dt;
+            b.spin = (b.spin || 0) + (b.spinSpeed || 10) * G.dt;
+            const el = b.el ? ELEMENTS[b.el] : null;
+            const sColor = el ? el.light : (b.color || '#88ff22');
+
+            // Spinning star glow
+            drawGlow(b.x, b.y, (b.r || 3) * 2.5, sColor, 0.25);
+
+            // Draw 4-pointed star
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(b.spin);
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            const sr = b.r || 3;
+            for (let p = 0; p < 4; p++) {
+                const a = (Math.PI / 2) * p;
+                ctx.lineTo(Math.cos(a) * sr, Math.sin(a) * sr);
+                ctx.lineTo(Math.cos(a + Math.PI / 4) * sr * 0.4, Math.sin(a + Math.PI / 4) * sr * 0.4);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = sColor;
+            ctx.globalAlpha = 0.7;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.restore();
+
+            // Trail particles
+            if (Math.random() < 0.5) {
+                G.particles.push({
+                    x: b.x + rng(-2, 2), y: b.y + rng(-2, 2),
+                    vx: rng(-8, 8), vy: rng(-8, 8),
+                    life: 0.2, decay: 4,
+                    color: sColor, size: rng(0.5, 1.5), glow: true
+                });
+            }
+
+            // Collision with enemies
+            for (const e of G.enemies) {
+                if (e.dead) continue;
+                if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + (b.r || 3)) {
+                    damageEnemy(e, b.dmg, b.el);
+                    spawnParticles(e.x, e.y, sColor, 4, 20);
+                    // Burn DOT
+                    if (b.burnDot > 0) {
+                        e._burnTimer = (e._burnTimer || 0) + 2;
+                        e._burnDmg = b.burnDot;
+                    }
+                    if (b.pierce > 0) { b.pierce--; } else { b.life = 0; }
+                    break;
+                }
+            }
         }
     }
 }

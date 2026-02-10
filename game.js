@@ -100,12 +100,23 @@ function updatePlayer(dt) {
     const len = Math.hypot(dx, dy);
     if (len > 0) { dx /= len; dy /= len; }
 
+    // Confusion debuff (Diao Chan) — reverse controls
+    if (P.confused && P.confused > 0) {
+        P.confused -= dt;
+        dx = -dx; dy = -dy;
+    }
+
     // Apply speed
     const spd = P.speed * (1 + passives.moveSpd);
     // Yin-Yang state bonuses
     let spdMult = 1;
     if (G.yinYang.state === 'CHAOS') spdMult = 1.3;
     else if (G.yinYang.state === 'HARMONY') spdMult = 1.15;
+
+    // Phase G: Morale speed bonus
+    const morale = G.morale || 0;
+    if (morale >= 80) spdMult *= 1.10;
+    else if (morale >= 60) spdMult *= 1.05;
 
     P.vx = dx * spd * spdMult;
     P.vy = dy * spd * spdMult;
@@ -242,6 +253,15 @@ function update(dt) {
             spawnEnemy(bx, by, 'boss');
             triggerFlash('#ff0000', 0.2);
             triggerChromatic(2);
+        }
+
+        // Mini-boss on floors 3, 7, 8, 12, 13
+        const minibossFloors = [3, 7, 8, 12, 13, 17, 18];
+        if (minibossFloors.includes(G.floor) && G.enemiesKilled === 0 && !G.enemies.find(e => e.type === 'miniboss') && !G._minibossSpawned) {
+            G._minibossSpawned = true;
+            const mbx = G.arenaW / 2 + rng(-80, 80);
+            const mby = G.arenaH / 2 + rng(-80, 80);
+            spawnEnemy(mbx, mby, 'miniboss');
         }
     }
 

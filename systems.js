@@ -5,7 +5,7 @@
 function spawnEnemy(x, y, type) {
     const el = rngEl();
     const elDef = ELEMENTS[el];
-    const floorMult = 1 + (G.floor - 1) * 0.15;
+    const floorMult = 1 + (G.floor - 1) * 0.20;
     const types = {
         fodder: { hp: 5, speed: 25, dmg: 2, r: 4, xp: 1 },
         grunt: { hp: 20, speed: 35, dmg: 5, r: 6, xp: 3 },
@@ -13,7 +13,8 @@ function spawnEnemy(x, y, type) {
         tank: { hp: 60, speed: 20, dmg: 10, r: 9, xp: 8 },
         archer: { hp: 15, speed: 25, dmg: 7, r: 6, xp: 5 },
         elite: { hp: 120, speed: 30, dmg: 15, r: 11, xp: 20 },
-        boss: { hp: 500, speed: 18, dmg: 25, r: 16, xp: 100 }
+        miniboss: { hp: 300, speed: 28, dmg: 18, r: 13, xp: 50 },
+        boss: { hp: 600, speed: 18, dmg: 25, r: 16, xp: 100 }
     };
     const t = types[type] || types.grunt;
     const enemy = {
@@ -36,6 +37,42 @@ function spawnEnemy(x, y, type) {
         G.floorAnnounce = { text: '\u26a0 BOSS INCOMING \u26a0', timer: 2.5 };
         triggerFlash('#ff0000', 0.3);
         shake(4, 0.3);
+    }
+    // Mini-boss (The Generals) setup
+    if (type === 'miniboss') {
+        enemy.entranceTimer = 1.2;
+        enemy.specialCd = 4;
+        enemy.phase = 1;
+        // Pick a general based on floor — expanded Dynasty Warriors roster
+        const generals = [
+            { name: 'Đổng Trác', title: 'Bạo Chúa', el: 'FIRE', ability: 'fire_slam', color: '#ff4400' },
+            { name: 'Viên Thiệu', title: 'Quý Tộc', el: 'WOOD', ability: 'arrow_volley', color: '#44cc44' },
+            { name: 'Tào Tháo', title: 'Gian Hùng', el: 'METAL', ability: 'triple_slash', color: '#cccccc' },
+            { name: 'Tôn Kiên', title: 'Mãnh Hổ', el: 'EARTH', ability: 'tiger_charge', color: '#cc8833' },
+            { name: 'Điêu Thuyền', title: 'Tuyệt Sắc', el: 'WATER', ability: 'confusion', color: '#6688ff' },
+            // Phase H: Expanded generals
+            { name: 'Quan Vũ', title: 'Võ Thánh', el: 'WOOD', ability: 'crescent_sweep', color: '#22ff22' },
+            { name: 'Trương Phi', title: 'Dũng Mãnh', el: 'FIRE', ability: 'thunderous_roar', color: '#ff6600' },
+            { name: 'Lữ Bố', title: 'Chiến Thần', el: 'METAL', ability: 'sky_piercer', color: '#aaaaff' },
+            { name: 'Tôn Sách', title: 'Tiểu Bá Vương', el: 'EARTH', ability: 'little_conqueror', color: '#ddaa33' },
+            { name: 'Trương Liêu', title: 'Uy Chấn', el: 'FIRE', ability: 'terror_charge', color: '#ff3300' },
+            { name: 'Triệu Vân', title: 'Long Đảm', el: 'METAL', ability: 'dragon_thrust', color: '#4488ff' },
+            { name: 'Tư Mã Ý', title: 'Ẩn Long', el: 'WATER', ability: 'dark_ritual', color: '#4466ff' }
+        ];
+        const genIdx = (G.floor + Math.floor(Math.random() * generals.length)) % generals.length;
+        const gen = generals[genIdx];
+        enemy.generalName = gen.name;
+        enemy.generalTitle = gen.title;
+        enemy.el = gen.el;
+        enemy.color = ELEMENTS[gen.el].color;
+        enemy.lightColor = ELEMENTS[gen.el].light;
+        enemy.ability = gen.ability;
+        enemy.generalColor = gen.color;
+        // Announcement with Vietnamese names
+        G.floorAnnounce = { text: '⚔ ' + gen.name + ' — ' + gen.title + ' ⚔', timer: 2.5 };
+        triggerFlash(gen.color, 0.25);
+        shake(3, 0.2);
+        if (typeof SFX !== 'undefined' && SFX.bossSpawn) SFX.bossSpawn();
     }
     G.enemies.push(enemy);
 }
@@ -99,6 +136,34 @@ function updateEnemies(dt) {
         }
         // Save original speed for stun recovery
         if (!e._origSpeed) e._origSpeed = e.speed;
+
+        // Phase H: Slow debuff tick-down
+        if (e._slowTimer > 0) {
+            e._slowTimer -= dt;
+            e.speed = e._origSpeed * (1 - (e._slowPct || 0.3));
+            if (e._slowTimer <= 0) {
+                e.speed = e._origSpeed;
+            }
+        }
+
+        // Phase H: Burn DOT
+        if (e._burnTimer > 0) {
+            e._burnTimer -= dt;
+            e._burnTick = (e._burnTick || 0) + dt;
+            if (e._burnTick >= 0.5) {
+                e._burnTick -= 0.5;
+                const burnDmg = e._burnDmg || 3;
+                e.hp -= burnDmg;
+                spawnDmgNum(e.x, e.y - 8, burnDmg, '#ff4400', false);
+                if (Math.random() < 0.5) {
+                    spawnParticles(e.x, e.y, '#ff4400', 1, 10);
+                }
+                if (e.hp <= 0) {
+                    killEnemy(e);
+                    continue;
+                }
+            }
+        }
 
         // Chase player (with boss-specific AI)
         const dx = P.x - e.x, dy = P.y - e.y;
@@ -173,6 +238,225 @@ function updateEnemies(dt) {
             }
         }
 
+        // --- Mini-Boss AI (The Generals) ---
+        if (e.type === 'miniboss') {
+            // Entrance freeze
+            if (e.entranceTimer > 0) {
+                e.entranceTimer -= dt;
+                // Entrance particles
+                if (Math.random() < 0.5) {
+                    spawnParticles(e.x + rng(-10, 10), e.y + rng(-10, 10), e.lightColor, 2, 30);
+                }
+                continue;
+            }
+
+            // Enrage at 30% HP
+            const mbPct = e.hp / e.maxHp;
+            if (mbPct < 0.3 && e.phase < 2) {
+                e.phase = 2;
+                e.speed *= 1.5;
+                e.dmg *= 1.3;
+                G.floorAnnounce = { text: '\ud83d\udd25 ' + (e.generalName || 'GENERAL') + ' ENRAGED! \ud83d\udd25', timer: 2 };
+                triggerFlash(e.generalColor || '#ff4400', 0.3);
+                shake(3, 0.2);
+                spawnElementParticles(e.x, e.y, e.el, 12, 50);
+            }
+
+            // Special ability cooldown
+            e.specialCd -= dt;
+            if (e.specialCd <= 0 && d < 180) {
+                e.specialCd = e.phase >= 2 ? 3 : 5;
+                const ability = e.ability || 'fire_slam';
+
+                if (ability === 'fire_slam') {
+                    // Dong Zhuo: AoE fire ring
+                    G.bullets.push({
+                        x: e.x, y: e.y, type: 'aoe_ring', r: 60,
+                        color: '#ff4400', el: 'FIRE',
+                        life: 0.4, maxLife: 0.4
+                    });
+                    if (d < 60 && P.invincible <= 0) {
+                        const dr = getBondDmgReduction();
+                        P.hp -= e.dmg * 0.8 * (1 - dr);
+                        P.damageFlash = 0.2;
+                        P.invincible = 0.3;
+                    }
+                    shake(3, 0.15);
+                    spawnElementParticles(e.x, e.y, 'FIRE', 10, 50);
+                } else if (ability === 'arrow_volley') {
+                    // Yuan Shao: spawn 3 temporary archers
+                    for (let a = 0; a < 3; a++) {
+                        const ax = e.x + rng(-40, 40);
+                        const ay = e.y + rng(-40, 40);
+                        spawnEnemy(ax, ay, 'archer');
+                    }
+                    spawnParticles(e.x, e.y, '#44cc44', 8, 40);
+                } else if (ability === 'triple_slash') {
+                    // Cao Cao: 3 fast projectiles in spread
+                    if (!G.archerBullets) G.archerBullets = [];
+                    for (let s = -1; s <= 1; s++) {
+                        const angle = Math.atan2(dy, dx) + s * 0.3;
+                        G.archerBullets.push({
+                            x: e.x, y: e.y,
+                            vx: Math.cos(angle) * 150, vy: Math.sin(angle) * 150,
+                            dmg: e.dmg * 0.6, life: 1.5
+                        });
+                    }
+                    spawnParticles(e.x, e.y, '#cccccc', 5, 25);
+                } else if (ability === 'tiger_charge') {
+                    // Sun Jian: charge at player
+                    const chargeSpd = 350;
+                    e.knockX = (dx / d) * chargeSpd * 0.03;
+                    e.knockY = (dy / d) * chargeSpd * 0.03;
+                    shake(3, 0.12);
+                    spawnParticles(e.x, e.y, '#cc8833', 6, 30);
+                    // Damage if close
+                    if (d < 40 && P.invincible <= 0) {
+                        const dr = getBondDmgReduction();
+                        P.hp -= e.dmg * 1.2 * (1 - dr);
+                        P.damageFlash = 0.2;
+                        P.invincible = 0.4;
+                    }
+                } else if (ability === 'confusion') {
+                    // Diao Chan: confusion debuff
+                    if (d < 100) {
+                        P.confused = 2.5; // 2.5s reversed controls
+                        G.floorAnnounce = { text: '🌀 CONFUSED! 🌀', timer: 1.5 };
+                        spawnParticles(P.x, P.y, '#ff66ff', 12, 50);
+                        triggerChromatic(2);
+                    }
+                    spawnParticles(e.x, e.y, '#6688ff', 8, 40);
+
+                    // === Phase H: New General Abilities ===
+                } else if (ability === 'crescent_sweep') {
+                    // Quan Vũ (Guan Yu): Wide crescent sweep — massive AoE damage arc
+                    G.skillEffects.push({
+                        type: 'slash_arc', x: e.x, y: e.y,
+                        radius: 50, startAngle: Math.atan2(dy, dx) - Math.PI / 3,
+                        color: '#22ff22', alpha: 0.8, timer: 0.3
+                    });
+                    if (d < 55 && P.invincible <= 0) {
+                        const dr = getBondDmgReduction();
+                        P.hp -= e.dmg * 1.5 * (1 - dr);
+                        P.damageFlash = 0.3;
+                        P.invincible = 0.4;
+                        P.knockX = (dx / d) * -3;
+                        P.knockY = (dy / d) * -3;
+                    }
+                    shake(4, 0.2);
+                    spawnElementParticles(e.x, e.y, 'WOOD', 8, 40);
+
+                } else if (ability === 'thunderous_roar') {
+                    // Trương Phi (Zhang Fei): Thunderous Roar — AoE stun + knockback
+                    G.skillEffects.push({
+                        type: 'shockwave', x: e.x, y: e.y,
+                        radius: 5, maxRadius: 80, speed: 250,
+                        color: '#ff6600', alpha: 0.7, lineWidth: 4, timer: 0.4
+                    });
+                    // Stun player if in range
+                    if (d < 80 && P.invincible <= 0) {
+                        P.stunned = 1.5;
+                        P.knockX = -(dx / d) * 4;
+                        P.knockY = -(dy / d) * 4;
+                        G.floorAnnounce = { text: '💫 STUNNED! 💫', timer: 1 };
+                    }
+                    shake(5, 0.3);
+                    spawnParticles(e.x, e.y, '#ff6600', 12, 60);
+
+                } else if (ability === 'sky_piercer') {
+                    // Lữ Bố (Lu Bu): Sky Piercer — devastating lunge + AoE explosion
+                    const chargeSpd = 500;
+                    e.knockX = (dx / d) * chargeSpd * 0.04;
+                    e.knockY = (dy / d) * chargeSpd * 0.04;
+                    // Impact explosion after delay
+                    setTimeout(() => {
+                        G.skillEffects.push({
+                            type: 'shockwave', x: e.x, y: e.y,
+                            radius: 5, maxRadius: 70, speed: 300,
+                            color: '#aaaaff', alpha: 0.8, lineWidth: 3, timer: 0.3
+                        });
+                        if (Math.hypot(P.x - e.x, P.y - e.y) < 50 && P.invincible <= 0) {
+                            const dr = getBondDmgReduction();
+                            P.hp -= e.dmg * 2 * (1 - dr);
+                            P.damageFlash = 0.35;
+                            P.invincible = 0.5;
+                        }
+                        shake(6, 0.4);
+                        spawnParticles(e.x, e.y, '#aaaaff', 15, 70);
+                    }, 200);
+                    spawnParticles(e.x, e.y, '#ccccff', 8, 40);
+
+                } else if (ability === 'little_conqueror') {
+                    // Tôn Sách (Sun Ce): Ground slam + self speed buff
+                    G.skillEffects.push({
+                        type: 'impact_crater', x: e.x, y: e.y,
+                        radius: 45, color: '#ddaa33', alpha: 0.6, timer: 1.0
+                    });
+                    if (d < 50 && P.invincible <= 0) {
+                        const dr = getBondDmgReduction();
+                        P.hp -= e.dmg * 0.9 * (1 - dr);
+                        P.damageFlash = 0.2;
+                        P.invincible = 0.3;
+                    }
+                    e.speed *= 1.4; // Speed buff
+                    shake(3, 0.15);
+                    spawnElementParticles(e.x, e.y, 'EARTH', 8, 35);
+
+                } else if (ability === 'terror_charge') {
+                    // Trương Liêu (Zhang Liao): Multi-dash terror charge
+                    for (let dash = 0; dash < 3; dash++) {
+                        setTimeout(() => {
+                            e.knockX = (dx / d) * 200 * 0.03;
+                            e.knockY = (dy / d) * 200 * 0.03;
+                            spawnParticles(e.x, e.y, '#ff3300', 4, 25);
+                            if (Math.hypot(P.x - e.x, P.y - e.y) < 30 && P.invincible <= 0) {
+                                const dr = getBondDmgReduction();
+                                P.hp -= e.dmg * 0.5 * (1 - dr);
+                                P.damageFlash = 0.15;
+                            }
+                        }, dash * 250);
+                    }
+                    shake(2, 0.1);
+
+                } else if (ability === 'dragon_thrust') {
+                    // Triệu Vân (Zhao Yun): Precise piercing thrust
+                    if (!G.archerBullets) G.archerBullets = [];
+                    const angle = Math.atan2(dy, dx);
+                    G.archerBullets.push({
+                        x: e.x, y: e.y,
+                        vx: Math.cos(angle) * 220, vy: Math.sin(angle) * 220,
+                        dmg: e.dmg * 1.5, life: 2
+                    });
+                    // Trail VFX
+                    G.skillEffects.push({
+                        type: 'lightning_trail', x1: e.x, y1: e.y,
+                        x2: e.x + Math.cos(angle) * 100, y2: e.y + Math.sin(angle) * 100,
+                        color: '#4488ff', alpha: 0.5, timer: 0.3, segments: 6
+                    });
+                    spawnParticles(e.x, e.y, '#4488ff', 5, 30);
+
+                } else if (ability === 'dark_ritual') {
+                    // Tư Mã Ý (Sima Yi): Dark zone that slows + weakens player
+                    G.skillEffects.push({
+                        type: 'fire_aura', x: P.x, y: P.y,
+                        radius: 60, color: '#4466ff', alpha: 0.2, timer: 3
+                    });
+                    if (d < 100) {
+                        P._slowDebuff = 3; // 3s slow
+                        P._weakDebuff = 3; // 3s damage reduction
+                        G.floorAnnounce = { text: '🌑 WEAKENED! 🌑', timer: 1.5 };
+                        spawnParticles(P.x, P.y, '#4466ff', 10, 40);
+                        triggerChromatic(1.5);
+                    }
+                    spawnParticles(e.x, e.y, '#4466ff', 6, 30);
+                }
+            }
+
+            // Ambient element particles
+            if (Math.random() < 0.15) {
+                spawnParticles(e.x + rng(-8, 8), e.y + rng(-8, 8), e.lightColor, 1, 15);
+            }
+        }
         // Archer AI: stop at range and shoot
         if (e.type === 'archer') {
             if (!e.shootCd) e.shootCd = 2;
@@ -227,6 +511,8 @@ function updateEnemies(dt) {
                 // Equipment armor reduction
                 const eqArmor = G.equipment ? G.equipment.armor : null;
                 if (eqArmor && eqArmor.def) dmg *= (1 - eqArmor.def);
+                // Phase G: Ally aura damage reduction
+                if (G.allyAura && G.allyAura.dmgReduction > 0) dmg *= (1 - G.allyAura.dmgReduction);
                 // Equipment armor reflect
                 if (eqArmor && eqArmor.reflect && e.hp > 0) {
                     damageEnemy(e, dmg * eqArmor.reflect, P.element);
@@ -235,6 +521,7 @@ function updateEnemies(dt) {
                 P.damageFlash = 0.15;
                 P.invincible = 0.3;
                 G.combo = 0; // combo reset on hit!
+                G.morale = clamp((G.morale || 0) - 5, 0, 100); // Phase G: Morale loss on hit
                 G.yinYang.yin = clamp(G.yinYang.yin + 3, 0, 100);
                 shake(3, 0.1);
                 spawnDmgNum(P.x, P.y - 12, Math.ceil(dmg), '#ff3333', true);
@@ -267,7 +554,7 @@ function checkLevelUp() {
     if (P.xp >= P.xpNeeded) {
         P.xp -= P.xpNeeded;
         P.level++;
-        P.xpNeeded = Math.floor(20 * Math.pow(1.3, P.level - 1));
+        P.xpNeeded = Math.floor(20 * Math.pow(1.35, P.level - 1));
         // Small heal on level up (10% HP) - NOT full recovery
         P.hp = Math.min(P.hp + P.maxHp * 0.1, P.maxHp);
         G.state = 'LEVEL_UP';
@@ -437,6 +724,8 @@ function nextFloor() {
     G.portal = null;
     SFX.portalOpen();
     G.enemiesKilled = 0;
+    G._minibossSpawned = false; // Reset mini-boss tracking
+    if (P.confused) P.confused = 0; // Clear confusion
     G.spawnRate = Math.max(0.5, 1.5 - G.floor * 0.05);
     G.enemiesPerWave = 8 + G.floor * 2;
     P.x = G.arenaW / 2; P.y = G.arenaH / 2;
@@ -577,11 +866,14 @@ function updateArcherProjectiles(dt) {
         // Hit player
         if (P.invincible <= 0 && Math.hypot(P.x - b.x, P.y - b.y) < 8) {
             const dr = typeof getBondDmgReduction === 'function' ? getBondDmgReduction() : 0;
-            const dmg = b.dmg * (1 - dr);
+            let dmg = b.dmg * (1 - dr);
+            // Phase G: Ally aura damage reduction
+            if (G.allyAura && G.allyAura.dmgReduction > 0) dmg *= (1 - G.allyAura.dmgReduction);
             P.hp -= dmg;
             P.damageFlash = 0.15;
             P.invincible = 0.3;
             G.combo = 0;
+            G.morale = clamp((G.morale || 0) - 5, 0, 100); // Phase G: Morale loss
             shake(2, 0.1);
             spawnDmgNum(P.x, P.y - 12, Math.ceil(dmg), '#ff3333', true);
             spawnParticles(P.x, P.y, '#ff33ff', 4, 30);

@@ -92,6 +92,40 @@ function drawHUD() {
         drawText(bk.desc, yyX + 3, bkY + 11, { font: '7px monospace', fill: '#aaa', outline: false });
     }
 
+    // --- Confusion Debuff Indicator ---
+    if (P.confused && P.confused > 0) {
+        const confAlpha = 0.12 + Math.sin(G.time * 8) * 0.08;
+        ctx.fillStyle = 'rgba(180,80,220,' + confAlpha + ')';
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+        // Swirling border
+        ctx.strokeStyle = '#ff66ff';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.3 + Math.sin(G.time * 6) * 0.2;
+        ctx.strokeRect(2, 2, GAME_W - 4, GAME_H - 4);
+        ctx.globalAlpha = 1;
+        // Text
+        drawText('\ud83c\udf00 CONFUSED \ud83c\udf00', GAME_W / 2, 40, {
+            font: 'bold 12px monospace',
+            fill: Math.sin(G.time * 10) > 0 ? '#ff66ff' : '#cc44cc',
+            align: 'center'
+        });
+    }
+
+    // --- Equipment Display ---
+    if (G.equipment) {
+        const eqY = yyY + yyH * 2 + 54;
+        let eqSlot = 0;
+        for (const slot of ['armor', 'talisman', 'mount']) {
+            const eq = G.equipment[slot];
+            if (!eq) continue;
+            const cy = eqY + eqSlot * 12;
+            const qualColors = { common: '#88ff88', uncommon: '#44bbff', rare: '#ff88ff' };
+            const qc = qualColors[eq.quality] || '#aaa';
+            drawText(eq.name, 8, cy, { font: '7px monospace', fill: qc, outline: false });
+            eqSlot++;
+        }
+    }
+
     // --- Combo Counter (Escalating) ---
     if (G.combo > 0) {
         const comboX = GAME_W - 12, comboY = 25;
@@ -122,6 +156,123 @@ function drawHUD() {
     const mins = Math.floor(HUD.killTimer / 60);
     const secs = Math.floor(HUD.killTimer % 60);
     drawText(`${mins}:${secs.toString().padStart(2, '0')}`, GAME_W - 12, 74, { font: '9px monospace', fill: '#888', align: 'right', outline: false });
+
+    // --- Phase G: Morale Bar ---
+    const morale = G.morale || 0;
+    if (morale > 0 || G.allies.length > 0) {
+        const mBarX = GAME_W - 75, mBarY = 85, mBarW = 62, mBarH = 6;
+        const moraleLabel = morale >= 80 ? 'OVERWHELMING!' : morale >= 60 ? 'High Spirits' : morale >= 30 ? 'Steady' : 'Wavering';
+        const moraleColor = morale >= 80 ? '#ff3300' : morale >= 60 ? '#ff8800' : morale >= 30 ? '#ffcc00' : '#666666';
+        const moralePct = morale / 100;
+
+        // Bar background
+        ctx.fillStyle = 'rgba(10,10,20,0.7)';
+        ctx.fillRect(mBarX, mBarY, mBarW, mBarH);
+
+        // Bar fill with gradient
+        if (moralePct > 0) {
+            const grad = ctx.createLinearGradient(mBarX, mBarY, mBarX + mBarW * moralePct, mBarY);
+            grad.addColorStop(0, moraleColor);
+            grad.addColorStop(1, morale >= 80 ? '#ffdd00' : moraleColor);
+            ctx.fillStyle = grad;
+            ctx.fillRect(mBarX, mBarY, mBarW * moralePct, mBarH);
+        }
+
+        // Flame flicker at bar tip when morale > 60
+        if (morale >= 60) {
+            const fx = mBarX + mBarW * moralePct;
+            const flicker = Math.sin(G.time * 12) * 2;
+            ctx.fillStyle = morale >= 80 ? '#ff4400' : '#ff8800';
+            ctx.globalAlpha = 0.6 + Math.sin(G.time * 15) * 0.3;
+            ctx.beginPath();
+            ctx.arc(fx, mBarY + mBarH / 2 + flicker, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
+        // Border
+        ctx.strokeStyle = moraleColor;
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(mBarX, mBarY, mBarW, mBarH);
+
+        // Label
+        const lblFont = morale >= 80 ? 'bold 7px monospace' : '6px monospace';
+        drawText(moraleLabel, mBarX + mBarW / 2, mBarY + mBarH + 6, {
+            font: lblFont, fill: moraleColor, align: 'center', outline: false
+        });
+
+        // Overwhelming pulsing effect
+        if (morale >= 80) {
+            ctx.globalAlpha = 0.05 + Math.sin(G.time * 6) * 0.03;
+            ctx.fillStyle = '#ff4400';
+            ctx.fillRect(0, 0, GAME_W, GAME_H);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // --- Phase H: Brotherhood Combo Gauge ---
+    const bGauge = G.brotherhoodGauge || 0;
+    if (bGauge > 0 || (typeof getAvailableBrotherhoodCombo === 'function')) {
+        const bBarX = GAME_W / 2 - 30, bBarY = 28;
+        const bBarW = 60, bBarH = 4;
+        const bPct = bGauge / 100;
+        const bReady = bGauge >= 100 && G.brotherhoodCooldown <= 0;
+
+        // Background
+        ctx.fillStyle = 'rgba(20,10,30,0.6)';
+        ctx.fillRect(bBarX - 1, bBarY - 1, bBarW + 2, bBarH + 2);
+
+        // Fill bar
+        if (bPct > 0) {
+            const bGrad = ctx.createLinearGradient(bBarX, bBarY, bBarX + bBarW * bPct, bBarY);
+            bGrad.addColorStop(0, '#8833cc');
+            bGrad.addColorStop(1, bReady ? '#ffd700' : '#bb66ff');
+            ctx.fillStyle = bGrad;
+            ctx.fillRect(bBarX, bBarY, bBarW * bPct, bBarH);
+        }
+
+        // Border
+        ctx.strokeStyle = bReady ? '#ffd700' : '#8833cc';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(bBarX, bBarY, bBarW, bBarH);
+
+        // Label
+        const bLabel = bReady ? '⚔ READY! [R]' : '兄弟 ' + Math.floor(bGauge) + '%';
+        const bLblColor = bReady ? '#ffd700' : '#bb88ee';
+        drawText(bLabel, GAME_W / 2, bBarY + bBarH + 6, {
+            font: bReady ? 'bold 7px monospace' : '5px monospace',
+            fill: bLblColor, align: 'center', outline: false
+        });
+
+        // Pulsing glow when ready
+        if (bReady) {
+            ctx.globalAlpha = 0.04 + Math.sin(G.time * 8) * 0.03;
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(bBarX - 3, bBarY - 3, bBarW + 6, bBarH + 6);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    if (G.allyAura && (G.allyAura.dmgReduction > 0 || G.allyAura.atkSpd > 0 || G.allyAura.critBonus > 0)) {
+        let auraX = GAME_W - 73, auraY = 100;
+        if (G.allyAura.dmgReduction > 0) {
+            drawText('🛡' + Math.round(G.allyAura.dmgReduction * 100) + '%', auraX, auraY, {
+                font: '6px monospace', fill: '#4488ff', align: 'left', outline: false
+            });
+            auraX += 22;
+        }
+        if (G.allyAura.atkSpd > 0) {
+            drawText('⚔' + Math.round(G.allyAura.atkSpd * 100) + '%', auraX, auraY, {
+                font: '6px monospace', fill: '#ff6644', align: 'left', outline: false
+            });
+            auraX += 22;
+        }
+        if (G.allyAura.critBonus > 0) {
+            drawText('🎯' + Math.round(G.allyAura.critBonus * 100) + '%', auraX, auraY, {
+                font: '6px monospace', fill: '#aa66ff', align: 'left', outline: false
+            });
+        }
+    }
 
     // --- FPS ---
     drawText(`${Math.round(G.fps)}fps ${G.enemies.length}e`, GAME_W - 5, GAME_H - 14, { font: '8px monospace', fill: '#666', align: 'right', outline: false });
@@ -232,6 +383,39 @@ function drawHUD() {
 // --- Boss HP Bar ---
 function drawBossHPBar() {
     const boss = G.enemies.find(e => e.type === 'boss' && !e.dead);
+    const miniboss = G.enemies.find(e => e.type === 'miniboss' && !e.dead);
+    if (!boss && !miniboss) return;
+
+    // Draw mini-boss bar (smaller, positioned higher)
+    if (miniboss) {
+        const mbW = 160, mbH = 6;
+        const mbX = GAME_W / 2 - mbW / 2, mbY = boss ? GAME_H - 38 : GAME_H - 20;
+        const mbPct = miniboss.hp / miniboss.maxHp;
+        const mbEl = ELEMENTS[miniboss.el] || ELEMENTS.METAL;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(mbX - 3, mbY - 12, mbW + 6, mbH + 18);
+        ctx.strokeStyle = miniboss.generalColor || '#ffaa00'; ctx.lineWidth = 1;
+        ctx.strokeRect(mbX - 3, mbY - 12, mbW + 6, mbH + 18);
+
+        // Name + title
+        const mbName = (miniboss.generalName || 'GENERAL') + ' — ' + (miniboss.generalTitle || '');
+        drawText('\u2694 ' + mbName, GAME_W / 2, mbY - 10, {
+            font: 'bold 8px monospace', fill: miniboss.generalColor || '#ffaa00', align: 'center'
+        });
+
+        // HP bar
+        ctx.fillStyle = '#1a1a0a'; ctx.fillRect(mbX, mbY, mbW, mbH);
+        const mbColor = mbPct > 0.5 ? '#ffaa00' : mbPct > 0.25 ? '#ff6600' : '#ff0000';
+        ctx.fillStyle = mbColor; ctx.fillRect(mbX + 1, mbY + 1, (mbW - 2) * mbPct, mbH - 2);
+        // Segments
+        for (let s = 1; s < 6; s++) {
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(mbX + (mbW / 6) * s, mbY, 1, mbH);
+        }
+        ctx.strokeStyle = '#555'; ctx.lineWidth = 0.5; ctx.strokeRect(mbX, mbY, mbW, mbH);
+        drawText(Math.ceil(miniboss.hp) + '', GAME_W / 2, mbY - 1, { font: 'bold 6px monospace', fill: '#fff', align: 'center', outline: false });
+    }
+
     if (!boss) return;
 
     const bW = 200, bH = 8;
@@ -244,7 +428,7 @@ function drawBossHPBar() {
     ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 1; ctx.strokeRect(bX - 4, bY - 14, bW + 8, bH + 22);
 
     // Boss name
-    drawText(`💀 ${boss.type.toUpperCase()} — ${elDef.symbol} ${elDef.name}`, GAME_W / 2, bY - 12, {
+    drawText('\ud83d\udc80 ' + boss.type.toUpperCase() + ' \u2014 ' + elDef.symbol + ' ' + elDef.name, GAME_W / 2, bY - 12, {
         font: 'bold 9px monospace', fill: '#ff6666', align: 'center'
     });
 
@@ -268,7 +452,7 @@ function drawBossHPBar() {
     }
     ctx.strokeStyle = '#666'; ctx.lineWidth = 1; ctx.strokeRect(bX, bY, bW, bH);
     // HP text
-    drawText(`${Math.ceil(boss.hp)}`, GAME_W / 2, bY - 1, { font: 'bold 7px monospace', fill: '#fff', align: 'center', outline: false });
+    drawText(Math.ceil(boss.hp) + '', GAME_W / 2, bY - 1, { font: 'bold 7px monospace', fill: '#fff', align: 'center', outline: false });
 }
 
 // --- Minimap ---
@@ -430,7 +614,7 @@ function drawMenuScreen() {
     }
 
     // Version
-    drawText('v0.7.1 — Premium Edition', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
+    drawText('v0.9.0 — Dynasty Warriors', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
 }
 
 // --- High Score System ---
@@ -456,76 +640,159 @@ function saveHighScore() {
 
 // --- Game Over Screen (Run Stats) ---
 function drawGameOverScreen() {
-    ctx.fillStyle = 'rgba(5,0,0,0.92)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+    // Animated dark background with slow pulse
+    const pulse = 0.88 + Math.sin(G.time * 1.5) * 0.04;
+    ctx.fillStyle = `rgba(5,0,0,${pulse})`; ctx.fillRect(0, 0, GAME_W, GAME_H);
 
-    // Decorative border
-    ctx.strokeStyle = '#ff333366'; ctx.lineWidth = 2;
-    ctx.strokeRect(20, 15, GAME_W - 40, GAME_H - 30);
-    ctx.strokeStyle = '#ff111133'; ctx.lineWidth = 1;
-    ctx.strokeRect(24, 19, GAME_W - 48, GAME_H - 38);
+    // Background particle drift (blood embers)
+    for (let i = 0; i < 6; i++) {
+        const px = (G.time * 15 + i * 160) % GAME_W;
+        const py = (G.time * 8 + i * 110) % GAME_H;
+        const sz = 1 + Math.sin(G.time + i) * 0.6;
+        ctx.globalAlpha = 0.15 + Math.sin(G.time * 2 + i) * 0.1;
+        ctx.fillStyle = '#ff3322';
+        ctx.beginPath(); ctx.arc(px, py, sz, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
 
+    // Decorative double border with glow
+    ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 8;
+    ctx.strokeStyle = '#ff333388'; ctx.lineWidth = 2;
+    ctx.strokeRect(18, 13, GAME_W - 36, GAME_H - 26);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#ff111144'; ctx.lineWidth = 1;
+    ctx.strokeRect(22, 17, GAME_W - 44, GAME_H - 34);
+
+    // Title with animated flicker
+    const titleAlpha = 0.85 + Math.sin(G.time * 4) * 0.15;
+    ctx.globalAlpha = titleAlpha;
     drawText('YOU HAVE FALLEN', GAME_W / 2, 25, { font: 'bold 20px monospace', fill: '#ff3333', align: 'center', outlineWidth: 5 });
+    ctx.globalAlpha = 1;
 
-    // Grade calculation
+    // --- Hero Portrait (left) ---
+    const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
+    if (hero) {
+        const px = 55, py = 62;
+        ctx.globalAlpha = 0.3 + Math.sin(G.time * 2) * 0.15;
+        ctx.fillStyle = hero.colors.glow;
+        ctx.beginPath(); ctx.arc(px, py, 22, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = hero.colors.body;
+        ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = hero.colors.accent;
+        ctx.beginPath(); ctx.arc(px, py - 4, 8, 0, Math.PI * 2); ctx.fill();
+        drawText(hero.name, px, py + 22, { font: 'bold 9px monospace', fill: hero.colors.glow, align: 'center' });
+        drawText(hero.title, px, py + 33, { font: '7px monospace', fill: '#888', align: 'center', outline: false });
+    }
+
+    // --- Grade (animated, right side) ---
     const timeAlive = HUD.killTimer || 0;
-    const gradeScore = G.score + G.maxCombo * 5 + G.floor * 100 + P.level * 50;
-    const grade = gradeScore >= 5000 ? 'S' : gradeScore >= 3000 ? 'A' : gradeScore >= 1500 ? 'B' : gradeScore >= 500 ? 'C' : 'D';
-    const gradeColor = { S: '#ffd700', A: '#44ff44', B: '#44bbff', C: '#ffaa00', D: '#ff4444' }[grade];
+    const totalKills = G.totalKills || G.enemiesKilled || 0;
+    const chainBest = G.chainBest || 0;
+    const bossKills = Math.floor(G.floor / 5);
+    const gradeScore = G.score + G.maxCombo * 5 + G.floor * 100 + P.level * 50 + totalKills * 2 + chainBest * 10;
+    const grade = gradeScore >= 8000 ? 'S+' : gradeScore >= 5000 ? 'S' : gradeScore >= 3000 ? 'A' : gradeScore >= 1500 ? 'B' : gradeScore >= 500 ? 'C' : 'D';
+    const gradeColor = { 'S+': '#ff44ff', S: '#ffd700', A: '#44ff44', B: '#44bbff', C: '#ffaa00', D: '#ff4444' }[grade];
 
-    // Grade display (large, right side)
-    drawText(grade, GAME_W - 60, 50, { font: 'bold 48px monospace', fill: gradeColor, align: 'center', outlineWidth: 6 });
-    drawText('GRADE', GAME_W - 60, 100, { font: 'bold 9px monospace', fill: '#888', align: 'center' });
+    const gPulse = 1 + Math.sin(G.time * 3) * 0.08;
+    ctx.save();
+    ctx.translate(GAME_W - 55, 65);
+    ctx.scale(gPulse, gPulse);
+    ctx.shadowColor = gradeColor; ctx.shadowBlur = 15;
+    drawText(grade, 0, -15, { font: 'bold 42px monospace', fill: gradeColor, align: 'center', outlineWidth: 6 });
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    drawText('RANK', GAME_W - 55, 95, { font: 'bold 8px monospace', fill: '#888', align: 'center' });
+    drawText(gradeScore + ' pts', GAME_W - 55, 107, { font: '7px monospace', fill: '#666', align: 'center', outline: false });
 
-    // Stats panel (left side)
-    const sx = 40, sy = 55;
-    const statLine = (label, val, color, y) => {
-        drawText(label, sx, y, { font: 'bold 9px monospace', fill: '#888', outline: false });
-        drawText(val, sx + 130, y, { font: 'bold 10px monospace', fill: color, align: 'left' });
+    // --- Stats Panel (center) ---
+    const sx = 115, sy = 50;
+    const statLine = (icon, label, val, color, y, barPct) => {
+        drawText(icon, sx - 8, y, { font: '8px monospace', fill: color, outline: false });
+        drawText(label, sx + 5, y, { font: 'bold 8px monospace', fill: '#999', outline: false });
+        drawText(val, sx + 120, y, { font: 'bold 9px monospace', fill: color, align: 'left' });
+        if (barPct !== undefined) {
+            const bx = sx + 155, bw = 55, bh = 5;
+            ctx.fillStyle = '#111'; ctx.fillRect(bx, y + 1, bw, bh);
+            ctx.fillStyle = color + '88'; ctx.fillRect(bx, y + 1, bw * Math.min(barPct, 1), bh);
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 0.5; ctx.strokeRect(bx, y + 1, bw, bh);
+        }
     };
 
-    statLine('Floor Reached', `${G.floor}`, '#fff', sy);
-    statLine('Player Level', `${P.level}`, '#44ddff', sy + 16);
-    statLine('Gold Earned', `${G.score}G`, '#ffdd44', sy + 32);
-    statLine('Enemies Slain', `${G.enemiesKilled}`, '#ff8888', sy + 48);
-    statLine('Max Combo', `x${G.maxCombo}`, '#ffaa00', sy + 64);
+    statLine('\ud83c\udff0', 'Floor Reached', '' + G.floor, '#fff', sy, G.floor / 20);
+    statLine('\u2b50', 'Player Level', 'Lv.' + P.level, '#44ddff', sy + 14, P.level / 30);
+    statLine('\ud83d\udcb0', 'Gold Earned', G.score + 'G', '#ffdd44', sy + 28, Math.min(G.score / 5000, 1));
+    statLine('\ud83d\udc80', 'Enemies Slain', '' + totalKills, '#ff8888', sy + 42, Math.min(totalKills / 500, 1));
+    statLine('\u26a1', 'Max Combo', 'x' + G.maxCombo, '#ffaa00', sy + 56, Math.min(G.maxCombo / 100, 1));
+    statLine('\ud83d\udd17', 'Best Chain', '' + chainBest, '#ff66cc', sy + 70, Math.min(chainBest / 50, 1));
+    statLine('\ud83d\udc79', 'Bosses Killed', '' + bossKills, '#ff4444', sy + 84);
 
-    // Time survived
     const mins = Math.floor(timeAlive / 60);
     const secs = Math.floor(timeAlive % 60);
-    statLine('Time Survived', `${mins}:${secs.toString().padStart(2, '0')}`, '#aaaaff', sy + 80);
+    statLine('\u23f1', 'Time Survived', mins + ':' + secs.toString().padStart(2, '0'), '#aaaaff', sy + 98, Math.min(timeAlive / 600, 1));
 
-    // DPS
-    const dps = timeAlive > 0 ? Math.round(G.score / timeAlive) : 0;
-    statLine('Score/sec', `${dps}`, '#ff88ff', sy + 96);
+    const kpm = timeAlive > 0 ? Math.round(totalKills / (timeAlive / 60)) : 0;
+    statLine('\ud83d\udcca', 'Kills/min', '' + kpm, '#ff88ff', sy + 112);
 
-    // Weapons used
-    const weaponCount = G.weapons ? G.weapons.filter(w => w.type !== 'passive').length : 0;
-    statLine('Weapons Used', `${weaponCount}`, '#88ff88', sy + 112);
-
-    // Weapon list (bottom strip)
+    // --- Weapon Inventory ---
     if (G.weapons && G.weapons.length > 0) {
-        const wY = sy + 132;
-        let wX = sx;
+        const wY = sy + 133;
+        drawText('ARSENAL', sx - 8, wY - 5, { font: 'bold 7px monospace', fill: '#666', outline: false });
+        let wX = sx - 8;
         for (const w of G.weapons) {
             if (w.type === 'passive') continue;
             const el = ELEMENTS[w.el] || ELEMENTS.METAL;
-            ctx.fillStyle = 'rgba(20,15,30,0.8)'; ctx.fillRect(wX, wY, 62, 18);
-            ctx.strokeStyle = el.light; ctx.lineWidth = 1; ctx.strokeRect(wX, wY, 62, 18);
-            const wName = w.id.length > 8 ? w.id.substring(0, 7) + '.' : w.id;
-            drawText(`${wName} L${w.level}`, wX + 31, wY + 4, { font: 'bold 7px monospace', fill: el.light, align: 'center', outline: false });
-            wX += 67;
+            ctx.fillStyle = 'rgba(15,10,25,0.9)'; ctx.fillRect(wX, wY + 3, 58, 16);
+            ctx.strokeStyle = el.light + '88'; ctx.lineWidth = 1; ctx.strokeRect(wX, wY + 3, 58, 16);
+            ctx.fillStyle = el.light;
+            ctx.beginPath(); ctx.arc(wX + 6, wY + 11, 2.5, 0, Math.PI * 2); ctx.fill();
+            const wName = w.id.length > 7 ? w.id.substring(0, 6) + '.' : w.id;
+            drawText(wName + ' L' + w.level, wX + 32, wY + 6, { font: 'bold 6px monospace', fill: el.light, align: 'center', outline: false });
+            wX += 63;
         }
     }
 
-    // Darkness earned
-    if (G.bonding) {
-        const dk = G.bonding.darknessEarned || 0;
-        drawText(`⬥ Darkness +${dk}`, GAME_W / 2 - 50, GAME_H - 55, { font: 'bold 10px monospace', fill: '#bb77ff' });
-        drawText(`Brotherhood XP +${G.bonding.xpEarned || 0}`, GAME_W / 2 + 50, GAME_H - 55, { font: 'bold 10px monospace', fill: '#ffd700' });
+    // --- Passives collected ---
+    if (G.weapons) {
+        const passives = G.weapons.filter(w => w.type === 'passive');
+        if (passives.length > 0) {
+            const passY = sy + 158;
+            let passX = sx - 8;
+            drawText('PASSIVES', passX, passY - 5, { font: 'bold 7px monospace', fill: '#555', outline: false });
+            for (const p of passives) {
+                const def = WEAPON_DEFS.find(d => d.id === p.id);
+                const pName = def ? def.name : p.id;
+                drawText(pName, passX, passY + 5, { font: '7px monospace', fill: '#88aacc', outline: false });
+                passX += 70;
+            }
+        }
     }
 
-    const blink = Math.sin(G.time * 3) > 0;
-    if (blink) {
+    // --- Rewards bar ---
+    if (G.bonding) {
+        const dk = G.bonding.darknessEarned || 0;
+        const bxp = G.bonding.xpEarned || 0;
+        ctx.fillStyle = 'rgba(20,10,40,0.7)';
+        ctx.fillRect(30, GAME_H - 68, GAME_W - 60, 22);
+        ctx.strokeStyle = '#bb77ff33'; ctx.lineWidth = 1;
+        ctx.strokeRect(30, GAME_H - 68, GAME_W - 60, 22);
+        drawText('\u2b25 Darkness +' + dk, 70, GAME_H - 60, { font: 'bold 9px monospace', fill: '#bb77ff' });
+        drawText('\ud83e\udd1d Brotherhood XP +' + bxp, GAME_W / 2 + 30, GAME_H - 60, { font: 'bold 9px monospace', fill: '#ffd700' });
+    }
+
+    // --- New High Score ---
+    try {
+        const hs = parseInt(localStorage.getItem('dynasty_hs') || '0');
+        if (gradeScore > hs) {
+            if (Math.sin(G.time * 6) > 0) {
+                drawText('\u2605 NEW HIGH SCORE! \u2605', GAME_W / 2, GAME_H - 85, { font: 'bold 11px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
+            }
+            localStorage.setItem('dynasty_hs', String(gradeScore));
+        }
+    } catch (e) { /* localStorage not available */ }
+
+    // Continue prompt
+    if (Math.sin(G.time * 3) > 0) {
         drawText('[ CLICK TO CONTINUE ]', GAME_W / 2, GAME_H - 35, { font: 'bold 12px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
     }
 }
@@ -1322,6 +1589,57 @@ function fireTacticalSkill() {
             spawnParticles(P.x, P.y, '#44ddff', 12, 35);
             spawnDmgNum(P.x, P.y - 20, Math.min(healed, tac.healAmt), '#44ff44', false);
             break;
+
+        case 'arrow_rain': // Ranger — ARROW RAIN: Shuriken barrage raining from above
+            SFX.fireRain();
+            if (typeof triggerFlash === 'function') triggerFlash('#88ff22', 0.06);
+            shake(2, 0.15);
+            {
+                const targetX = P.x + P.facing * 60;
+                const targetY = P.y;
+                const count = tac.count || 12;
+                // Target area marker
+                G.skillEffects.push({
+                    type: 'fire_aura', x: targetX, y: targetY,
+                    radius: tac.range || 60, color: '#88ff22', alpha: 0.15, timer: 0.8
+                });
+                G.skillEffects.push({
+                    type: 'shockwave', x: targetX, y: targetY,
+                    radius: 5, maxRadius: tac.range || 60, speed: 120,
+                    color: '#aacc44', alpha: 0.4, lineWidth: 1.5, timer: 0.4
+                });
+                // Rain down shuriken
+                for (let i = 0; i < count; i++) {
+                    const delay = i * 0.06;
+                    const ox = (Math.random() - 0.5) * (tac.range || 60) * 2;
+                    const oy = (Math.random() - 0.5) * (tac.range || 60) * 2;
+                    setTimeout(() => {
+                        if (G.state !== 'PLAYING') return;
+                        G.bullets.push({
+                            x: targetX + ox, y: targetY + oy - 80,
+                            vx: (Math.random() - 0.5) * 20, vy: 280 + Math.random() * 60,
+                            dmg: tac.dmg * (1 + P.level * 0.15), el: P.element,
+                            color: '#88ff22', life: 1, type: 'thrown_star', r: 3,
+                            pierce: 0, spin: 0, spinSpeed: 14, weaponId: 'arrow_rain'
+                        });
+                        // Impact spark on spawn
+                        spawnParticles(targetX + ox, targetY + oy, '#88ff22', 2, 15);
+                    }, delay * 1000);
+                }
+                // Leaf shower VFX
+                for (let i = 0; i < 6; i++) {
+                    G.skillEffects.push({
+                        type: 'leaf', x: targetX + (Math.random() - 0.5) * 60, y: targetY - 50,
+                        vx: (Math.random() - 0.5) * 30,
+                        vy: 40 + Math.random() * 30,
+                        rotation: Math.random() * Math.PI * 2,
+                        rotSpeed: (Math.random() - 0.5) * 8,
+                        color: i % 2 === 0 ? '#88ff22' : '#66cc00',
+                        alpha: 0.4, timer: 0.6, size: 2 + Math.random()
+                    });
+                }
+            }
+            break;
     }
 }
 
@@ -1338,6 +1656,15 @@ function fireUltimateSkill() {
     if (typeof triggerChromatic === 'function') triggerChromatic(3);
     shake(5, 0.3);
     spawnParticles(P.x, P.y, '#ffd700', 25, 80);
+
+    // Phase G: WAR CRY — Morale to max + buff all allies
+    G.morale = 100;
+    for (const ally of G.allies) {
+        if (ally.hp > 0) {
+            ally._warCryBuff = 6; // 6 seconds of enhanced combat
+            spawnParticles(ally.x, ally.y, '#ffd700', 8, 40);
+        }
+    }
 
     switch (hero.ultimate.id) {
         case 'rage_mode': // Berserker — DYNASTY FURY: Devastating fire eruption + persistent blaze
@@ -1629,21 +1956,140 @@ function fireUltimateSkill() {
             spawnParticles(P.x, P.y, '#ffd700', 15, 50);
             spawnParticles(P.x, P.y, '#ff8800', 10, 40);
             break;
+
+        case 'shuriken_storm': // Ranger — SHURIKEN STORM: Whirlwind of homing shuriken
+            SFX.ultimateActivate();
+            if (typeof triggerFlash === 'function') triggerFlash('#88ff22', 0.15);
+            if (typeof triggerChromatic === 'function') triggerChromatic(3);
+            shake(4, 0.3);
+            {
+                const ult = hero.ultimate;
+                const count = ult.count || 20;
+                const duration = ult.duration || 4;
+                // Wind cyclone VFX
+                G.skillEffects.push({
+                    type: 'shockwave', x: P.x, y: P.y,
+                    radius: 5, maxRadius: 80, speed: 80,
+                    color: '#88ff22', alpha: 0.4, lineWidth: 3, timer: duration
+                });
+                G.skillEffects.push({
+                    type: 'fire_aura', x: P.x, y: P.y,
+                    radius: 60, color: '#88ff22', alpha: 0.1, timer: duration, followPlayer: true
+                });
+                // Spawn homing shuriken over time
+                for (let i = 0; i < count; i++) {
+                    const delay = (duration / count) * i;
+                    setTimeout(() => {
+                        if (G.state !== 'PLAYING') return;
+                        const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+                        G.bullets.push({
+                            x: P.x + Math.cos(angle) * 15, y: P.y + Math.sin(angle) * 15,
+                            vx: Math.cos(angle) * 250, vy: Math.sin(angle) * 250,
+                            dmg: ult.dmg * (1 + P.level * 0.12), el: P.element,
+                            color: '#88ff22', life: 2.5, type: 'thrown_star', r: 4,
+                            pierce: 2, spin: 0, spinSpeed: 15 + Math.random() * 8,
+                            homing: true, homingTarget: null, homingStr: 4,
+                            weaponId: 'shuriken_storm'
+                        });
+                        // Green spark per shuriken
+                        spawnParticles(P.x + Math.cos(angle) * 15, P.y + Math.sin(angle) * 15, '#88ff22', 2, 15);
+                    }, delay * 1000);
+                }
+                // Leaf burst
+                for (let i = 0; i < 10; i++) {
+                    G.skillEffects.push({
+                        type: 'leaf', x: P.x, y: P.y,
+                        vx: (Math.random() - 0.5) * 80,
+                        vy: (Math.random() - 0.5) * 80,
+                        rotation: Math.random() * Math.PI * 2,
+                        rotSpeed: (Math.random() - 0.5) * 12,
+                        color: i % 3 === 0 ? '#88ff22' : (i % 3 === 1 ? '#aacc44' : '#66cc00'),
+                        alpha: 0.5, timer: 0.5 + Math.random() * 0.5, size: 2 + Math.random() * 2
+                    });
+                }
+                spawnParticles(P.x, P.y, '#88ff22', 20, 60);
+                spawnParticles(P.x, P.y, '#aacc44', 12, 40);
+            }
+            break;
     }
 }
 
 // --- AI Companion Update ---
 function updateAllies(dt) {
-    G.allies.forEach(ally => {
+    // Phase G: Calculate ally aura buffs
+    G.allyAura = { dmgReduction: 0, atkSpd: 0, critBonus: 0 };
+    let tankCount = 0, meleeCount = 0, rangedCount = 0;
+    for (const ally of G.allies) {
+        if (ally.hp <= 0) continue;
+        if (ally.behavior === 'tank') tankCount++;
+        else if (ally.behavior === 'melee') meleeCount++;
+        else if (ally.behavior === 'ranged') rangedCount++;
+    }
+    // Diminishing returns: first ally = full, second = 50%
+    if (tankCount > 0) G.allyAura.dmgReduction = 0.10 + (tankCount > 1 ? 0.05 : 0);
+    if (meleeCount > 0) G.allyAura.atkSpd = 0.15 + (meleeCount > 1 ? 0.075 : 0);
+    if (rangedCount > 0) G.allyAura.critBonus = 0.10 + (rangedCount > 1 ? 0.05 : 0);
+
+    // Phase G: Morale decay — lose 1 morale every 5 seconds
+    G.moraleDecayTimer = (G.moraleDecayTimer || 0) + dt;
+    if (G.moraleDecayTimer >= 5) {
+        G.moraleDecayTimer -= 5;
+        G.morale = clamp((G.morale || 0) - 1, 0, 100);
+    }
+
+    // Phase H: Brotherhood cooldown tick
+    if (G.brotherhoodCooldown > 0) {
+        G.brotherhoodCooldown -= dt;
+    }
+
+    for (let i = G.allies.length - 1; i >= 0; i--) {
+        const ally = G.allies[i];
+
+        // Temp allies (necro undead) expire
+        if (ally._tempTimer !== undefined) {
+            ally._tempTimer -= dt;
+            if (ally._tempTimer <= 0) {
+                // Death poof
+                spawnParticles(ally.x, ally.y, ally.color, 8, 30);
+                G.allies.splice(i, 1);
+                // Phase G: Morale loss on ally death
+                G.morale = clamp((G.morale || 0) - 10, 0, 100);
+                continue;
+            }
+        }
+
+        // Phase G: War Cry buff tick-down
+        if (ally._warCryBuff > 0) ally._warCryBuff -= dt;
+
+        // Attack flash timer
+        if (ally._atkFlash > 0) ally._atkFlash -= dt;
+
         if (ally.hp <= 0) {
+            // Death effect on first frame of death
+            if (!ally._deathPlayed) {
+                ally._deathPlayed = true;
+                spawnDeathExplosion(ally.x, ally.y, ally.color, '#ffaa44', 6);
+                spawnParticles(ally.x, ally.y, ally.color, 10, 40);
+                shake(1, 0.08);
+                // Phase G: Morale loss on ally death
+                G.morale = clamp((G.morale || 0) - 10, 0, 100);
+            }
             ally.respawnTimer -= dt;
             if (ally.respawnTimer <= 0) {
                 ally.hp = ally.maxHp;
                 ally.x = P.x + rng(-30, 30);
                 ally.y = P.y + rng(-30, 30);
+                ally._deathPlayed = false;
+                // Respawn burst
+                spawnParticles(ally.x, ally.y, '#ffd700', 6, 25);
             }
-            return;
+            continue;
         }
+
+        // Phase G: War Cry buff — enhanced speed/damage
+        const warCryActive = ally._warCryBuff > 0;
+        const allySpeedMult = warCryActive ? 1.2 : 1;
+        const allyDmgMult = warCryActive ? 1.3 : 1;
 
         // Find target
         let target = null, minDist = 150;
@@ -1657,19 +2103,21 @@ function updateAllies(dt) {
             const d = Math.hypot(dx, dy) || 1;
 
             if (ally.behavior === 'melee' || ally.behavior === 'tank') {
-                // Move toward target
                 if (d > ally.range) {
-                    ally.x += (dx / d) * ally.speed * dt;
-                    ally.y += (dy / d) * ally.speed * dt;
+                    ally.x += (dx / d) * ally.speed * allySpeedMult * dt;
+                    ally.y += (dy / d) * ally.speed * allySpeedMult * dt;
+                    // Footstep trail
+                    if (Math.random() < 0.15) {
+                        spawnParticles(ally.x, ally.y + 5, '#88776644', 1, 6);
+                    }
                 }
             } else if (ally.behavior === 'ranged') {
-                // Keep distance
                 if (d < 50) {
-                    ally.x -= (dx / d) * ally.speed * dt;
-                    ally.y -= (dy / d) * ally.speed * dt;
+                    ally.x -= (dx / d) * ally.speed * allySpeedMult * dt;
+                    ally.y -= (dy / d) * ally.speed * allySpeedMult * dt;
                 } else if (d > 100) {
-                    ally.x += (dx / d) * ally.speed * dt * 0.5;
-                    ally.y += (dy / d) * ally.speed * dt * 0.5;
+                    ally.x += (dx / d) * ally.speed * allySpeedMult * dt * 0.5;
+                    ally.y += (dy / d) * ally.speed * allySpeedMult * dt * 0.5;
                 }
             }
 
@@ -1677,17 +2125,20 @@ function updateAllies(dt) {
             ally.atkCd -= dt;
             if (ally.atkCd <= 0 && d < (ally.behavior === 'ranged' ? 120 : ally.range + 15)) {
                 ally.atkCd = ally.atkRate;
+                ally._atkFlash = 0.15; // Flash on attack
+                const finalDmg = ally.dmg * allyDmgMult;
                 if (ally.behavior === 'ranged') {
-                    // Fire projectile
                     G.bullets.push({
                         x: ally.x, y: ally.y,
                         vx: (dx / d) * 100, vy: (dy / d) * 100,
-                        dmg: ally.dmg, el: P.element, life: 2, r: 3
+                        dmg: finalDmg, el: P.element, life: 2, r: 3
                     });
+                    spawnParticles(ally.x, ally.y, ally.color, 2, 12);
                 } else {
-                    // Melee hit
-                    damageEnemy(target, ally.dmg, P.element);
-                    spawnParticles(target.x, target.y, ally.color, 3, 20);
+                    damageEnemy(target, finalDmg, P.element);
+                    spawnParticles(target.x, target.y, ally.color, 4, 25);
+                    // Ally damage number
+                    spawnDmgNum(target.x + rng(-3, 3), target.y - 10, Math.ceil(finalDmg), ally.color, false);
                 }
             }
         } else {
@@ -1703,7 +2154,7 @@ function updateAllies(dt) {
         // Bounds
         ally.x = clamp(ally.x, 5, G.arenaW - 5);
         ally.y = clamp(ally.y, 5, G.arenaH - 5);
-    });
+    }
 }
 
 // --- Draw Allies ---
@@ -1714,24 +2165,70 @@ function drawAllies() {
         const sy = ally.y - G.camY + G.shakeY;
         if (sx < -20 || sx > GAME_W + 20 || sy < -20 || sy > GAME_H + 20) return;
 
+        // Glow aura
+        ctx.globalAlpha = 0.15 + Math.sin(G.time * 3) * 0.08;
+        ctx.fillStyle = ally.color;
+        ctx.beginPath(); ctx.arc(sx, sy, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Attack flash
+        if (ally._atkFlash > 0) {
+            ctx.globalAlpha = ally._atkFlash * 6;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(sx, sy, 9, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
         // Body
         ctx.fillStyle = ally.color;
         ctx.fillRect(sx - 5, sy - 6, 10, 12);
         // Head
         ctx.fillStyle = '#ddc';
         ctx.fillRect(sx - 3, sy - 9, 6, 4);
-        // Weapon indicator
+        // Weapon indicator (colored by behavior)
         ctx.fillStyle = ally.behavior === 'ranged' ? '#4488ff' : '#ff8844';
         ctx.fillRect(sx + (ally.behavior === 'ranged' ? 5 : -7), sy - 3, 3, 6);
 
-        // HP bar
+        // HP bar (gradient)
         const hpPct = ally.hp / ally.maxHp;
-        ctx.fillStyle = '#333'; ctx.fillRect(sx - 8, sy - 13, 16, 2);
-        ctx.fillStyle = hpPct > 0.5 ? '#44dd44' : '#dd4444';
-        ctx.fillRect(sx - 8, sy - 13, 16 * hpPct, 2);
+        ctx.fillStyle = '#222'; ctx.fillRect(sx - 8, sy - 13, 16, 3);
+        const hpColor = hpPct > 0.6 ? '#44dd44' : hpPct > 0.3 ? '#ddaa44' : '#dd4444';
+        ctx.fillStyle = hpColor; ctx.fillRect(sx - 8, sy - 13, 16 * hpPct, 3);
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 0.5; ctx.strokeRect(sx - 8, sy - 13, 16, 3);
+
+        // Temp timer indicator (for necro undead)
+        if (ally._tempTimer !== undefined) {
+            const tPct = ally._tempTimer / 8;
+            ctx.fillStyle = '#8844aa66'; ctx.fillRect(sx - 8, sy - 16, 16 * tPct, 2);
+        }
 
         // Name
         drawText(ally.name, sx, sy + 9, { font: '6px monospace', fill: ally.color, align: 'center', outline: false });
+
+        // Phase G: Ally Aura Ring (behavior type)
+        const auraColors = { tank: '#4488ff', melee: '#ff6644', ranged: '#aa66ff' };
+        const auraColor = auraColors[ally.behavior] || '#888888';
+        ctx.strokeStyle = auraColor;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.25 + Math.sin(G.time * 4) * 0.15;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 14 + Math.sin(G.time * 3) * 1, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Phase G: War Cry golden glow
+        if (ally._warCryBuff > 0) {
+            ctx.globalAlpha = 0.2 + Math.sin(G.time * 8) * 0.1;
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.arc(sx, sy, 16, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Golden sparkle particles
+            if (Math.random() < 0.3) {
+                spawnParticles(ally.x + rng(-6, 6), ally.y + rng(-6, 6), '#ffd700', 1, 10);
+            }
+        }
     });
 }
 
@@ -1784,29 +2281,65 @@ function drawSacredBeast() {
     const sy = beast.y - G.camY + G.shakeY;
     if (sx < -20 || sx > GAME_W + 20 || sy < -20 || sy > GAME_H + 20) return;
 
-    // Glow
-    ctx.globalAlpha = 0.3 + Math.sin(G.time * 4) * 0.1;
-    ctx.fillStyle = '#ff4400';
-    ctx.beginPath(); ctx.arc(sx, sy, 10, 0, Math.PI * 2); ctx.fill();
+    // Outer fire glow (pulsing)
+    ctx.globalAlpha = 0.2 + Math.sin(G.time * 5) * 0.1;
+    ctx.fillStyle = '#ff2200';
+    ctx.beginPath(); ctx.arc(sx, sy, 16, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.35 + Math.sin(G.time * 4) * 0.15;
+    ctx.fillStyle = '#ff6600';
+    ctx.beginPath(); ctx.arc(sx, sy, 11, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
 
     // Phoenix body (red-gold bird shape)
     ctx.fillStyle = '#ff4400';
-    ctx.fillRect(sx - 4, sy - 3, 8, 6); // body
+    ctx.fillRect(sx - 5, sy - 4, 10, 8); // body
     ctx.fillStyle = '#ffd700';
-    ctx.fillRect(sx - 2, sy - 5, 4, 3); // head
-    // Wings
-    ctx.fillStyle = '#ff6600';
-    const wingOffset = Math.sin(G.time * 8) * 2;
-    ctx.fillRect(sx - 7, sy - 1 + wingOffset, 3, 4); // left wing
-    ctx.fillRect(sx + 4, sy - 1 - wingOffset, 3, 4); // right wing
-    // Tail
-    ctx.fillStyle = '#ff8800';
-    ctx.fillRect(sx - 2, sy + 3, 4, 3);
+    ctx.fillRect(sx - 3, sy - 6, 6, 4); // head
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx + 1, sy - 5, 1, 1);
 
-    // Timer display
+    // Animated wings (larger, with gradient feel)
+    ctx.fillStyle = '#ff6600';
+    const wingFlap = Math.sin(G.time * 10) * 3;
+    // Left wing
+    ctx.beginPath();
+    ctx.moveTo(sx - 5, sy);
+    ctx.lineTo(sx - 12, sy - 3 + wingFlap);
+    ctx.lineTo(sx - 8, sy + 2 + wingFlap * 0.5);
+    ctx.fill();
+    // Right wing
+    ctx.beginPath();
+    ctx.moveTo(sx + 5, sy);
+    ctx.lineTo(sx + 12, sy - 3 - wingFlap);
+    ctx.lineTo(sx + 8, sy + 2 - wingFlap * 0.5);
+    ctx.fill();
+    // Wing tips (gold)
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(sx - 13, sy - 4 + wingFlap, 3, 2);
+    ctx.fillRect(sx + 10, sy - 4 - wingFlap, 3, 2);
+
+    // Tail feathers (flame-like)
+    ctx.fillStyle = '#ff8800';
+    ctx.fillRect(sx - 2, sy + 4, 4, 4);
+    ctx.fillStyle = '#ffaa22';
+    ctx.fillRect(sx - 1, sy + 7, 2, 3);
+
+    // Fire trail from wings
+    if (Math.random() < 0.4) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        spawnParticles(
+            beast.x + side * 10 + rng(-2, 2),
+            beast.y + rng(-2, 2),
+            Math.random() < 0.5 ? '#ff4400' : '#ffd700', 1, 8
+        );
+    }
+
+    // Timer display with background
     const timeLeft = Math.ceil(beast.timer);
-    drawText(`${timeLeft}s`, sx, sy + 10, { font: 'bold 7px monospace', fill: '#ffd700', align: 'center' });
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(sx - 10, sy + 12, 20, 9);
+    drawText(timeLeft + 's', sx, sy + 13, { font: 'bold 7px monospace', fill: '#ffd700', align: 'center' });
 }
 
 // Extend drawHUD to include new elements
