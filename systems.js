@@ -6,6 +6,8 @@ function spawnEnemy(x, y, type) {
     const el = rngEl();
     const elDef = ELEMENTS[el];
     const floorMult = 1 + (G.floor - 1) * 0.20;
+    // K004: Difficulty tier multiplier
+    const diffTier = (typeof DIFFICULTY_TIERS !== 'undefined' && DIFFICULTY_TIERS[G.difficulty]) ? DIFFICULTY_TIERS[G.difficulty] : { hpMult: 1, spdMult: 1 };
     const types = {
         fodder: { hp: 5, speed: 25, dmg: 2, r: 4, xp: 1 },
         grunt: { hp: 20, speed: 35, dmg: 5, r: 6, xp: 3 },
@@ -19,8 +21,8 @@ function spawnEnemy(x, y, type) {
     const t = types[type] || types.grunt;
     const enemy = {
         x, y, vx: 0, vy: 0,
-        hp: t.hp * floorMult, maxHp: t.hp * floorMult,
-        speed: t.speed, dmg: t.dmg * floorMult,
+        hp: t.hp * floorMult * diffTier.hpMult, maxHp: t.hp * floorMult * diffTier.hpMult,
+        speed: t.speed * diffTier.spdMult, dmg: t.dmg * floorMult * diffTier.hpMult,
         r: t.r, el, color: elDef.color, lightColor: elDef.light,
         type, flash: 0, knockX: 0, knockY: 0, dead: false,
         attackCd: 0, spawnAnim: 0.4
@@ -180,6 +182,53 @@ function updateEnemies(dt) {
                     continue;
                 }
             }
+        }
+
+        // K002: Wu Xing Blessing DOTs
+        // Poison DOT (WOOD)
+        if (e.poisonTimer > 0) {
+            e.poisonTimer -= dt;
+            e._poisonTick = (e._poisonTick || 0) + dt;
+            if (e._poisonTick >= 0.5) {
+                e._poisonTick -= 0.5;
+                const pDmg = (e.poisonDps || 3) * 0.5;
+                e.hp -= pDmg;
+                spawnDmgNum(e.x + rng(-5, 5), e.y - 8, pDmg, '#44dd44', false);
+                if (Math.random() < 0.3) spawnParticles(e.x, e.y, '#44dd44', 1, 8);
+                if (e.hp <= 0) { killEnemy(e); continue; }
+            }
+        }
+        // Blessing Burn DOT (FIRE)
+        if (e.burnTimer > 0) {
+            e.burnTimer -= dt;
+            e._bBurnTick = (e._bBurnTick || 0) + dt;
+            if (e._bBurnTick >= 0.5) {
+                e._bBurnTick -= 0.5;
+                const bDmg = (e.burnDps || 5) * 0.5;
+                e.hp -= bDmg;
+                spawnDmgNum(e.x + rng(-5, 5), e.y - 12, bDmg, '#ff6600', false);
+                if (Math.random() < 0.4) spawnParticles(e.x, e.y, '#ff6600', 1, 10);
+                if (e.hp <= 0) { killEnemy(e); continue; }
+            }
+        }
+        // Bleed DOT (METAL)
+        if (e.bleedTimer > 0) {
+            e.bleedTimer -= dt;
+            e._bleedTick = (e._bleedTick || 0) + dt;
+            if (e._bleedTick >= 0.5) {
+                e._bleedTick -= 0.5;
+                const blDmg = (e.bleedDps || 4) * 0.5;
+                e.hp -= blDmg;
+                spawnDmgNum(e.x + rng(-5, 5), e.y - 6, blDmg, '#cc2222', false);
+                if (Math.random() < 0.3) spawnParticles(e.x, e.y, '#cc2222', 1, 8);
+                if (e.hp <= 0) { killEnemy(e); continue; }
+            }
+        }
+        // Freeze (WATER) — completely stops enemy
+        if (e.frozenTimer > 0) {
+            e.frozenTimer -= dt;
+            if (Math.random() < 0.1) spawnParticles(e.x, e.y, '#88ccff', 1, 6);
+            continue; // Skip all AI while frozen
         }
 
         // Chase player (with boss-specific AI)
@@ -598,6 +647,8 @@ function generateLevelUpChoices() {
     }
 
     const available = WEAPON_DEFS.filter(w => {
+        // Filter banished weapons (K005 QoL)
+        if (G.banishedWeapons && G.banishedWeapons.includes(w.id)) return false;
         // Filter out other heroes' signature weapons
         if (w.heroOnly && w.heroOnly !== P.heroId) return false;
         // Can upgrade existing weapons
@@ -630,6 +681,45 @@ function handleLevelUpClick(mx, my) {
     const totalW = choices.length * boxW + (choices.length - 1) * gap;
     const startX = (GAME_W - totalW) / 2;
     const startY = GAME_H / 2 - boxH / 2 + 5;
+
+    // --- Reroll Button Click (K005 QoL) ---
+    const rerollCost = 50 + G.rerollCount * 50;
+    const rerollBtnW = 80, rerollBtnH = 22;
+    const rerollBtnX = GAME_W / 2 - rerollBtnW - 8;
+    const rerollBtnY = startY + boxH + 12;
+    if (mx >= rerollBtnX && mx <= rerollBtnX + rerollBtnW &&
+        my >= rerollBtnY && my <= rerollBtnY + rerollBtnH) {
+        if (G.score >= rerollCost) {
+            G.score -= rerollCost;
+            G.rerollCount++;
+            generateLevelUpChoices();
+            SFX.menuClick();
+        } else {
+            // Not enough gold — flash red
+            triggerFlash('#ff0000', 0.15);
+        }
+        return;
+    }
+
+    // --- Banish Buttons (X on each card) ---
+    for (let i = 0; i < choices.length; i++) {
+        const c = choices[i];
+        if (c.isEvolution) continue; // Can't banish evolutions
+        const bx = startX + i * (boxW + gap);
+        const banX = bx + boxW - 16, banY = startY + 2;
+        if (mx >= banX && mx <= banX + 14 && my >= banY && my <= banY + 14) {
+            // Banish this weapon from the run pool
+            if (!G.banishedWeapons.includes(c.def.id)) {
+                G.banishedWeapons.push(c.def.id);
+            }
+            // Re-generate choices without the banished weapon
+            generateLevelUpChoices();
+            SFX.menuClick();
+            return;
+        }
+    }
+
+    // --- Card Selection (existing) ---
     for (let i = 0; i < choices.length; i++) {
         const bx = startX + i * (boxW + gap);
         if (mx >= bx && mx <= bx + boxW && my >= startY && my <= startY + boxH) {
@@ -641,6 +731,27 @@ function handleLevelUpClick(mx, my) {
 
 function selectLevelUpChoice(choice) {
     const def = choice.def;
+
+    // K002: Handle blessing choice from level-up
+    if (choice.isBlessing && choice.blessing) {
+        if (typeof addBlessing === 'function') addBlessing(choice.blessing);
+        const deity = WU_XING_DEITIES[choice.blessing.deity];
+        spawnParticles(P.x, P.y, deity.color, 15, 50);
+        spawnParticles(P.x, P.y, deity.light, 10, 35);
+        triggerFlash(deity.color, 0.25);
+        G.floorAnnounce = {
+            text: deity.icon + ' ' + (typeof choice.blessing.name === 'object' ? choice.blessing.name[G.lang || 'vi'] : choice.blessing.name),
+            timer: 2.0, color: deity.color
+        };
+        G.state = 'PLAYING';
+        G.levelUpChoices = [];
+        SFX.levelUp();
+        // K001: After level-up in room, show doors if room is cleared
+        if (G.roomCleared && G.roomState === 'CLEARED') {
+            setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 500);
+        }
+        return;
+    }
 
     // Handle evolution
     if (choice.isEvolution && def.isEvolution) {
@@ -665,6 +776,11 @@ function selectLevelUpChoice(choice) {
     G.state = 'PLAYING';
     G.levelUpChoices = [];
     SFX.menuClick();
+
+    // K001: After level-up in room, show doors if room is cleared
+    if (G.roomCleared && G.roomState === 'CLEARED') {
+        setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 500);
+    }
 }
 
 // --- Yin-Yang Update ---
@@ -915,3 +1031,340 @@ function drawArcherProjectiles() {
     ctx.restore();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// K001: Room-Based Dungeon Progression System
+// ═══════════════════════════════════════════════════════════════
+
+const ROOM_TYPES = {
+    COMBAT: { icon: '⚔️', name: { vi: 'Chiến Đấu', en: 'Combat' }, color: '#ff4444' },
+    ELITE: { icon: '💀', name: { vi: 'Tinh Nhuệ', en: 'Elite' }, color: '#ff8800' },
+    SHOP: { icon: '🛒', name: { vi: 'Cửa Hàng', en: 'Shop' }, color: '#ffdd44' },
+    REST: { icon: '💚', name: { vi: 'Nghỉ Ngơi', en: 'Rest' }, color: '#44dd44' },
+    TREASURE: { icon: '💎', name: { vi: 'Kho Báu', en: 'Treasure' }, color: '#44ddff' },
+    BOSS: { icon: '👹', name: { vi: 'TRÙM', en: 'BOSS' }, color: '#ff0000' },
+    BLESSING: { icon: '✨', name: { vi: 'Phước Lành', en: 'Blessing' }, color: '#ffd700' }
+};
+
+function generateRoomsForFloor() {
+    G.roomsPerFloor = 5 + Math.floor(Math.random() * 3); // 5-7 rooms
+    G.room = 1;
+    G.roomHistory = [];
+}
+
+function generateDoorChoices() {
+    const remaining = G.roomsPerFloor - G.room;
+    if (remaining <= 0) {
+        // Last room = Boss
+        G.doorChoices = [{ type: 'BOSS', reward: 'boss' }];
+        return;
+    }
+
+    const choices = [];
+    const numDoors = remaining === 1 ? 1 : (Math.random() < 0.3 ? 2 : 3);
+
+    // Weighted room type selection
+    const typePool = [];
+    typePool.push('COMBAT', 'COMBAT', 'COMBAT'); // 3x weight
+    if (G.floor >= 2) typePool.push('ELITE');
+    typePool.push('SHOP');
+    typePool.push('REST');
+    typePool.push('TREASURE');
+    typePool.push('BLESSING', 'BLESSING'); // 2x weight
+
+    for (let i = 0; i < numDoors; i++) {
+        let roomType;
+        // Avoid consecutive same types
+        do {
+            roomType = typePool[Math.floor(Math.random() * typePool.length)];
+        } while (choices.find(c => c.type === roomType) && typePool.length > numDoors);
+
+        // Generate reward preview
+        let reward;
+        switch (roomType) {
+            case 'COMBAT': reward = 'xp'; break;
+            case 'ELITE': reward = 'weapon'; break;
+            case 'SHOP': reward = 'gold'; break;
+            case 'REST': reward = 'hp'; break;
+            case 'TREASURE': reward = 'item'; break;
+            case 'BLESSING': reward = 'blessing'; break;
+            default: reward = 'xp';
+        }
+        choices.push({ type: roomType, reward });
+    }
+
+    G.doorChoices = choices;
+}
+
+function selectDoor(doorIndex) {
+    if (!G.doorChoices || doorIndex >= G.doorChoices.length) return;
+    const door = G.doorChoices[doorIndex];
+    G.room++;
+    G.roomType = door.type;
+    G.roomState = 'TRANSITIONING';
+    G.roomTransition = 0.8; // Fade transition duration
+    G.doorChoices = null;
+    G.roomCleared = false;
+    G.roomHistory.push(door.type);
+
+    // Transition VFX
+    triggerFlash('#000000', 0.6);
+    SFX.menuClick();
+
+    // Announce room type
+    const rt = ROOM_TYPES[door.type] || ROOM_TYPES.COMBAT;
+    G.floorAnnounce = {
+        text: rt.icon + ' ' + rt.name[G.lang || 'vi'] + ' ' + rt.icon,
+        subtitle: (G.lang === 'en' ? 'Room' : 'Phòng') + ' ' + G.room + '/' + G.roomsPerFloor,
+        timer: 2.0,
+        color: rt.color
+    };
+}
+
+function setupRoom() {
+    // Clear enemies and bullets
+    G.enemies = [];
+    G.bullets = [];
+    G.archerBullets = [];
+    G.pickups = [];
+
+    // Center player
+    P.x = G.arenaW / 2;
+    P.y = G.arenaH / 2;
+
+    G.roomState = 'FIGHTING';
+
+    switch (G.roomType) {
+        case 'COMBAT':
+            // Standard combat room
+            G.enemiesKilled = 0;
+            G.enemiesNeeded = 25 + G.floor * 5 + G.room * 3;
+            G.spawnTimer = 0;
+            break;
+
+        case 'ELITE':
+            // Elite room — mini-boss fight
+            G.enemiesKilled = 0;
+            G.enemiesNeeded = 1;
+            spawnEnemy(G.arenaW / 2 + 100, G.arenaH / 2, 'miniboss');
+            // Also some fodder
+            for (let i = 0; i < 5; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const d = rng(80, 150);
+                spawnEnemy(G.arenaW / 2 + Math.cos(angle) * d, G.arenaH / 2 + Math.sin(angle) * d, 'fodder');
+            }
+            G.enemiesNeeded = 6;
+            break;
+
+        case 'SHOP':
+            // Shop room — auto-clear, show shop UI
+            G.roomState = 'CLEARED';
+            G.roomCleared = true;
+            G.state = 'SHOP';
+            G.shopItems = generateShopItems();
+            break;
+
+        case 'REST':
+            // Rest room — heal 30% HP
+            P.hp = Math.min(P.hp + Math.ceil(P.maxHp * 0.3), P.maxHp);
+            spawnParticles(P.x, P.y, '#44dd44', 15, 50);
+            spawnDmgNum(P.x, P.y - 15, '+' + Math.ceil(P.maxHp * 0.3) + 'HP', '#44ff44', true);
+            G.roomState = 'CLEARED';
+            G.roomCleared = true;
+            // Auto show doors after delay
+            setTimeout(() => {
+                if (G.roomState === 'CLEARED') {
+                    G.roomState = 'DOOR_CHOICE';
+                    generateDoorChoices();
+                }
+            }, 2000);
+            break;
+
+        case 'TREASURE':
+            // Treasure room — free level up
+            G.roomState = 'CLEARED';
+            G.roomCleared = true;
+            G.state = 'LEVEL_UP';
+            generateLevelUpChoices();
+            spawnParticles(P.x, P.y, '#ffd700', 20, 60);
+            break;
+
+        case 'BLESSING':
+            // Blessing room — choose a Wu Xing blessing
+            G.roomState = 'CLEARED';
+            G.roomCleared = true;
+            G.state = 'BLESSING_CHOICE';
+            G.blessingChoices = (typeof generateBlessingChoices === 'function')
+                ? generateBlessingChoices(3) : [];
+            break;
+
+        case 'BOSS':
+            // Boss room — spawn floor boss
+            G.enemiesKilled = 0;
+            G.enemiesNeeded = 1;
+            spawnEnemy(G.arenaW / 2, G.arenaH / 2 - 80, 'boss');
+            break;
+    }
+}
+
+function generateShopItems() {
+    const items = [];
+    // HP restoration
+    items.push({
+        name: { vi: 'Thuốc Hồi Sinh', en: 'Healing Potion' },
+        icon: '❤️', cost: 50, effect: 'heal', value: Math.ceil(P.maxHp * 0.5)
+    });
+    // Max HP boost
+    items.push({
+        name: { vi: 'Trái Tim Rồng', en: 'Dragon Heart' },
+        icon: '💛', cost: 100, effect: 'maxhp', value: 20
+    });
+    // Random blessing
+    if (typeof generateBlessingChoices === 'function') {
+        const bless = generateBlessingChoices(1);
+        if (bless.length > 0) {
+            const b = bless[0];
+            const deity = WU_XING_DEITIES[b.deity];
+            items.push({
+                name: b.name, icon: deity.icon, cost: 150,
+                effect: 'blessing', blessing: b
+            });
+        }
+    }
+    return items;
+}
+
+function handleShopClick(mx, my) {
+    if (G.state !== 'SHOP' || !G.shopItems) return;
+    const items = G.shopItems;
+    const boxW = 120, boxH = 70, gap = 12;
+    const totalW = items.length * boxW + (items.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 + 10;
+
+    for (let i = 0; i < items.length; i++) {
+        const bx = startX + i * (boxW + gap);
+        if (mx >= bx && mx <= bx + boxW && my >= startY && my <= startY + boxH) {
+            const item = items[i];
+            if (G.score >= item.cost) {
+                G.score -= item.cost;
+                switch (item.effect) {
+                    case 'heal':
+                        P.hp = Math.min(P.hp + item.value, P.maxHp);
+                        spawnParticles(P.x, P.y, '#ff4444', 10, 40);
+                        break;
+                    case 'maxhp':
+                        P.maxHp += item.value;
+                        P.hp += item.value;
+                        spawnParticles(P.x, P.y, '#ffdd44', 10, 40);
+                        break;
+                    case 'blessing':
+                        if (typeof addBlessing === 'function') addBlessing(item.blessing);
+                        spawnParticles(P.x, P.y, '#ffd700', 15, 50);
+                        break;
+                }
+                SFX.menuClick();
+                items.splice(i, 1); // Remove purchased item
+                // If all items bought, auto-close shop
+                if (items.length === 0) {
+                    G.state = 'PLAYING';
+                    G.roomState = 'DOOR_CHOICE';
+                    generateDoorChoices();
+                }
+            } else {
+                triggerFlash('#ff0000', 0.15);
+            }
+            return;
+        }
+    }
+
+    // Skip shop button (bottom)
+    const skipW = 100, skipH = 24;
+    const skipX = GAME_W / 2 - skipW / 2, skipY = startY + boxH + 20;
+    if (mx >= skipX && mx <= skipX + skipW && my >= skipY && my <= skipY + skipH) {
+        G.state = 'PLAYING';
+        G.roomState = 'DOOR_CHOICE';
+        generateDoorChoices();
+        SFX.menuClick();
+    }
+}
+
+function handleDoorChoiceClick(mx, my) {
+    if (G.roomState !== 'DOOR_CHOICE' || !G.doorChoices) return;
+    const doors = G.doorChoices;
+    const doorW = 80, doorH = 100, gap = 20;
+    const totalW = doors.length * doorW + (doors.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - doorH / 2;
+
+    for (let i = 0; i < doors.length; i++) {
+        const dx = startX + i * (doorW + gap);
+        if (mx >= dx && mx <= dx + doorW && my >= startY && my <= startY + doorH) {
+            selectDoor(i);
+            return;
+        }
+    }
+}
+
+function handleBlessingChoiceClick(mx, my) {
+    if (G.state !== 'BLESSING_CHOICE' || !G.blessingChoices) return;
+    const choices = G.blessingChoices;
+    const boxW = 130, boxH = 90, gap = 12;
+    const totalW = choices.length * boxW + (choices.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 + 5;
+
+    for (let i = 0; i < choices.length; i++) {
+        const bx = startX + i * (boxW + gap);
+        if (mx >= bx && mx <= bx + boxW && my >= startY && my <= startY + boxH) {
+            const blessing = choices[i];
+            if (typeof addBlessing === 'function') addBlessing(blessing);
+            // VFX
+            const deity = WU_XING_DEITIES[blessing.deity];
+            spawnParticles(P.x, P.y, deity.color, 20, 60);
+            spawnParticles(P.x, P.y, deity.light, 12, 40);
+            triggerFlash(deity.color, 0.3);
+            shake(3, 0.2);
+            SFX.levelUp();
+            // Announcement
+            G.floorAnnounce = {
+                text: deity.icon + ' ' + blessing.name[G.lang || 'vi'],
+                subtitle: blessing.desc[G.lang || 'vi'],
+                timer: 2.5,
+                color: deity.color
+            };
+            // Return to gameplay
+            G.state = 'PLAYING';
+            G.blessingChoices = null;
+            // Show door choices
+            setTimeout(() => {
+                if (G.roomState === 'CLEARED') {
+                    G.roomState = 'DOOR_CHOICE';
+                    generateDoorChoices();
+                }
+            }, 1000);
+            return;
+        }
+    }
+}
+
+// --- Modify Level-Up to Sometimes Offer Blessings ---
+const _origGenerateLevelUpChoices = generateLevelUpChoices;
+generateLevelUpChoices = function () {
+    _origGenerateLevelUpChoices();
+
+    // 25% chance to replace one choice with a blessing
+    if (typeof generateBlessingChoices === 'function' && Math.random() < 0.25) {
+        const blessings = generateBlessingChoices(1);
+        if (blessings.length > 0 && G.levelUpChoices.length > 0) {
+            const b = blessings[0];
+            const deity = WU_XING_DEITIES[b.deity];
+            // Replace last choice with blessing
+            G.levelUpChoices[G.levelUpChoices.length - 1] = {
+                def: { id: b.id, name: b.name, desc: b.desc, icon: deity.icon, element: deity.element },
+                isBlessing: true,
+                blessing: b,
+                level: b.rarity === 'common' ? 1 : b.rarity === 'rare' ? 2 : 3
+            };
+        }
+    }
+};

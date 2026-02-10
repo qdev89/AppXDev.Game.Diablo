@@ -56,7 +56,30 @@ const G = {
     brotherhoodGauge: 0,      // Brotherhood combo gauge 0-100
     brotherhoodCooldown: 0,   // Cooldown between combo activations
     lang: 'vi',               // Language setting: 'vi' or 'en'
+    // Phase K: Difficulty Tiers
+    difficulty: 0,              // Selected difficulty index (0-3)
+    difficultyUnlocked: [true, false, false, false], // Which tiers are unlocked
 };
+
+// --- Difficulty Tiers (K004) ---
+const DIFFICULTY_TIERS = [
+    {
+        id: 'apprentice', icon: '🟢', hpMult: 1.0, spdMult: 1.0, rewardMult: 1.0,
+        name: { vi: 'Học Nghề', en: 'Apprentice' }, unlockFloor: 0, color: '#44dd44'
+    },
+    {
+        id: 'warrior', icon: '🟡', hpMult: 1.5, spdMult: 1.15, rewardMult: 1.5,
+        name: { vi: 'Chiến Binh', en: 'Warrior' }, unlockFloor: 10, color: '#ffaa00'
+    },
+    {
+        id: 'master', icon: '🔴', hpMult: 2.0, spdMult: 1.3, rewardMult: 2.0,
+        name: { vi: 'Đại Sư', en: 'Master' }, unlockFloor: 15, color: '#ff4444'
+    },
+    {
+        id: 'legend', icon: '💀', hpMult: 3.0, spdMult: 1.5, rewardMult: 3.0,
+        name: { vi: 'Huyền Thoại', en: 'Legend' }, unlockFloor: 20, color: '#cc44ff'
+    }
+];
 
 // --- Player ---
 const P = {
@@ -88,10 +111,10 @@ canvas.addEventListener('touchstart', e => {
     const r = canvas.getBoundingClientRect();
     const sx = (t.clientX - r.left) / r.width * GAME_W;
     const sy = (t.clientY - r.top) / r.height * GAME_H;
-    if (G.state === 'MENU') { G.state = 'HERO_SELECT'; return; }
+    if (G.state === 'MENU') { transitionTo('HERO_SELECT'); return; }
     if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(sx, sy); return; }
     if (G.state === 'BONDING') { handleBondingClick(sx, sy); return; }
-    if (G.state === 'GAME_OVER') { G.state = 'BONDING'; return; }
+    if (G.state === 'GAME_OVER') { transitionTo('BONDING'); return; }
     if (G.state === 'LEVEL_UP') { handleLevelUpClick(sx, sy); return; }
     touch.active = true; touch.sx = sx; touch.sy = sy; touch.cx = sx; touch.cy = sy;
 }, { passive: false });
@@ -111,11 +134,16 @@ canvas.addEventListener('click', e => {
     const r = canvas.getBoundingClientRect();
     const mx = (e.clientX - r.left) / r.width * GAME_W;
     const my = (e.clientY - r.top) / r.height * GAME_H;
-    if (G.state === 'MENU') { G.state = 'HERO_SELECT'; if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction(); }
+    if (G.state === 'MENU') { transitionTo('HERO_SELECT'); if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction(); }
     else if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(mx, my); }
     else if (G.state === 'BONDING') handleBondingClick(mx, my);
-    else if (G.state === 'GAME_OVER') G.state = 'BONDING';
+    else if (G.state === 'GAME_OVER') transitionTo('BONDING');
     else if (G.state === 'LEVEL_UP') handleLevelUpClick(mx, my);
+    // K001: Shop & Door choice clicks
+    else if (G.state === 'SHOP') { if (typeof handleShopClick === 'function') handleShopClick(mx, my); }
+    else if (G.state === 'PLAYING' && G.roomState === 'DOOR_CHOICE') { if (typeof handleDoorChoiceClick === 'function') handleDoorChoiceClick(mx, my); }
+    // K002: Blessing choice clicks
+    else if (G.state === 'BLESSING_CHOICE') { if (typeof handleBlessingChoiceClick === 'function') handleBlessingChoiceClick(mx, my); }
 });
 
 // --- Dodge Roll (Space key) ---

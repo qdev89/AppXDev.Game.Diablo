@@ -2,6 +2,126 @@
 // DYNASTY BRUHHH DUNGEON - Main Game Loop (Entry Point)
 // ============================================================
 
+// --- Screen Transition System ---
+const TRANSITION = {
+    active: false,
+    phase: 'none',   // 'fadeOut', 'fadeIn', 'none'
+    alpha: 0,
+    duration: 0.35,   // seconds per phase
+    timer: 0,
+    pendingState: null,
+    pendingCallback: null
+};
+
+function transitionTo(newState, callback, duration) {
+    if (TRANSITION.active) return; // prevent overlapping transitions
+    TRANSITION.active = true;
+    TRANSITION.phase = 'fadeOut';
+    TRANSITION.alpha = 0;
+    TRANSITION.timer = 0;
+    TRANSITION.duration = duration || 0.35;
+    TRANSITION.pendingState = newState;
+    TRANSITION.pendingCallback = callback || null;
+}
+
+function updateTransition(dt) {
+    if (!TRANSITION.active) return;
+    TRANSITION.timer += dt;
+    const progress = Math.min(TRANSITION.timer / TRANSITION.duration, 1);
+
+    if (TRANSITION.phase === 'fadeOut') {
+        TRANSITION.alpha = progress;
+        if (progress >= 1) {
+            // Switch state at peak darkness
+            if (TRANSITION.pendingState) G.state = TRANSITION.pendingState;
+            if (TRANSITION.pendingCallback) TRANSITION.pendingCallback();
+            TRANSITION.phase = 'fadeIn';
+            TRANSITION.timer = 0;
+        }
+    } else if (TRANSITION.phase === 'fadeIn') {
+        TRANSITION.alpha = 1 - progress;
+        if (progress >= 1) {
+            TRANSITION.active = false;
+            TRANSITION.phase = 'none';
+            TRANSITION.alpha = 0;
+        }
+    }
+}
+
+function drawTransition() {
+    if (!TRANSITION.active || TRANSITION.alpha <= 0) return;
+    ctx.fillStyle = `rgba(0,0,0,${TRANSITION.alpha})`;
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+}
+
+// --- Game Persistence (localStorage) ---
+const SAVE_KEY = 'dbd_save_v1';
+
+function saveGameSettings() {
+    try {
+        const data = {
+            lang: G.lang || 'vi',
+            audioEnabled: audioEnabled,
+            selectedHero: G.selectedHero || 'berserker',
+            totalRuns: (G._stats && G._stats.totalRuns) || 0,
+            totalKills: (G._stats && G._stats.totalKills) || 0,
+            bestFloor: (G._stats && G._stats.bestFloor) || 0,
+            arcanaXP: typeof ArcanaState !== 'undefined' ? ArcanaState.xp : 0,
+            arcanaLevel: typeof ArcanaState !== 'undefined' ? ArcanaState.level : 0,
+            arcanaUnlocked: typeof ArcanaState !== 'undefined' ? ArcanaState.unlocked : [],
+            // K004: Difficulty tiers
+            difficulty: G.difficulty || 0,
+            difficultyUnlocked: G.difficultyUnlocked || [true, false, false, false],
+        };
+        localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    } catch (e) { /* localStorage not available */ }
+}
+
+function loadGameSettings() {
+    try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.lang) { G.lang = data.lang; if (typeof setLang === 'function') setLang(data.lang); }
+        if (typeof data.audioEnabled === 'boolean') audioEnabled = data.audioEnabled;
+        if (data.selectedHero) G.selectedHero = data.selectedHero;
+        // Restore persistent stats
+        G._stats = {
+            totalRuns: data.totalRuns || 0,
+            totalKills: data.totalKills || 0,
+            bestFloor: data.bestFloor || 0,
+        };
+        // Restore Arcana if exists
+        if (typeof ArcanaState !== 'undefined') {
+            ArcanaState.xp = data.arcanaXP || 0;
+            ArcanaState.level = data.arcanaLevel || 0;
+            ArcanaState.unlocked = data.arcanaUnlocked || [];
+        }
+        // K004: Difficulty
+        if (data.difficulty !== undefined) G.difficulty = data.difficulty;
+        if (data.difficultyUnlocked) G.difficultyUnlocked = data.difficultyUnlocked;
+    } catch (e) { /* corrupted data — silently ignore */ }
+}
+
+function updatePersistentStats() {
+    if (!G._stats) G._stats = { totalRuns: 0, totalKills: 0, bestFloor: 0 };
+    G._stats.totalRuns++;
+    G._stats.totalKills += G.totalKills || 0;
+    if (G.floor > G._stats.bestFloor) G._stats.bestFloor = G.floor;
+    // K004: Check difficulty tier unlocks
+    if (typeof DIFFICULTY_TIERS !== 'undefined') {
+        for (let i = 1; i < DIFFICULTY_TIERS.length; i++) {
+            if (!G.difficultyUnlocked[i] && G.floor >= DIFFICULTY_TIERS[i].unlockFloor) {
+                G.difficultyUnlocked[i] = true;
+            }
+        }
+    }
+    saveGameSettings();
+}
+
+// Load settings on boot
+loadGameSettings();
+
 // --- Start Game ---
 function startGame() {
     SFX.menuClick();
@@ -18,6 +138,30 @@ function startGame() {
     G.allies = [];
     G.sacredBeast = null;
     G.equipment = { armor: null, talisman: null, mount: null };
+
+    // Death Defiance (Hades-style extra lives)
+    G.deathDefiance = 1; // Base 1 charge, upgradeable via Arcana
+    G.deathDefianceMax = 1;
+    G.deathDefianceVFX = 0; // Timer for revival VFX
+
+    // Reroll/Banish QoL (K005)
+    G.rerollCount = 0; // Times rerolled this run (cost escalates)
+    G.banishedWeapons = []; // Weapon IDs banished from run pool
+
+    // K002: Wu Xing Blessings
+    if (typeof resetBlessings === 'function') resetBlessings();
+    G.blessingChoices = null; // Active blessing choice cards
+    G.blessingOfferTimer = 0; // Timer for blessing offer after room clear
+
+    // K001: Room-Based Dungeon Progression
+    G.room = 1; // Current room number
+    G.roomsPerFloor = 6; // Rooms per floor (5-7, varies)
+    G.roomType = 'COMBAT'; // Current room type
+    G.roomState = 'FIGHTING'; // FIGHTING → CLEARED → DOOR_CHOICE → TRANSITIONING
+    G.doorChoices = null; // Available door options
+    G.roomCleared = false;
+    G.roomTransition = 0; // Fade transition timer
+    G.roomHistory = []; // Track visited room types
 
     // Apply hero stats
     const hero = getHeroDef(G.selectedHero || 'berserker');
@@ -176,6 +320,32 @@ function updatePlayer(dt) {
         }
     }
 
+    // K002: Update Wu Xing Blessings (per-frame effects)
+    if (typeof updateBlessings === 'function') updateBlessings(dt);
+
+    // K001: Room state machine update
+    if (G.roomTransition > 0) {
+        G.roomTransition -= dt;
+        if (G.roomTransition <= 0) {
+            // Transition complete — setup new room
+            if (typeof setupRoom === 'function') setupRoom();
+        }
+    }
+    // Check room clear condition
+    if (G.roomState === 'FIGHTING' && G.roomType === 'COMBAT' || G.roomType === 'ELITE') {
+        if (G.enemiesKilled >= G.enemiesNeeded && !G.roomCleared) {
+            G.roomCleared = true;
+            G.roomState = 'CLEARED';
+            // Show door choices after short delay
+            setTimeout(() => {
+                if (G.state === 'PLAYING' && G.roomState === 'CLEARED') {
+                    G.roomState = 'DOOR_CHOICE';
+                    if (typeof generateDoorChoices === 'function') generateDoorChoices();
+                }
+            }, 1500);
+        }
+    }
+
     // Equipment: HP regen from armor
     const eqArmor = G.equipment.armor;
     if (eqArmor && eqArmor.hpRegen) {
@@ -195,9 +365,29 @@ function update(dt) {
     updateEnemies(dt);
     if (typeof updateArcherProjectiles === 'function') updateArcherProjectiles(dt);
 
+    // Death Defiance VFX timer
+    if (G.deathDefianceVFX > 0) G.deathDefianceVFX -= dt;
+
     // Death check — MUST be after updateEnemies (where damage is dealt)
     if (P.hp <= 0) {
-        if (checkBondRevive()) {
+        // Priority 1: Death Defiance (Hades-style extra life)
+        if (G.deathDefiance > 0) {
+            G.deathDefiance--;
+            P.hp = Math.ceil(P.maxHp * 0.3); // Revive at 30% HP
+            P.invincible = 2; // 2s invincibility
+            G.deathDefianceVFX = 1.5; // Phoenix burst VFX timer
+            G.hitStop = 0.3; // Dramatic freeze-frame
+            // Dramatic revival effects
+            if (typeof SFX !== 'undefined') SFX.revive();
+            spawnParticles(P.x, P.y, '#ffd700', 40, 120);
+            spawnParticles(P.x, P.y, '#ff4400', 30, 100);
+            spawnElementParticles(P.x, P.y, 'FIRE', 25, 90);
+            spawnDmgNum(P.x, P.y - 25, 0, '#ffd700', true);
+            triggerFlash('#ffd700', 0.5);
+            triggerChromatic(4);
+            shake(8, 0.5);
+            // Priority 2: Bond revive (existing system)
+        } else if (checkBondRevive()) {
             SFX.revive();
             spawnDmgNum(P.x, P.y - 20, 0, '#ffd700', false);
         } else {
@@ -206,6 +396,7 @@ function update(dt) {
             G.state = 'GAME_OVER';
             // Save high score
             if (typeof saveHighScore === 'function') saveHighScore();
+            if (typeof updatePersistentStats === 'function') updatePersistentStats();
             spawnDeathExplosion(P.x, P.y, '#ff2222', '#ff6644', 12);
             spawnElementParticles(P.x, P.y, P.element, 20, 80);
             triggerFlash('#ff0000', 0.4);
@@ -307,6 +498,11 @@ function draw() {
         if (typeof drawTreasureRoom === 'function') drawTreasureRoom();
         if (typeof drawArcherProjectiles === 'function') drawArcherProjectiles();
         if (typeof drawEvolutionPopup === 'function') drawEvolutionPopup();
+        // K001: Room indicator & door choices
+        if (typeof drawRoomIndicator === 'function') drawRoomIndicator();
+        if (typeof drawDoorChoices === 'function') drawDoorChoices();
+        // K002: Active blessings display
+        if (typeof drawActiveBlessings === 'function') drawActiveBlessings();
         drawFloorAnnounce();
         // Phase I: Brotherhood Combo cinematic screen darken
         if (G._comboDarken > 0) {
@@ -319,10 +515,24 @@ function draw() {
     } else if (G.state === 'LEVEL_UP') {
         drawGame();
         drawLevelUpScreen();
+    } else if (G.state === 'SHOP') {
+        // K001: Shop room
+        drawGame();
+        if (typeof drawShopScreen === 'function') drawShopScreen();
+    } else if (G.state === 'BLESSING_CHOICE') {
+        // K002: Blessing choice room
+        drawGame();
+        if (typeof drawBlessingChoiceScreen === 'function') drawBlessingChoiceScreen();
     } else if (G.state === 'GAME_OVER') {
         drawGame();
         drawGameOverScreen();
     }
+
+    // K001: Room transition overlay
+    if (typeof drawRoomTransition === 'function') drawRoomTransition();
+
+    // Screen transition overlay (always on top)
+    drawTransition();
 }
 
 // --- Game Loop ---
@@ -346,6 +556,9 @@ function gameLoop(timestamp) {
         update(G.dt);
     }
 
+    updateTransition(Math.min((timestamp - (G._prevRawTime || timestamp)) / 1000, 0.05));
+    G._prevRawTime = timestamp;
+    if (typeof updateBGM === 'function') updateBGM();
     draw();
     requestAnimationFrame(gameLoop);
 }

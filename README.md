@@ -22,6 +22,9 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 ### Key Features
 
 - **6 Hero Classes** — Berserker, Strategist, Assassin, Vanguard, Mystic, Ranger
+- **Room-Based Dungeon** — Hades-style room progression with door choices between rooms
+- **7 Room Types** — Combat, Elite, Shop, Rest, Treasure, Blessing, Boss
+- **Wu Xing Blessings** — 5 elemental deities, 25 blessings, set bonuses, duo blessings
 - **Wu Xing (Five Elements)** — Wood 木 → Fire 火 → Earth 土 → Metal 金 → Water 水
 - **Musou Ultimates** — Fill the gauge by slaying enemies, unleash devastating skills
 - **Mana Skills** — Tactical abilities on cooldown that cost MP
@@ -30,6 +33,9 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 - **AI Companions** — Brotherhood Bond heroes fight alongside you
 - **Sacred Beasts** — Summon the Phoenix (Phụng) to orbit and attack
 - **12 Mini-Boss Generals** — Named Three Kingdoms characters with unique abilities
+- **Death Defiance** — Revive once per run when HP reaches 0
+- **Difficulty Tiers** — Normal, Hard, Dynasty difficulty modes
+- **Reroll & Banish** — QoL for level-up choices
 - **Chain Frost Bolt** — Ice projectile that chains between enemies with slow debuff
 - **Thrown Weapons** — Shurikens, Kunai, and Crossbow with fan-spread mechanics
 - **Brotherhood Bonds** — Meta-progression bonding with Three Kingdoms heroes
@@ -37,8 +43,11 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 - **Equipment Drops** — Armor, Talismans, Mounts with rarity tiers
 - **Auto-attack Weapons** — Level-up choices, elemental affinities, evolution system
 - **Boss Fights** — Multi-phase AI with charge attacks and shockwaves
-- **Treasure Rooms** — Special reward floors every 3 levels
 - **Bilingual** — Full Vietnamese (VI) and English (EN), toggle with [L] key
+- **Screen Transitions** — Smooth fade transitions between all game states
+- **Procedural BGM** — 3-mood background music (menu ambient, combat drums, boss tension) via Web Audio API
+- **Persistent Progress** — Settings, stats, and Arcana progress saved via localStorage
+- **Animated Main Menu** — Ember particles, orbiting element symbols, glowing title
 
 ## ⚔️ Controls
 
@@ -81,13 +90,14 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 ├── index.html      # Entry point
 ├── lang.js         # Bilingual localization (VI/EN)
 ├── engine.js       # Core engine, constants, state, input
-├── game.js         # Game loop, player update, state machine
+├── game.js         # Game loop, player update, state machine, room progression
 ├── heroes.js       # 6 hero classes, equipment, companions, sacred beasts
 ├── weapons.js      # Weapon system, damage, musou, thrown weapons
-├── systems.js      # Enemy AI, spawning, level-up, pickups, debuffs
+├── systems.js      # Enemy AI, spawning, level-up, pickups, rooms, shops, doors
 ├── renderer.js     # All drawing/rendering, chain frost VFX
-├── hud.js          # HUD, menus, hero select, brotherhood gauge
+├── hud.js          # HUD, menus, hero select, room indicators, blessing UI
 ├── bonding.js      # Brotherhood bonds, Arcana skill tree, combos
+├── blessings.js    # Wu Xing Blessing System (5 deities, 25 blessings)
 ├── sound.js        # Procedural SFX (Web Audio API)
 ├── sprites.js      # Pixel art sprite definitions
 ├── postfx.js       # Post-processing, biome tiles
@@ -104,7 +114,7 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 
 ## 📦 Version
 
-**v0.9.0** — Phase H: "Dynasty Warriors Expansion"
+**v0.9.5** — Phase K: "The Roguelike Soul"
 
 ---
 

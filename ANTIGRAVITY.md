@@ -12,26 +12,30 @@
 | `index.html` | Entry point, canvas, CSS, script loading |
 | `lang.js` | Bilingual localization (VI/EN), `t()` helper, `setLang()`, `tGen()`, `tGenTitle()`, `tComp()` |
 | `engine.js` | Core engine: constants, state, input, camera, utilities |
-| `game.js` | Game loop, state machine, player update, dodge roll, treasure room, skill timers, chain kills |
-| `weapons.js` | Weapon definitions, combat, damage calculations, kill tracking, musou gauge, thrown weapons |
-| `systems.js` | Enemies (fodder/grunt/fast/tank/archer/elite/miniboss/boss), spawning, level-up, pickups, portal, treasure rooms, debuffs |
+| `game.js` | Game loop, state machine, screen transitions (fade), localStorage persistence, chain kills, room state machine |
+| `weapons.js` | Weapon definitions, combat, damage calculations, kill tracking, musou gauge, thrown weapons, blessing damage integration |
+| `systems.js` | Enemies, spawning, level-up, pickups, portal, treasure rooms, debuffs, room generation, shop logic, door choices, DoT processing |
 | `renderer.js` | All drawing/rendering (player, enemies, effects, chain frost bounces) |
-| `hud.js` | HUD (HP/MP/XP/combo/morale/brotherhood gauge), menus, level-up cards, bonding screen, hero select |
+| `hud.js` | HUD, menus, level-up cards, bonding screen, hero select, room indicators, door choices, shop UI, blessing choice UI, active blessings |
 | `heroes.js` | Hero class definitions (6 classes), equipment items, companion AI data, sacred beast data |
 | `bonding.js` | Brotherhood bonds, Arcana skill tree, meta-progression, Brotherhood Combo execution |
-| `sound.js` | Procedural SFX via Web Audio API (hit, kill, coin, etc.) |
+| `sound.js` | Procedural SFX + BGM via Web Audio API (3 moods: menu/combat/boss) |
 | `sprites.js` | Pixel art sprite definitions and rendering |
 | `postfx.js` | Post-processing effects, biome floor tiles, ambient particles |
 | `evolution.js` | Weapon evolution system |
+| `blessings.js` | Wu Xing Blessing System: 5 deities, 25 blessings, 3 duo blessings, set bonuses, on-hit/on-kill effects |
 
 ## Script Load Order
 ```
 lang.js → heroes.js → bonding.js → sound.js → sprites.js → engine.js →
-weapons.js → systems.js → game.js → renderer.js → postfx.js → hud.js → evolution.js
+blessings.js → weapons.js → systems.js → game.js → renderer.js → postfx.js → hud.js → evolution.js
 ```
 
 ## Game States
-`MENU → HERO_SELECT → BONDING → PLAYING → LEVEL_UP → GAME_OVER → BONDING`
+`MENU → HERO_SELECT → BONDING → PLAYING → LEVEL_UP → SHOP → BLESSING_CHOICE → GAME_OVER → BONDING`
+
+### Room States (within PLAYING)
+`FIGHTING → CLEARED → DOOR_CHOICE → TRANSITIONING → (next room)`
 
 ## Hero Classes (6 Heroes)
 | Class | Hero | Element | HP | SPD | MP | Passive | Tactical [E] | Ultimate [Q] |
@@ -107,9 +111,81 @@ weapons.js → systems.js → game.js → renderer.js → postfx.js → hud.js �
 - **Cooldown**: 15s after activation
 
 ## Enemy Debuff System
-- **Slow**: Reduces speed by 30% for 1.5s (applied by Chain Frost Bolt)
-- **Burn DOT**: Fire damage over time from Flame Kunai and fire abilities
-- Both tracked per-enemy with `_slowTimer`, `_burnTimer`, `_origSpeed`
+- **Slow**: Reduces speed by 30% for 1.5s (applied by Chain Frost Bolt, Water blessings)
+- **Burn DOT**: Fire damage over time from Flame Kunai, fire abilities, Fire blessings
+- **Poison DOT**: Damage over time from Wood blessings (`poisonTimer`, `poisonDps`)
+- **Bleed DOT**: Damage over time from Metal blessings (`bleedTimer`, `bleedDps`)
+- **Freeze**: Enemy completely stopped from Water blessings (`frozenTimer`)
+- **Stun**: Enemy stopped from Earth blessings (`stunTimer`)
+- All DoTs tracked per-enemy, ticking every 0.5s with VFX
+
+## Wu Xing Blessing System (Phase K)
+| Element | Deity | Icon | Blessing Types |
+|---------|-------|------|---------|
+| WOOD | Thần Nông (Shennong) | 🌿 | Healing, thorns, poison, regen, max HP |
+| FIRE | Chúc Dung (Zhurong) | 🔥 | Damage, burn, explosion on kill, crit, fire aura |
+| EARTH | Hậu Thổ (Houtu) | ⛰️ | Armor, stun, shield, knockback, fortress |
+| METAL | Bạch Hổ (Bai Hu) | ⚔️ | Speed, pierce, bleed, attack speed, execute |
+| WATER | Cung Công (Gonggong) | 🌊 | Slow, life steal, freeze, tidal wave, ice armor |
+
+### Blessing Rarities
+- **Common**: 60% weight — basic effects
+- **Rare**: 30% weight — stronger effects
+- **Epic**: 10% weight — build-defining effects
+
+### Set Bonuses (3+ of same element)
+- WOOD: +30% healing effectiveness
+- FIRE: +25% DoT damage
+- EARTH: +20 Max HP, -10% damage
+- METAL: +10% attack speed, +10% crit
+- WATER: +15% lifesteal, +15% slow
+
+### Duo Blessings (2 different elements)
+- Fire+Wood: Wildfire (burning spreads to nearby)
+- Water+Metal: Frost Blade (+30% dmg to frozen)
+- Earth+Fire: Magma (lava trail on dodge)
+
+### Key Functions
+- `addBlessing(def)` — Add blessing, apply immediate effects, check set/duo bonuses
+- `getBlessingStats()` — Aggregate all active blessing stats
+- `applyBlessingOnHit(enemy, dmg)` — Apply on-hit effects (slow, stun, freeze, DoTs, lifesteal, execute)
+- `applyBlessingOnKill(enemy)` — Apply on-kill effects (heal, explosion, spreading burn)
+- `updateBlessings(dt)` — Tick regen, shield, fire aura, tidal wave
+- `generateBlessingChoices(count)` — Generate weighted blessing options
+- `getBlessingDamageMult()` — Get damage multiplier (including crit)
+- `getBlessingDamageReduction()` — Get damage reduction (capped at 75%)
+
+## Room-Based Dungeon System (Phase K)
+| Room Type | Color | Reward | Description |
+|-----------|-------|--------|-------------|
+| COMBAT | Red | XP/Gold | Standard enemy waves |
+| ELITE | Orange | Weapon | Mini-boss general encounter |
+| SHOP | Yellow | Items | Buy items with gold |
+| REST | Green | HP | Heal 30% HP |
+| TREASURE | Gold | Weapon/Blessing | Free reward |
+| BLESSING | Purple | Blessing | Choose from 3 blessings |
+| BOSS | Dark Red | Floor Clear | Floor boss fight |
+
+### Room Progression
+- 6 rooms per floor, door choices after each cleared room
+- 2-3 door options with room type preview and reward icons
+- Boss room appears as final room of each floor
+- "BOSS INCOMING" warning on penultimate room
+- Room indicator HUD (pips at top of screen)
+
+### Key State: `G.roomState`
+- `FIGHTING` — Combat in progress
+- `CLEARED` — Room completed, waiting for doors
+- `DOOR_CHOICE` — Player choosing next room
+- `TRANSITIONING` — Fade between rooms
+
+### Key Variables
+- `G.room` — Current room number (1-indexed)
+- `G.roomsPerFloor` — Total rooms per floor (default: 6)
+- `G.roomType` — Current room type
+- `G.doorChoices` — Array of door options [{type, reward}]
+- `G.roomCleared` — Whether current room is cleared
+- `G.enemiesKilled` / `G.enemiesNeeded` — Kill counter for room clear
 
 ## Key Patterns
 - **drawText()** helper: outlined text for readability (3px black outline)
@@ -124,6 +200,7 @@ weapons.js → systems.js → game.js → renderer.js → postfx.js → hud.js �
 - **Sacred beast**: `updateSacredBeast(dt)` / `drawSacredBeast()` — orbiting fire phoenix
 - **Kill tracking**: `G.totalKills`, `G.chainCount`, `G.chainTimer`, `G.killMilestone`
 - **Stun mechanic**: `e.stunTimer` on enemies, `e._origSpeed` for recovery
+- **BlessingState**: Global blessing state manager (active blessings, affinity, set/duo bonuses)
 - `catch` blocks must include `(e)` parameter for compatibility (no bare `catch {}`)
 
 ## Enemy Types
@@ -158,6 +235,8 @@ weapons.js → systems.js → game.js → renderer.js → postfx.js → hud.js �
 - Bonding screen uses 480×320 canvas — text must be 9px+ for readability
 
 ## Version History
+- **v0.9.5** — Phase K: The Roguelike Soul — Room-Based Dungeon Progression (6 room types, door choices, room state machine), Wu Xing Blessing System (5 deities, 25 blessings, 3 duo blessings, set bonuses, on-hit/on-kill/DoT effects), Death Defiance (revive once per run), Difficulty Tiers (Normal/Hard/Dynasty), Reroll/Banish QoL for level-up choices
+- **v0.9.2** — Phase J: The Atmosphere — Screen Transitions (fade), Procedural BGM (3 moods), localStorage Persistence (settings/stats/Arcana), Enhanced Main Menu (embers, glow, orbiting elements)
 - **v0.9.0** — Phase H: Dynasty Warriors Expansion — 6th Hero (Ranger), Chain Frost Bolt, Brotherhood Combos, 12 Mini-Boss Generals, Bilingual (VI/EN), Thrown Weapons, Morale System
 - **v0.8.0** — Phase G: The Entourage — AI Companions, Morale System, Brotherhood Bonds with Combos
 - **v0.7.1** — Phase F: The Spectacle — Complete Skill VFX Overhaul (10 skills), Weapon-Specific VFX

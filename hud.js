@@ -44,6 +44,44 @@ function drawHUD() {
     const hpColor = hpPct > 0.5 ? '#00dd55' : hpPct > 0.25 ? '#ddaa00' : '#dd2222';
     drawAnimatedBar(hpX, hpY, hpW, hpH, hpPct, HUD.hpDisplay, hpColor, '#ff333366');
     drawText(`${Math.ceil(P.hp)}/${P.maxHp}`, hpX + hpW / 2, hpY - 1, { font: 'bold 10px monospace', fill: '#fff', align: 'center' });
+
+    // --- Death Defiance Indicator (skull icons) ---
+    if (typeof G.deathDefianceMax !== 'undefined' && G.deathDefianceMax > 0) {
+        const ddX = hpX + hpW + 6;
+        const ddY = hpY + 1;
+        for (let i = 0; i < G.deathDefianceMax; i++) {
+            const used = i >= G.deathDefiance;
+            const pulse = used ? 0 : Math.sin(G.time * 2 + i) * 0.15;
+            ctx.globalAlpha = used ? 0.3 : 0.9 + pulse;
+            const ddColor = used ? '#555' : '#ffd700';
+            drawText('💀', ddX + i * 14, ddY - 1, { font: '10px monospace', fill: ddColor, outline: !used });
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // --- Death Defiance Phoenix Burst VFX ---
+    if (G.deathDefianceVFX > 0) {
+        const t = G.deathDefianceVFX / 1.5; // 0→1
+        const radius = (1 - t) * 200;
+        const alpha = t * 0.35;
+        // Phoenix ring expanding outward
+        ctx.save();
+        const px = P.x - G.camX + G.shakeX;
+        const py = P.y - G.camY + G.shakeY;
+        const grad = ctx.createRadialGradient(px, py, radius * 0.3, px, py, radius);
+        grad.addColorStop(0, `rgba(255,215,0,${alpha})`);
+        grad.addColorStop(0.5, `rgba(255,100,0,${alpha * 0.5})`);
+        grad.addColorStop(1, 'rgba(255,50,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+        // Phoenix text flash
+        if (t > 0.5) {
+            drawText('🔥 DEATH DEFIANCE 🔥', GAME_W / 2, GAME_H / 2 - 30,
+                { font: 'bold 16px monospace', fill: '#ffd700', align: 'center' });
+        }
+        ctx.restore();
+    }
+
     // Low HP warning pulse
     if (hpPct < 0.25) {
         const pulse = Math.sin(G.time * 6) * 0.15 + 0.15;
@@ -151,7 +189,13 @@ function drawHUD() {
 
     // --- Floor & Score ---
     drawText(`${typeof t === 'function' ? t('hud_floor') : 'Floor'} ${G.floor}`, GAME_W - 12, 6, { font: 'bold 14px monospace', fill: '#fff', align: 'right', outlineWidth: 4 });
-    drawText(`${G.score}G`, GAME_W - 12, 60, { font: 'bold 11px monospace', fill: '#ffdd44', align: 'right' });
+    // K004: Difficulty tier indicator
+    if (typeof DIFFICULTY_TIERS !== 'undefined' && G.difficulty > 0) {
+        const dTier = DIFFICULTY_TIERS[G.difficulty];
+        const lang = G.lang || 'vi';
+        drawText(`${dTier.icon} ${dTier.name[lang]}`, GAME_W - 12, 22, { font: 'bold 8px monospace', fill: dTier.color, align: 'right', outline: false });
+    }
+    drawText(`${G.score}G`, GAME_W - 12, G.difficulty > 0 ? 34 : 60, { font: 'bold 11px monospace', fill: '#ffdd44', align: 'right' });
     // Kill timer
     const mins = Math.floor(HUD.killTimer / 60);
     const secs = Math.floor(HUD.killTimer % 60);
@@ -557,56 +601,151 @@ function drawLevelUpScreen() {
             ctx.globalAlpha = 0.4; ctx.fillStyle = '#000'; ctx.fillRect(bx + 1, startY + boxH - 14, boxW - 2, 13); ctx.globalAlpha = 1;
             drawText(el.symbol + ' ' + el.name, bx + boxW / 2, startY + boxH - 13, { font: 'bold 10px monospace', fill: el.light, align: 'center' });
         }
+
+        // --- Banish Button (✕) on each card (K005 QoL) ---
+        if (!c.isEvolution) {
+            const banX = bx + boxW - 16, banY = startY + 2;
+            ctx.fillStyle = 'rgba(80,20,20,0.8)';
+            ctx.fillRect(banX, banY, 14, 14);
+            ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 1;
+            ctx.strokeRect(banX, banY, 14, 14);
+            drawText('✕', banX + 7, banY + 1, { font: 'bold 9px monospace', fill: '#ff6666', align: 'center' });
+        }
     }
+
+    // --- Reroll Button (K005 QoL) ---
+    const rerollCost = 50 + (G.rerollCount || 0) * 50;
+    const canAfford = G.score >= rerollCost;
+    const rerollBtnW = 80, rerollBtnH = 22;
+    const rerollBtnX = GAME_W / 2 - rerollBtnW - 8;
+    const rerollBtnY = startY + boxH + 12;
+    ctx.fillStyle = canAfford ? 'rgba(40,30,10,0.9)' : 'rgba(30,20,20,0.7)';
+    ctx.fillRect(rerollBtnX, rerollBtnY, rerollBtnW, rerollBtnH);
+    ctx.strokeStyle = canAfford ? '#ffd700' : '#555';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(rerollBtnX, rerollBtnY, rerollBtnW, rerollBtnH);
+    drawText(`🔄 Reroll`, rerollBtnX + rerollBtnW / 2, rerollBtnY + 2,
+        { font: 'bold 9px monospace', fill: canAfford ? '#ffd700' : '#666', align: 'center' });
+    drawText(`${rerollCost}G`, rerollBtnX + rerollBtnW / 2, rerollBtnY + 12,
+        { font: '8px monospace', fill: canAfford ? '#ffaa00' : '#555', align: 'center', outline: false });
+
+    // --- Banish Count Info ---
+    const banCount = G.banishedWeapons ? G.banishedWeapons.length : 0;
+    const banInfoX = GAME_W / 2 + 8;
+    ctx.fillStyle = 'rgba(30,15,15,0.8)';
+    ctx.fillRect(banInfoX, rerollBtnY, 80, rerollBtnH);
+    ctx.strokeStyle = '#884444'; ctx.lineWidth = 1;
+    ctx.strokeRect(banInfoX, rerollBtnY, 80, rerollBtnH);
+    drawText(`🚫 Banished`, banInfoX + 40, rerollBtnY + 2,
+        { font: 'bold 8px monospace', fill: '#ff6666', align: 'center' });
+    drawText(`${banCount} weapon${banCount !== 1 ? 's' : ''}`, banInfoX + 40, rerollBtnY + 12,
+        { font: '8px monospace', fill: '#aa4444', align: 'center', outline: false });
 }
 
 // --- Menu Screen ---
 function drawMenuScreen() {
-    ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+    // --- Animated gradient background ---
+    const grad = ctx.createLinearGradient(0, 0, 0, GAME_H);
+    grad.addColorStop(0, '#050510');
+    grad.addColorStop(0.5, '#0a0a1a');
+    grad.addColorStop(1, '#0d0818');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
 
-    // Background particles
-    for (let i = 0; i < 20; i++) {
-        const px = (GAME_W * 0.1 + Math.sin(G.time * 0.3 + i * 1.7) * GAME_W * 0.4);
-        const py = (GAME_H * 0.1 + Math.cos(G.time * 0.2 + i * 2.1) * GAME_H * 0.4);
-        const el = ELEMENTS[EL_KEYS[i % 5]];
-        ctx.globalAlpha = 0.15 + Math.sin(G.time + i) * 0.1;
-        ctx.fillStyle = el.color;
-        ctx.fillRect(px, py, 2, 2);
+    // --- Background grid pattern (subtle) ---
+    ctx.strokeStyle = 'rgba(255,215,0,0.03)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x < GAME_W; x += 20) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GAME_H); ctx.stroke();
+    }
+    for (let y = 0; y < GAME_H; y += 20) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GAME_W, y); ctx.stroke();
+    }
+
+    // --- Rising ember particles ---
+    if (!G._menuEmbers) {
+        G._menuEmbers = [];
+        for (let i = 0; i < 40; i++) {
+            G._menuEmbers.push({
+                x: Math.random() * GAME_W, y: Math.random() * GAME_H,
+                sz: 1 + Math.random() * 2.5, spd: 8 + Math.random() * 20,
+                drift: (Math.random() - 0.5) * 15,
+                hue: Math.random() < 0.6 ? 40 : (Math.random() < 0.5 ? 0 : 200),
+                a: 0.2 + Math.random() * 0.5, ph: Math.random() * Math.PI * 2
+            });
+        }
+    }
+    const mdt = G.dt || 0.016;
+    for (const e of G._menuEmbers) {
+        e.y -= e.spd * mdt;
+        e.x += Math.sin(G.time * 0.8 + e.ph) * e.drift * mdt;
+        if (e.y < -5) { e.y = GAME_H + 5; e.x = Math.random() * GAME_W; }
+        ctx.globalAlpha = e.a * (0.5 + 0.5 * Math.sin(G.time * 3 + e.ph));
+        ctx.fillStyle = 'hsl(' + e.hue + ', 100%, ' + (60 + Math.sin(G.time * 2 + e.ph) * 20) + '%)';
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.sz, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // Title
-    drawText('DYNASTY BRUHHH', GAME_W / 2, GAME_H / 2 - 70, { font: 'bold 24px monospace', fill: '#ffd700', align: 'center', outlineWidth: 5 });
-    drawText('DUNGEON', GAME_W / 2, GAME_H / 2 - 42, { font: 'bold 30px monospace', fill: '#ff4444', align: 'center', outlineWidth: 6 });
-
-    // Subtitle
-    drawText('Vampire Survivors × Dynasty Warriors', GAME_W / 2, GAME_H / 2 - 8, { font: 'bold 10px monospace', fill: '#999', align: 'center' });
-
-    // Elements display
+    // --- Floating element symbols orbiting ---
     EL_KEYS.forEach((k, i) => {
         const el = ELEMENTS[k];
-        drawText(el.symbol, GAME_W / 2 - 60 + i * 30, GAME_H / 2 + 12, { font: 'bold 16px monospace', fill: el.light, align: 'center', outlineWidth: 4 });
+        const angle = G.time * 0.4 + (i / EL_KEYS.length) * Math.PI * 2;
+        const ex = GAME_W / 2 + Math.cos(angle) * 140;
+        const ey = GAME_H / 2 - 30 + Math.sin(angle) * 35;
+        const scale = 0.6 + 0.4 * ((Math.sin(angle) + 1) / 2);
+        ctx.globalAlpha = 0.15 + 0.2 * scale;
+        drawText(el.symbol, ex, ey, {
+            font: 'bold ' + Math.floor(14 * scale) + 'px monospace',
+            fill: el.light, align: 'center', outlineWidth: 2
+        });
     });
+    ctx.globalAlpha = 1;
 
-    // Start prompt
-    const blink = Math.sin(G.time * 3) > 0;
-    if (blink) {
-        drawText('[ CLICK / TAP TO START ]', GAME_W / 2, GAME_H / 2 + 50, { font: 'bold 13px monospace', fill: '#ffffff', align: 'center', outlineWidth: 4 });
-    }
+    // --- Title with glow effect ---
+    const glowPulse = 0.6 + 0.4 * Math.sin(G.time * 2);
+    ctx.shadowColor = 'rgba(255, 215, 0, ' + (glowPulse * 0.7) + ')';
+    ctx.shadowBlur = 15 + glowPulse * 10;
+    drawText('DYNASTY BRUHHH', GAME_W / 2, GAME_H / 2 - 70, { font: 'bold 24px monospace', fill: '#ffd700', align: 'center', outlineWidth: 5 });
+    ctx.shadowColor = 'rgba(255, 50, 50, ' + (glowPulse * 0.5) + ')';
+    ctx.shadowBlur = 12 + glowPulse * 8;
+    drawText('DUNGEON', GAME_W / 2, GAME_H / 2 - 42, { font: 'bold 30px monospace', fill: '#ff4444', align: 'center', outlineWidth: 6 });
+    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+
+    // Subtitle
+    drawText('Vampire Survivors \u00d7 Dynasty Warriors', GAME_W / 2, GAME_H / 2 - 8, { font: 'bold 10px monospace', fill: '#999', align: 'center' });
+
+    // --- Animated Wu Xing element row ---
+    EL_KEYS.forEach((k, i) => {
+        const el = ELEMENTS[k];
+        const bounce = Math.sin(G.time * 2.5 + i * 0.8) * 3;
+        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(G.time * 3 + i);
+        drawText(el.symbol, GAME_W / 2 - 60 + i * 30, GAME_H / 2 + 12 + bounce, {
+            font: 'bold 16px monospace', fill: el.light, align: 'center', outlineWidth: 4
+        });
+    });
+    ctx.globalAlpha = 1;
+
+    // --- Breathing "Click to Start" ---
+    const breathe = 0.5 + 0.5 * Math.sin(G.time * 2.5);
+    ctx.globalAlpha = 0.3 + breathe * 0.7;
+    ctx.shadowColor = 'rgba(255,255,255,' + (breathe * 0.3) + ')';
+    ctx.shadowBlur = breathe * 8;
+    drawText('[ CLICK / TAP TO START ]', GAME_W / 2, GAME_H / 2 + 50, { font: 'bold 13px monospace', fill: '#ffffff', align: 'center', outlineWidth: 4 });
+    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+    ctx.globalAlpha = 1;
 
     // Controls hint
-    drawText('WASD/Arrows: Move • Auto-attack • Space: Dodge Roll', GAME_W / 2, GAME_H / 2 + 75, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
+    drawText('WASD/Arrows: Move \u2022 Auto-attack \u2022 Space: Dodge Roll', GAME_W / 2, GAME_H / 2 + 75, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
 
     // High Score Leaderboard
     const scores = getHighScores();
     if (scores.length > 0) {
-        drawText('⭐ HIGH SCORES', GAME_W / 2, GAME_H / 2 + 100, { font: 'bold 10px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3 });
+        drawText('\u2b50 HIGH SCORES', GAME_W / 2, GAME_H / 2 + 100, { font: 'bold 10px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3 });
         for (let i = 0; i < Math.min(scores.length, 5); i++) {
             const s = scores[i];
-            const gradeColor = { S: '#ffd700', A: '#44ff44', B: '#44bbff', C: '#ffaa00', D: '#ff4444' }[s.grade] || '#888';
             const dateStr = s.date || '';
             drawText(
-                `${i + 1}. ${s.score}G  F${s.floor}  ${s.grade}  ${dateStr}`,
+                (i + 1) + '. ' + s.score + 'G  F' + s.floor + '  ' + s.grade + '  ' + dateStr,
                 GAME_W / 2, GAME_H / 2 + 115 + i * 13,
                 { font: '8px monospace', fill: i === 0 ? '#ffd700' : '#888', align: 'center', outline: false }
             );
@@ -614,7 +753,7 @@ function drawMenuScreen() {
     }
 
     // Version
-    drawText('v0.9.0 — Dynasty Warriors', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
+    drawText('v0.9.2 \u2014 The Atmosphere', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
 }
 
 // --- High Score System ---
@@ -985,7 +1124,11 @@ function handleBondingClick(mx, my) {
     const btnY = GAME_H - 38;
     if (mx >= btnX && mx <= btnX + btnW && my >= btnY && my <= btnY + btnH) {
         SFX.menuClick();
-        startGame();
+        if (typeof transitionTo === 'function') {
+            transitionTo(null, function () { startGame(); }, 0.4);
+        } else {
+            startGame();
+        }
         return;
     }
 
@@ -1200,14 +1343,18 @@ function handlePauseMenuSelect(idx) {
         case 1: // Language toggle
             G.lang = G.lang === 'vi' ? 'en' : 'vi';
             if (typeof setLang === 'function') setLang(G.lang);
+            if (typeof saveGameSettings === 'function') saveGameSettings();
             SFX.menuClick();
             break;
         case 2: // Volume toggle
             audioEnabled = !audioEnabled;
+            if (!audioEnabled && typeof BGM !== 'undefined') BGM.stop();
+            if (typeof saveGameSettings === 'function') saveGameSettings();
             SFX.menuClick();
             break;
         case 3: // Return to Menu
-            G.state = 'MENU';
+            if (typeof transitionTo === 'function') transitionTo('MENU');
+            else G.state = 'MENU';
             SFX.menuClick();
             break;
     }
@@ -1435,10 +1582,64 @@ function drawHeroSelectScreen() {
 
     // Instructions
     drawText('Click a hero to begin', GAME_W / 2, GAME_H - 18, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
+
+    // --- Difficulty Tier Selector (K004) ---
+    if (typeof DIFFICULTY_TIERS !== 'undefined') {
+        const dtY = GAME_H - 42;
+        const dtBtnW = 50, dtGap = 4;
+        const dtTotalW = DIFFICULTY_TIERS.length * (dtBtnW + dtGap) - dtGap;
+        const dtStartX = GAME_W / 2 - dtTotalW / 2;
+
+        drawText('DIFFICULTY', GAME_W / 2, dtY - 12, { font: 'bold 7px monospace', fill: '#888', align: 'center', outline: false });
+
+        for (let i = 0; i < DIFFICULTY_TIERS.length; i++) {
+            const tier = DIFFICULTY_TIERS[i];
+            const tx = dtStartX + i * (dtBtnW + dtGap);
+            const isSelected = G.difficulty === i;
+            const isLocked = !G.difficultyUnlocked[i];
+            const lang = G.lang || 'vi';
+
+            ctx.fillStyle = isLocked ? 'rgba(20,15,15,0.8)' : isSelected ? 'rgba(30,25,50,0.95)' : 'rgba(15,12,20,0.85)';
+            ctx.fillRect(tx, dtY, dtBtnW, 20);
+            ctx.strokeStyle = isLocked ? '#333' : isSelected ? tier.color : '#555';
+            ctx.lineWidth = isSelected ? 2 : 1;
+            ctx.strokeRect(tx, dtY, dtBtnW, 20);
+
+            if (isLocked) {
+                drawText('🔒', tx + dtBtnW / 2, dtY + 3, { font: '8px monospace', fill: '#555', align: 'center', outline: false });
+                drawText(`Fl.${tier.unlockFloor}`, tx + dtBtnW / 2, dtY + 12, { font: '6px monospace', fill: '#444', align: 'center', outline: false });
+            } else {
+                drawText(`${tier.icon} ${tier.name[lang]}`, tx + dtBtnW / 2, dtY + 2, { font: 'bold 7px monospace', fill: isSelected ? tier.color : '#aaa', align: 'center', outline: false });
+                drawText(`×${tier.hpMult}`, tx + dtBtnW / 2, dtY + 12, { font: '6px monospace', fill: isSelected ? '#fff' : '#777', align: 'center', outline: false });
+            }
+        }
+    }
 }
 
 // --- Handle Hero Select Click ---
 function handleHeroSelectClick(mx, my) {
+    // --- K004: Difficulty Tier Click ---
+    if (typeof DIFFICULTY_TIERS !== 'undefined') {
+        const dtY = GAME_H - 42;
+        const dtBtnW = 50, dtGap = 4;
+        const dtTotalW = DIFFICULTY_TIERS.length * (dtBtnW + dtGap) - dtGap;
+        const dtStartX = GAME_W / 2 - dtTotalW / 2;
+        for (let i = 0; i < DIFFICULTY_TIERS.length; i++) {
+            const tx = dtStartX + i * (dtBtnW + dtGap);
+            if (mx >= tx && mx <= tx + dtBtnW && my >= dtY && my <= dtY + 20) {
+                if (G.difficultyUnlocked[i]) {
+                    G.difficulty = i;
+                    SFX.menuClick();
+                    saveGameSettings();
+                } else {
+                    triggerFlash('#ff0000', 0.15);
+                }
+                return;
+            }
+        }
+    }
+
+    // --- Hero Card Click ---
     const cardW = 88, cardH = 240, gap = 4;
     const totalW = HEROES.length * (cardW + gap) - gap;
     const startX = GAME_W / 2 - totalW / 2;
@@ -1449,7 +1650,8 @@ function handleHeroSelectClick(mx, my) {
         if (mx >= cx && mx <= cx + cardW && my >= startY && my <= startY + cardH) {
             G.selectedHero = HEROES[i].id;
             SFX.menuClick();
-            G.state = 'BONDING';
+            if (typeof transitionTo === 'function') transitionTo('BONDING');
+            else G.state = 'BONDING';
             return;
         }
     }
@@ -2488,3 +2690,238 @@ const _origDrawHUD = typeof drawHUD_orig === 'undefined' ? null : drawHUD_orig;
 
 // Override drawGame to add musou bar, skill icons, and kill counter after existing HUD
 const _origDrawGame = typeof drawGame === 'function' ? drawGame : null;
+
+// ═══════════════════════════════════════════════════════════════
+// K001: Room System HUD — Door Choices, Shop, Room Indicator
+// ═══════════════════════════════════════════════════════════════
+
+function drawRoomIndicator() {
+    if (!G.roomsPerFloor) return;
+    const x = GAME_W / 2, y = 14;
+    const rt = ROOM_TYPES[G.roomType] || ROOM_TYPES.COMBAT;
+    // Room progress pips
+    const pipW = 10, pipGap = 3;
+    const totalPipW = G.roomsPerFloor * (pipW + pipGap) - pipGap;
+    const pipStartX = x - totalPipW / 2;
+
+    for (let r = 1; r <= G.roomsPerFloor; r++) {
+        const px = pipStartX + (r - 1) * (pipW + pipGap);
+        ctx.fillStyle = r < G.room ? '#888888' : r === G.room ? rt.color : '#333333';
+        ctx.globalAlpha = r === G.room ? 1.0 : 0.6;
+        ctx.fillRect(px, y - 3, pipW, 6);
+        if (r === G.room) {
+            // Current room glow
+            ctx.strokeStyle = rt.color;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(px - 1, y - 4, pipW + 2, 8);
+        }
+    }
+    ctx.globalAlpha = 1;
+
+    drawText(rt.icon + ' ' + (rt.name[G.lang || 'vi']) + ' ' + G.room + '/' + G.roomsPerFloor,
+        x, y + 10, { font: 'bold 8px monospace', fill: rt.color, align: 'center', outlineWidth: 2 });
+}
+
+function drawDoorChoices() {
+    if (G.roomState !== 'DOOR_CHOICE' || !G.doorChoices) return;
+    const doors = G.doorChoices;
+
+    // Darken background
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    // Title
+    drawText('⛩ ' + (G.lang === 'en' ? 'CHOOSE YOUR PATH' : 'CHỌN CON ĐƯỜNG') + ' ⛩',
+        GAME_W / 2, GAME_H / 2 - 80, { font: 'bold 14px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3 });
+
+    const doorW = 80, doorH = 100, gap = 20;
+    const totalW = doors.length * doorW + (doors.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - doorH / 2;
+
+    for (let i = 0; i < doors.length; i++) {
+        const d = doors[i];
+        const x = startX + i * (doorW + gap);
+        const rt = ROOM_TYPES[d.type] || ROOM_TYPES.COMBAT;
+
+        // Door frame
+        const grad = ctx.createLinearGradient(x, startY, x, startY + doorH);
+        grad.addColorStop(0, rt.color + '44');
+        grad.addColorStop(1, '#111111');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, startY, doorW, doorH);
+
+        // Border
+        ctx.strokeStyle = rt.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, startY, doorW, doorH);
+
+        // Door arch
+        ctx.beginPath();
+        ctx.arc(x + doorW / 2, startY + 15, doorW / 2 - 4, Math.PI, 0, false);
+        ctx.strokeStyle = rt.color + '88';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Icon
+        drawText(rt.icon, x + doorW / 2, startY + 35, { font: '18px serif', fill: '#ffffff', align: 'center' });
+        // Name
+        drawText(rt.name[G.lang || 'vi'], x + doorW / 2, startY + 58, { font: 'bold 9px monospace', fill: rt.color, align: 'center', outlineWidth: 2 });
+        // Reward preview
+        const rewardIcons = { xp: '⭐', weapon: '🗡️', gold: '💰', hp: '💚', item: '🎁', blessing: '✨', boss: '💀' };
+        drawText(rewardIcons[d.reward] || '?', x + doorW / 2, startY + 78, { font: '14px serif', fill: '#ffffff', align: 'center' });
+    }
+}
+
+function drawShopScreen() {
+    if (G.state !== 'SHOP' || !G.shopItems) return;
+    const items = G.shopItems;
+
+    // Darken
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    // Title
+    drawText('🛒 ' + (G.lang === 'en' ? 'SHOP' : 'CỬA HÀNG') + ' 🛒',
+        GAME_W / 2, GAME_H / 2 - 65, { font: 'bold 14px monospace', fill: '#ffdd44', align: 'center', outlineWidth: 3 });
+
+    // Gold display
+    drawText('💰 ' + G.score, GAME_W / 2, GAME_H / 2 - 48, { font: 'bold 10px monospace', fill: '#ffd700', align: 'center', outlineWidth: 2 });
+
+    const boxW = 120, boxH = 70, gap = 12;
+    const totalW = items.length * boxW + (items.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 + 10;
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const x = startX + i * (boxW + gap);
+        const canAfford = G.score >= item.cost;
+
+        // Card bg
+        ctx.fillStyle = canAfford ? '#1a2a1a' : '#2a1a1a';
+        ctx.fillRect(x, startY, boxW, boxH);
+        ctx.strokeStyle = canAfford ? '#44dd44' : '#664444';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, startY, boxW, boxH);
+
+        // Icon + name
+        drawText(item.icon, x + boxW / 2, startY + 16, { font: '16px serif', fill: '#ffffff', align: 'center' });
+        const name = typeof item.name === 'object' ? item.name[G.lang || 'vi'] : item.name;
+        drawText(name, x + boxW / 2, startY + 34, { font: 'bold 8px monospace', fill: '#ffffff', align: 'center', outlineWidth: 2 });
+
+        // Cost
+        drawText('💰 ' + item.cost, x + boxW / 2, startY + 52, { font: 'bold 9px monospace', fill: canAfford ? '#ffd700' : '#ff4444', align: 'center', outlineWidth: 2 });
+    }
+
+    // Skip button
+    const skipW = 100, skipH = 24;
+    const skipX = GAME_W / 2 - skipW / 2, skipY = startY + boxH + 20;
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(skipX, skipY, skipW, skipH);
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(skipX, skipY, skipW, skipH);
+    drawText(G.lang === 'en' ? 'Skip ▶' : 'Bỏ qua ▶', GAME_W / 2, skipY + 15, { font: 'bold 9px monospace', fill: '#aaaaaa', align: 'center', outlineWidth: 2 });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// K002: Wu Xing Blessing HUD — Choose & Display Active Blessings
+// ═══════════════════════════════════════════════════════════════
+
+function drawBlessingChoiceScreen() {
+    if (G.state !== 'BLESSING_CHOICE' || !G.blessingChoices) return;
+    const choices = G.blessingChoices;
+
+    // Darken
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    // Title with elemental shimmer
+    drawText('✨ ' + (G.lang === 'en' ? 'DIVINE BLESSING' : 'PHƯỚC LÀNH THẦN LINH') + ' ✨',
+        GAME_W / 2, GAME_H / 2 - 75, { font: 'bold 14px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3 });
+    drawText(G.lang === 'en' ? 'Choose one blessing from the Five Elements' : 'Chọn một phước lành từ Ngũ Hành',
+        GAME_W / 2, GAME_H / 2 - 58, { font: '8px monospace', fill: '#ccaa66', align: 'center', outlineWidth: 2 });
+
+    const boxW = 130, boxH = 90, gap = 12;
+    const totalW = choices.length * boxW + (choices.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 + 5;
+
+    for (let i = 0; i < choices.length; i++) {
+        const b = choices[i];
+        const deity = WU_XING_DEITIES[b.deity];
+        const x = startX + i * (boxW + gap);
+
+        // Card background with element gradient
+        const grad = ctx.createLinearGradient(x, startY, x, startY + boxH);
+        grad.addColorStop(0, deity.color + '33');
+        grad.addColorStop(0.6, '#111111');
+        grad.addColorStop(1, deity.color + '22');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, startY, boxW, boxH);
+
+        // Rarity border color
+        const rarityColors = { common: '#aaaaaa', rare: '#4488ff', epic: '#cc44ff' };
+        ctx.strokeStyle = rarityColors[b.rarity] || '#aaaaaa';
+        ctx.lineWidth = b.rarity === 'epic' ? 2.5 : b.rarity === 'rare' ? 2 : 1.5;
+        ctx.strokeRect(x, startY, boxW, boxH);
+
+        // Deity icon
+        drawText(deity.icon, x + boxW / 2, startY + 18, { font: '16px serif', fill: deity.light, align: 'center' });
+
+        // Deity name
+        drawText(deity.name[G.lang || 'vi'], x + boxW / 2, startY + 34, { font: 'bold 7px monospace', fill: deity.color, align: 'center', outlineWidth: 2 });
+
+        // Blessing name
+        const bName = typeof b.name === 'object' ? b.name[G.lang || 'vi'] : b.name;
+        drawText(bName, x + boxW / 2, startY + 48, { font: 'bold 8px monospace', fill: '#ffffff', align: 'center', outlineWidth: 2 });
+
+        // Blessing desc (truncated)
+        const bDesc = typeof b.desc === 'object' ? b.desc[G.lang || 'vi'] : b.desc;
+        const shortDesc = bDesc.length > 25 ? bDesc.substring(0, 24) + '…' : bDesc;
+        drawText(shortDesc, x + boxW / 2, startY + 62, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
+
+        // Rarity tag
+        const rarityLabels = { common: 'Thường', rare: 'Hiếm', epic: 'Sử Thi' };
+        const rarityLabelsEn = { common: 'Common', rare: 'Rare', epic: 'Epic' };
+        const rLabel = G.lang === 'en' ? (rarityLabelsEn[b.rarity] || 'Common') : (rarityLabels[b.rarity] || 'Thường');
+        drawText('[' + rLabel + ']', x + boxW / 2, startY + 78, { font: 'bold 7px monospace', fill: rarityColors[b.rarity] || '#aaa', align: 'center', outlineWidth: 2 });
+    }
+}
+
+function drawActiveBlessings() {
+    if (!BlessingState || !BlessingState.active || BlessingState.active.length === 0) return;
+    const blessings = BlessingState.active;
+    // Draw small icons in top-right
+    const startX = GAME_W - 12, startY = 60;
+    const size = 14, gap = 2;
+
+    for (let i = 0; i < blessings.length && i < 8; i++) {
+        const b = blessings[i];
+        const deity = WU_XING_DEITIES[b.deity];
+        const y = startY + i * (size + gap);
+
+        // Background pill
+        ctx.fillStyle = deity.color + '55';
+        ctx.fillRect(startX - size, y - size / 2, size, size);
+        ctx.strokeStyle = deity.color;
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(startX - size, y - size / 2, size, size);
+
+        // Icon
+        drawText(deity.icon, startX - size / 2, y + 2, { font: '8px serif', fill: '#ffffff', align: 'center' });
+    }
+
+    // Show count if > 8
+    if (blessings.length > 8) {
+        drawText('+' + (blessings.length - 8), startX - size / 2, startY + 8 * (size + gap) + 4, { font: 'bold 7px monospace', fill: '#ffd700', align: 'center', outlineWidth: 1 });
+    }
+}
+
+function drawRoomTransition() {
+    if (G.roomTransition <= 0) return;
+    const alpha = Math.min(G.roomTransition * 2, 1);
+    ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+}

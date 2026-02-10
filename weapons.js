@@ -500,6 +500,11 @@ function damageEnemy(e, dmg, el) {
     else if (morale >= 60) mult *= 1.10;
     else if (morale >= 30) mult *= 1.05;
 
+    // K002: Wu Xing Blessing damage modifier
+    if (typeof getBlessingDamageMult === 'function') {
+        mult *= getBlessingDamageMult();
+    }
+
     const finalDmg = dmg * mult;
     e.hp -= finalDmg;
     e.flash = 0.1;
@@ -525,15 +530,23 @@ function damageEnemy(e, dmg, el) {
     // Yin-Yang: attacks = +Yang
     G.yinYang.yang = clamp(G.yinYang.yang + 0.5, 0, 100);
 
+    // K002: Apply blessing on-hit effects (slow, poison, burn, bleed, lifesteal, execute)
+    if (typeof applyBlessingOnHit === 'function') applyBlessingOnHit(e, finalDmg);
+
     if (e.hp <= 0) killEnemy(e);
 }
 
 function killEnemy(e) {
     e.dead = true;
-    G.score += 10;
+    // K004: Apply difficulty reward multiplier
+    const _rewardMult = (typeof DIFFICULTY_TIERS !== 'undefined' && DIFFICULTY_TIERS[G.difficulty]) ? DIFFICULTY_TIERS[G.difficulty].rewardMult : 1;
+    G.score += Math.floor(10 * _rewardMult);
     G.combo++;
     G.maxCombo = Math.max(G.maxCombo, G.combo);
     G.enemiesKilled++;
+
+    // K002: Apply blessing on-kill effects (heal, explosion, spreading burn)
+    if (typeof applyBlessingOnKill === 'function') applyBlessingOnKill(e);
 
     // Phase E: Musou gauge fill
     const musouGain = e.type === 'fodder' ? 1 : e.type === 'elite' ? 8 : e.type === 'boss' ? 25 : e.type === 'miniboss' ? 15 : 3;
