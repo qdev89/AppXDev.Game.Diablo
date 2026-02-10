@@ -150,7 +150,7 @@ function drawHUD() {
     }
 
     // --- Floor & Score ---
-    drawText(`Floor ${G.floor}`, GAME_W - 12, 6, { font: 'bold 14px monospace', fill: '#fff', align: 'right', outlineWidth: 4 });
+    drawText(`${typeof t === 'function' ? t('hud_floor') : 'Floor'} ${G.floor}`, GAME_W - 12, 6, { font: 'bold 14px monospace', fill: '#fff', align: 'right', outlineWidth: 4 });
     drawText(`${G.score}G`, GAME_W - 12, 60, { font: 'bold 11px monospace', fill: '#ffdd44', align: 'right' });
     // Kill timer
     const mins = Math.floor(HUD.killTimer / 60);
@@ -1252,9 +1252,9 @@ function drawMusouBar() {
 
 // --- Kill Counter & Chain Display ---
 function drawKillCounter() {
-    // Kill count top-right
+    // Kill count top-right (below floor label)
     const killText = `斬 ${G.totalKills.toLocaleString()}`;
-    drawText(killText, GAME_W - 8, 8, { font: 'bold 11px monospace', fill: '#ffd700', align: 'right' });
+    drawText(killText, GAME_W - 12, 22, { font: 'bold 11px monospace', fill: '#ffd700', align: 'right' });
 
     // Chain display
     if (G.chainCount >= 5) {
@@ -1334,10 +1334,12 @@ function drawHeroSelectScreen() {
     // Title
     drawText('CHOOSE YOUR HERO', GAME_W / 2, 8, { font: 'bold 16px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
 
-    // Hero cards — 5 cards
-    const cardW = 88, cardH = 240, gap = 4;
+    // Hero cards — 6 cards (fit within screen)
+    const gap = 4;
+    const cardW = Math.floor((GAME_W - gap * (HEROES.length + 1)) / HEROES.length);
+    const cardH = 240;
     const totalW = HEROES.length * (cardW + gap) - gap;
-    const startX = GAME_W / 2 - totalW / 2;
+    const startX = Math.max(gap, GAME_W / 2 - totalW / 2);
     const startY = 30;
 
     for (let i = 0; i < HEROES.length; i++) {
@@ -1355,6 +1357,12 @@ function drawHeroSelectScreen() {
         ctx.strokeStyle = elColor;
         ctx.lineWidth = isHover ? 3 : 1;
         ctx.strokeRect(cx, cy, cardW, cardH);
+
+        // Clip to card bounds to prevent text overflow
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cx, cy, cardW, cardH);
+        ctx.clip();
 
         // Hero pixel art preview — render actual hero sprite
         const previewY = cy + 6;
@@ -1379,45 +1387,48 @@ function drawHeroSelectScreen() {
         drawText(elSym, cx + cardW - 6, cy + 4, { font: 'bold 12px monospace', fill: elColor, align: 'right' });
 
         // Name
-        drawText(h.name, cx + cardW / 2, cy + 32, { font: 'bold 10px monospace', fill: '#fff', align: 'center', outlineWidth: 2 });
+        drawText(h.name, cx + cardW / 2, cy + 32, { font: 'bold 9px monospace', fill: '#fff', align: 'center', outlineWidth: 2 });
         // Title
-        drawText(h.title, cx + cardW / 2, cy + 44, { font: '8px monospace', fill: '#aaa', align: 'center', outline: false });
+        drawText(h.title, cx + cardW / 2, cy + 44, { font: '7px monospace', fill: '#aaa', align: 'center', outline: false });
 
         // Class ID
-        drawText(h.id.toUpperCase(), cx + cardW / 2, cy + 56, { font: 'bold 8px monospace', fill: elColor, align: 'center' });
+        drawText(h.id.toUpperCase(), cx + cardW / 2, cy + 56, { font: 'bold 7px monospace', fill: elColor, align: 'center' });
 
         // Weapon info
         const weaponY = cy + 68;
         drawText(`${h.weaponIcon || '⚔'} ${h.weaponName || 'Weapon'}`, cx + cardW / 2, weaponY, {
-            font: 'bold 8px monospace', fill: '#ffaa44', align: 'center', outline: false
+            font: 'bold 7px monospace', fill: '#ffaa44', align: 'center', outline: false
         });
 
         // Stats
         const statsY = cy + 82;
-        drawText(`HP: ${h.hp}`, cx + 4, statsY, { font: '8px monospace', fill: '#44dd44', outline: false });
-        drawText(`SPD: ${h.speed}`, cx + 4, statsY + 11, { font: '8px monospace', fill: '#44bbff', outline: false });
-        drawText(`MP: ${h.mp}`, cx + 4, statsY + 22, { font: '8px monospace', fill: '#4488ff', outline: false });
+        drawText(`HP: ${h.hp}`, cx + 4, statsY, { font: '7px monospace', fill: '#44dd44', outline: false });
+        drawText(`SPD: ${h.speed}`, cx + 4, statsY + 10, { font: '7px monospace', fill: '#44bbff', outline: false });
+        drawText(`MP: ${h.mp}`, cx + 4, statsY + 20, { font: '7px monospace', fill: '#4488ff', outline: false });
 
         // Passive
-        drawText('PASSIVE:', cx + 4, statsY + 38, { font: 'bold 7px monospace', fill: '#ffd700', outline: false });
-        drawText(h.passive.name, cx + 4, statsY + 48, { font: '7px monospace', fill: '#ddd', outline: false });
+        drawText('PASSIVE:', cx + 4, statsY + 34, { font: 'bold 6px monospace', fill: '#ffd700', outline: false });
+        drawText(h.passive.name, cx + 4, statsY + 43, { font: '6px monospace', fill: '#ddd', outline: false });
 
         // Tactical
         const tac = h.tactical;
-        drawText(`[E] ${tac.icon} ${tac.name}`, cx + 4, statsY + 64, { font: 'bold 7px monospace', fill: '#44ff44', outline: false });
-        drawText(`${tac.mpCost} MP`, cx + 4, statsY + 74, { font: '7px monospace', fill: '#4488ff', outline: false });
+        drawText(`[E] ${tac.icon} ${tac.name}`, cx + 4, statsY + 56, { font: 'bold 6px monospace', fill: '#44ff44', outline: false });
+        drawText(`${tac.mpCost} MP`, cx + 4, statsY + 65, { font: '6px monospace', fill: '#4488ff', outline: false });
 
         // Ultimate
         const ult = h.ultimate;
-        drawText(`[Q] ${ult.icon} ${ult.name}`, cx + 4, statsY + 90, { font: 'bold 7px monospace', fill: '#ffd700', outline: false });
-        drawText('Musou gauge', cx + 4, statsY + 100, { font: '7px monospace', fill: '#ccaa22', outline: false });
+        drawText(`[Q] ${ult.icon} ${ult.name}`, cx + 4, statsY + 78, { font: 'bold 6px monospace', fill: '#ffd700', outline: false });
+        drawText('Musou gauge', cx + 4, statsY + 87, { font: '6px monospace', fill: '#ccaa22', outline: false });
 
-        // Element bar at bottom
+        // Restore clipping
+        ctx.restore();
+
+        // Element bar at bottom (outside clip for clean border)
         ctx.fillStyle = elColor; ctx.globalAlpha = 0.3;
         ctx.fillRect(cx + 1, cy + cardH - 14, cardW - 2, 13);
         ctx.globalAlpha = 1;
         drawText(ELEMENTS[h.element] ? ELEMENTS[h.element].name : h.element, cx + cardW / 2, cy + cardH - 13, {
-            font: 'bold 9px monospace', fill: '#fff', align: 'center', outline: false
+            font: 'bold 8px monospace', fill: '#fff', align: 'center', outline: false
         });
     }
 
