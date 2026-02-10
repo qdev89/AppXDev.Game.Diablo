@@ -4,6 +4,34 @@
 
 // --- Weapon Definitions ---
 const WEAPON_DEFS = [
+    // ===== HERO SIGNATURE WEAPONS (unique starting weapons) =====
+    {
+        id: 'fire_halberd', name: '🔴 Sky Piercer', el: 'FIRE', type: 'melee',
+        desc: 'Lu Bu\'s legendary halberd — wide devastating sweep',
+        dmg: 15, cd: 0.9, range: 48, arc: 120, tier: 1, heroOnly: 'berserker'
+    },
+    {
+        id: 'wood_fan', name: '🟢 Feather Fan', el: 'WOOD', type: 'projectile',
+        desc: 'Zhuge Liang\'s fan — fires 3 wind blades in spread',
+        dmg: 10, cd: 1.0, range: 140, speed: 180, spread: 3, spreadAngle: 25, tier: 1, heroOnly: 'strategist'
+    },
+    {
+        id: 'metal_twin', name: '🪙 Twin Blades', el: 'METAL', type: 'orbital',
+        desc: 'Zhou Yu\'s dual swords — fast spinning orbit',
+        dmg: 7, cd: 0.2, range: 40, count: 2, tier: 1, heroOnly: 'assassin'
+    },
+    {
+        id: 'earth_spear', name: '🟤 Dragon Spear', el: 'EARTH', type: 'melee',
+        desc: 'Zhao Yun\'s spear — long reach forward thrust',
+        dmg: 14, cd: 0.7, range: 55, arc: 45, tier: 1, heroOnly: 'vanguard'
+    },
+    {
+        id: 'water_scepter', name: '🔵 Dark Scepter', el: 'WATER', type: 'projectile',
+        desc: 'Sima Yi\'s scepter — homing frost bolts',
+        dmg: 13, cd: 1.1, range: 160, speed: 150, homing: true, tier: 1, heroOnly: 'mystic'
+    },
+
+    // ===== GENERIC WEAPONS (loot/level-up pool) =====
     {
         id: 'fire_sword', name: '🔴 Fire Sword', el: 'FIRE', type: 'melee', desc: 'Forward fire slash',
         dmg: 12, cd: 0.8, range: 40, arc: 90, tier: 1
@@ -116,12 +144,71 @@ function fireMelee(w, el) {
     G.bullets.push({
         x: P.x + P.facing * 15, y: P.y, type: 'slash',
         angle: baseAngle, arc: arcRad, range, color: el.light,
-        el: w.el, life: 0.2, maxLife: 0.2
+        el: w.el, life: 0.25, maxLife: 0.25, weaponId: w.id
     });
     shake(2, 0.06);
     triggerChromatic(0.8);
-    // Fire slash element particles
-    spawnElementParticles(P.x + P.facing * 20, P.y, w.el, 4, 40);
+
+    // ===== HERO-SPECIFIC MELEE VFX =====
+    if (w.id === 'fire_halberd') {
+        // Sky Piercer — Flame explosion + ember shower + ground fire
+        shake(4, 0.12);
+        triggerChromatic(2);
+        if (typeof triggerFlash === 'function') triggerFlash('#ff4400', 0.08);
+        // Fire explosion ring
+        G.skillEffects.push({
+            type: 'shockwave', x: P.x + P.facing * 20, y: P.y,
+            radius: 5, maxRadius: range * 0.7, speed: 250,
+            color: '#ff4400', alpha: 0.6, lineWidth: 3, timer: 0.35
+        });
+        // Ember shower (12 particles rising)
+        for (let i = 0; i < 12; i++) {
+            const a = baseAngle + (Math.random() - 0.5) * arcRad;
+            const spd = 40 + Math.random() * 80;
+            G.skillEffects.push({
+                type: 'ember',
+                x: P.x + Math.cos(a) * (range * 0.3 + Math.random() * range * 0.5),
+                y: P.y + Math.sin(a) * (range * 0.3 + Math.random() * range * 0.5),
+                vx: Math.cos(a) * spd * 0.3,
+                vy: -(30 + Math.random() * 50),
+                color: ['#ff2200', '#ff6600', '#ff8800', '#ffd700'][i % 4],
+                alpha: 0.9, timer: 0.5 + Math.random() * 0.4,
+                size: 2 + Math.random() * 2
+            });
+        }
+        // Ground fire trail
+        G.skillEffects.push({
+            type: 'fire_aura', x: P.x + P.facing * 15, y: P.y,
+            radius: range * 0.4, color: '#ff4400', alpha: 0.4,
+            timer: 0.5
+        });
+        spawnParticles(P.x + P.facing * 20, P.y, '#ff4400', 10, 60);
+        spawnParticles(P.x + P.facing * 20, P.y, '#ffd700', 6, 40);
+    } else if (w.id === 'earth_spear') {
+        // Dragon Spear — Linear thrust trail + ground crack
+        shake(3, 0.08);
+        // Thrust line effect
+        G.skillEffects.push({
+            type: 'speed_line', x: P.x, y: P.y,
+            angle: baseAngle, length: 0, maxLength: range * 0.8,
+            speed: 300, color: '#ddaa44', alpha: 0.7, timer: 0.25
+        });
+        // Impact crack at tip
+        G.skillEffects.push({
+            type: 'crack', x: P.x + P.facing * range * 0.7, y: P.y,
+            angle: baseAngle + (Math.random() - 0.5) * 0.5,
+            length: 0, maxLength: 20, speed: 100,
+            color: '#ddaa44', alpha: 0.6, timer: 0.3
+        });
+        G.skillEffects.push({
+            type: 'impact_flash', x: P.x + P.facing * range * 0.6, y: P.y,
+            radius: 8, color: '#ffcc44', alpha: 0.5, timer: 0.12
+        });
+        spawnParticles(P.x + P.facing * range * 0.5, P.y, '#ddaa44', 6, 35);
+    } else {
+        // Generic melee — standard particles
+        spawnElementParticles(P.x + P.facing * 20, P.y, w.el, 6, 45);
+    }
 }
 
 function fireProjectile(w, el) {
@@ -131,13 +218,72 @@ function fireProjectile(w, el) {
         if (d < nearDist) { nearDist = d; nearest = e; }
     }
     if (!nearest) return;
-    const a = Math.atan2(nearest.y - P.y, nearest.x - P.x);
+    const baseA = Math.atan2(nearest.y - P.y, nearest.x - P.x);
     const spd = w.speed || 200;
-    G.bullets.push({
-        x: P.x, y: P.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
-        dmg: w.dmg * (1 + w.level * 0.3), el: w.el, color: el.light,
-        life: 2, type: 'bullet', r: 3 + w.level, pierce: w.level >= 3 ? 2 : 0
-    });
+    const dmg = w.dmg * (1 + w.level * 0.3);
+
+    // Spread shot (e.g., Feather Fan fires 3 projectiles in a fan)
+    const count = w.spread || 1;
+    const spreadRad = (w.spreadAngle || 0) * Math.PI / 180;
+    for (let i = 0; i < count; i++) {
+        let a = baseA;
+        if (count > 1) {
+            a = baseA - spreadRad / 2 + (spreadRad / (count - 1)) * i;
+        }
+        G.bullets.push({
+            x: P.x, y: P.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+            dmg: dmg, el: w.el, color: el.light,
+            life: 2, type: 'bullet', r: 3 + w.level, pierce: w.level >= 3 ? 2 : 0,
+            homing: w.homing || false, homingTarget: w.homing ? nearest : null,
+            weaponId: w.id
+        });
+    }
+
+    // ===== HERO-SPECIFIC PROJECTILE VFX =====
+    if (w.id === 'wood_fan') {
+        // Feather Fan — Wind gust + leaf trail at origin
+        G.skillEffects.push({
+            type: 'wind_cone', x: P.x, y: P.y,
+            facing: P.facing, angle: spreadRad + 0.2,
+            radius: 3, maxRadius: 30, speed: 150,
+            color: '#44ff44', alpha: 0.25, timer: 0.25
+        });
+        for (let i = 0; i < 4; i++) {
+            G.skillEffects.push({
+                type: 'leaf', x: P.x, y: P.y,
+                vx: Math.cos(baseA) * (30 + Math.random() * 40),
+                vy: Math.sin(baseA) * (30 + Math.random() * 40) - 10,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 8,
+                color: i % 2 === 0 ? '#44ff44' : '#88ff66',
+                alpha: 0.6, timer: 0.4, size: 2 + Math.random() * 1.5
+            });
+        }
+    } else if (w.id === 'water_scepter') {
+        // Dark Scepter — Dark energy pulse
+        G.skillEffects.push({
+            type: 'impact_flash', x: P.x, y: P.y,
+            radius: 10, color: '#4466ff', alpha: 0.4, timer: 0.15
+        });
+        spawnParticles(P.x, P.y, '#5588ff', 4, 25);
+    } else if (w.id === 'fire_pillar' || w.el === 'FIRE') {
+        // Fire projectiles — Muzzle flash + embers
+        G.skillEffects.push({
+            type: 'impact_flash', x: P.x + P.facing * 10, y: P.y,
+            radius: 12, color: '#ff6600', alpha: 0.5, timer: 0.1
+        });
+        for (let i = 0; i < 3; i++) {
+            G.skillEffects.push({
+                type: 'ember',
+                x: P.x + P.facing * 8, y: P.y,
+                vx: (Math.random() - 0.5) * 30,
+                vy: -(20 + Math.random() * 30),
+                color: i === 0 ? '#ffd700' : '#ff4400',
+                alpha: 0.7, timer: 0.3 + Math.random() * 0.2,
+                size: 1.5 + Math.random()
+            });
+        }
+    }
 }
 
 function fireOrbital(w, el) {
@@ -151,7 +297,23 @@ function fireOrbital(w, el) {
         for (const e of G.enemies) {
             if (dist({ x: ox, y: oy }, e) < 15) {
                 damageEnemy(e, dmg, w.el);
+                // Hit spark on contact
+                if (w.id === 'metal_twin') {
+                    G.skillEffects.push({
+                        type: 'impact_flash', x: e.x, y: e.y,
+                        radius: 8, color: '#ccccff', alpha: 0.7, timer: 0.1
+                    });
+                    spawnParticles(e.x, e.y, '#ccccff', 3, 25);
+                }
             }
+        }
+        // Twin Blades — trailing sparkle at each orbit point
+        if (w.id === 'metal_twin' && Math.random() < 0.4) {
+            G.skillEffects.push({
+                type: 'sparkle', x: ox, y: oy,
+                angle: a, orbRadius: 0, speed: 0,
+                color: '#ffffff', alpha: 0.6, timer: 0.15
+            });
         }
     }
 }

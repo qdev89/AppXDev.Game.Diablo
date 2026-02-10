@@ -94,4 +94,16 @@ const SFX = {
         playNote(82, 0.5, 'sawtooth', 0.12, 0.3);
     },
     coin() { playNote(1200, 0.06, 'triangle', 0.12); playNote(1600, 0.08, 'triangle', 0.1, 0.04); playNote(2000, 0.06, 'sine', 0.06, 0.08); },
+
+    // --- Skill SFX ---
+    groundSlam() { playNoise(0.15, 0.18); playNote(80, 0.3, 'sawtooth', 0.2); playNote(60, 0.2, 'sawtooth', 0.15, 0.1); },
+    windBurst() { playNoise(0.08, 0.12); playNote(400, 0.15, 'sine', 0.1); playNote(600, 0.1, 'sine', 0.08, 0.05); playNote(800, 0.08, 'sine', 0.05, 0.1); },
+    shadowStrike() { playNote(1600, 0.03, 'sawtooth', 0.15); playNote(200, 0.08, 'sawtooth', 0.12, 0.03); playNoise(0.05, 0.1); },
+    shieldWall() { playNote(300, 0.2, 'triangle', 0.12); playNote(400, 0.15, 'triangle', 0.1, 0.1); playNote(500, 0.3, 'sine', 0.08, 0.2); },
+    lifeDrain() { playNote(220, 0.2, 'sine', 0.1); playNote(330, 0.15, 'sine', 0.08, 0.1); playNote(440, 0.2, 'sine', 0.1, 0.2); },
+    rageMode() { playNoise(0.2, 0.2); playNote(110, 0.4, 'sawtooth', 0.2); playNote(165, 0.3, 'sawtooth', 0.15, 0.15); playNote(220, 0.5, 'sawtooth', 0.18, 0.3); },
+    eightTrigrams() { playNote(523, 0.1, 'sine', 0.12); playNote(659, 0.1, 'sine', 0.1, 0.08); playNote(784, 0.1, 'sine', 0.08, 0.16); playNote(1047, 0.3, 'triangle', 0.15, 0.24); },
+    bladeStorm() { for (let i = 0; i < 5; i++) playNote(800 + i * 200, 0.04, 'sawtooth', 0.1 - i * 0.015, i * 0.06); playNoise(0.15, 0.12); },
+    changbanCharge() { playNote(110, 0.5, 'sawtooth', 0.2); playNoise(0.3, 0.15); playNote(82, 0.4, 'sawtooth', 0.15, 0.2); },
+    phoenixSummon() { playNote(440, 0.2, 'sine', 0.15); playNote(660, 0.2, 'triangle', 0.12, 0.15); playNote(880, 0.3, 'sine', 0.15, 0.3); playNote(1100, 0.4, 'triangle', 0.12, 0.45); },
 };

@@ -8,7 +8,8 @@ const HEROES = [
     {
         id: 'berserker', name: 'Lu Bu', title: 'God of War', element: 'FIRE',
         colors: { body: '#cc2222', accent: '#ff6644', glow: '#ff4400', hair: '#440000' },
-        startWeapon: 'fire_sword', hp: 120, speed: 90, mp: 80, mpRegen: 2.5,
+        startWeapon: 'fire_halberd', weaponIcon: '🔱', weaponName: 'Sky Piercer',
+        hp: 120, speed: 90, mp: 80, mpRegen: 2.5,
         passive: { name: 'Blood Rage', desc: '+2% DMG per combo (max 50%)', stat: 'comboRage' },
         tactical: {
             id: 'ground_slam', name: 'Ground Slam', icon: '💥',
@@ -23,7 +24,8 @@ const HEROES = [
     {
         id: 'strategist', name: 'Zhuge Liang', title: 'Sleeping Dragon', element: 'WOOD',
         colors: { body: '#226622', accent: '#55cc55', glow: '#44ff44', hair: '#113311' },
-        startWeapon: 'earth_lance', hp: 80, speed: 95, mp: 150, mpRegen: 5,
+        startWeapon: 'wood_fan', weaponIcon: '🪭', weaponName: 'Feather Fan',
+        hp: 80, speed: 95, mp: 150, mpRegen: 5,
         passive: { name: 'Brilliant Mind', desc: '+30% XP, 4 level-up choices', stat: 'xpBonus' },
         tactical: {
             id: 'wind_burst', name: 'Wind Burst', icon: '🌀',
@@ -38,7 +40,8 @@ const HEROES = [
     {
         id: 'assassin', name: 'Zhou Yu', title: 'Young Conqueror', element: 'METAL',
         colors: { body: '#7777aa', accent: '#ccccff', glow: '#aaaaff', hair: '#333355' },
-        startWeapon: 'metal_orbit', hp: 75, speed: 130, mp: 100, mpRegen: 3,
+        startWeapon: 'metal_twin', weaponIcon: '⚔️', weaponName: 'Twin Blades',
+        hp: 75, speed: 130, mp: 100, mpRegen: 3,
         passive: { name: 'Lethal Edge', desc: '20% crit chance, crits deal 3x', stat: 'critChance' },
         tactical: {
             id: 'shadow_strike', name: 'Shadow Strike', icon: '⚡',
@@ -53,7 +56,8 @@ const HEROES = [
     {
         id: 'vanguard', name: 'Zhao Yun', title: 'Dragon of Changshan', element: 'EARTH',
         colors: { body: '#886622', accent: '#ddaa44', glow: '#ffcc00', hair: '#553311' },
-        startWeapon: 'fire_sword', hp: 150, speed: 85, mp: 100, mpRegen: 3,
+        startWeapon: 'earth_spear', weaponIcon: '🗡️', weaponName: 'Dragon Spear',
+        hp: 150, speed: 85, mp: 100, mpRegen: 3,
         passive: { name: 'Unbreakable', desc: '-20% damage taken, +10% ally HP', stat: 'tankAura' },
         tactical: {
             id: 'shield_wall', name: 'Shield Wall', icon: '🛡️',
@@ -68,7 +72,8 @@ const HEROES = [
     {
         id: 'mystic', name: 'Sima Yi', title: 'Hidden Dragon', element: 'WATER',
         colors: { body: '#223388', accent: '#5588ff', glow: '#4466ff', hair: '#111133' },
-        startWeapon: 'water_wave', hp: 90, speed: 100, mp: 130, mpRegen: 4,
+        startWeapon: 'water_scepter', weaponIcon: '🔮', weaponName: 'Dark Scepter',
+        hp: 90, speed: 100, mp: 130, mpRegen: 4,
         passive: { name: 'Dark Wisdom', desc: '10% killed enemies rise as allies 8s', stat: 'necro' },
         tactical: {
             id: 'life_drain', name: 'Life Drain', icon: '💀',

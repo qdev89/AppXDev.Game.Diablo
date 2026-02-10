@@ -265,6 +265,9 @@ function update(dt) {
 
     // Update sacred beast
     if (typeof updateSacredBeast === 'function') updateSacredBeast(dt);
+
+    // Update skill VFX
+    if (typeof updateSkillEffects === 'function') updateSkillEffects(dt);
 }
 
 // --- Main Draw ---

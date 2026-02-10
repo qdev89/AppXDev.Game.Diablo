@@ -39,6 +39,7 @@ const G = {
     allies: [],               // AI companion entities
     sacredBeast: null,        // Active sacred beast
     equipment: { armor: null, talisman: null, mount: null },
+    skillEffects: [],          // Persistent skill VFX (shockwaves, auras, beams, etc.)
     totalKills: 0,            // Persistent kill counter for run
     chainTimer: 0,            // Chain kill timer
     chainCount: 0,            // Current chain count
@@ -132,6 +133,27 @@ window.addEventListener('keydown', e => {
     if ((e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && G.state === 'PLAYING') {
         e.preventDefault();
         if (typeof fireUltimateSkill === 'function') fireUltimateSkill();
+    }
+
+    // --- Quick Select: Level-Up choices (1/2/3 keys) ---
+    if (G.state === 'LEVEL_UP' && G.levelUpChoices && G.levelUpChoices.length > 0) {
+        const keyNum = parseInt(e.key);
+        if (keyNum >= 1 && keyNum <= G.levelUpChoices.length) {
+            e.preventDefault();
+            if (typeof selectLevelUpChoice === 'function') {
+                selectLevelUpChoice(G.levelUpChoices[keyNum - 1]);
+            }
+        }
+    }
+
+    // --- Quick Select: Hero Select (1-5 keys) ---
+    if (G.state === 'HERO_SELECT') {
+        const keyNum = parseInt(e.key);
+        if (keyNum >= 1 && keyNum <= HEROES.length) {
+            e.preventDefault();
+            G.selectedHero = HEROES[keyNum - 1].id;
+            if (typeof startGame === 'function') startGame();
+        }
     }
 });
 

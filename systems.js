@@ -294,6 +294,8 @@ function generateLevelUpChoices() {
     }
 
     const available = WEAPON_DEFS.filter(w => {
+        // Filter out other heroes' signature weapons
+        if (w.heroOnly && w.heroOnly !== P.heroId) return false;
         // Can upgrade existing weapons
         const existing = G.weapons.find(ew => ew.id === w.id);
         if (existing && existing.level < 5) return true;

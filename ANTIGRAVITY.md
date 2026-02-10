@@ -87,4 +87,5 @@
 - `catch` blocks must include `(e)` parameter for compatibility (no bare `catch {}`)
 
 ## Version
+- **v0.7.1** — Phase F: The Spectacle — Complete Skill VFX Overhaul (10 skills), Weapon-Specific VFX, Keybinds (1-5 hero select, 1-3 level-up)
 - **v0.7.0** — Phase E: The Dynasty Awakens — Hero Classes, MP/Musou, Active Skills, DW Musou Feel, AI Companions, Sacred Beast

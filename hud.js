@@ -430,7 +430,7 @@ function drawMenuScreen() {
     }
 
     // Version
-    drawText('v0.6.0 — Premium Edition', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
+    drawText('v0.7.1 — Premium Edition', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
 }
 
 // --- High Score System ---
@@ -951,7 +951,7 @@ function drawHeroSelectScreen() {
         const isHover = G._heroHover === i;
         const elColor = ELEMENTS[h.element] ? ELEMENTS[h.element].color : '#888';
 
-        // Card bg
+        // Card bg with subtle element gradient
         ctx.fillStyle = isHover ? 'rgba(30,25,50,0.95)' : 'rgba(12,10,20,0.9)';
         ctx.fillRect(cx, cy, cardW, cardH);
 
@@ -960,14 +960,23 @@ function drawHeroSelectScreen() {
         ctx.lineWidth = isHover ? 3 : 1;
         ctx.strokeRect(cx, cy, cardW, cardH);
 
-        // Hero pixel art preview (simple colored rectangle for now)
+        // Hero pixel art preview — render actual hero sprite
         const previewY = cy + 6;
-        ctx.fillStyle = h.colors.body;
-        ctx.fillRect(cx + cardW / 2 - 8, previewY, 16, 20);
-        ctx.fillStyle = h.colors.accent;
-        ctx.fillRect(cx + cardW / 2 - 6, previewY + 2, 12, 5); // head
-        ctx.fillStyle = h.colors.hair;
-        ctx.fillRect(cx + cardW / 2 - 6, previewY, 12, 3); // hair
+        const heroSpriteDef = HERO_SPRITES[h.id];
+        if (heroSpriteDef) {
+            // Draw the hero sprite centered in the card preview area
+            const spriteX = cx + cardW / 2;
+            const spriteY = previewY + 20;
+            drawSprite(spriteX, spriteY, heroSpriteDef.idle[0], heroSpriteDef.colors, false, null);
+        } else {
+            // Fallback colored rectangle
+            ctx.fillStyle = h.colors.body;
+            ctx.fillRect(cx + cardW / 2 - 8, previewY, 16, 20);
+            ctx.fillStyle = h.colors.accent;
+            ctx.fillRect(cx + cardW / 2 - 6, previewY + 2, 12, 5);
+            ctx.fillStyle = h.colors.hair;
+            ctx.fillRect(cx + cardW / 2 - 6, previewY, 12, 3);
+        }
 
         // Element symbol
         const elSym = ELEMENTS[h.element] ? ELEMENTS[h.element].symbol : '?';
@@ -981,8 +990,14 @@ function drawHeroSelectScreen() {
         // Class ID
         drawText(h.id.toUpperCase(), cx + cardW / 2, cy + 56, { font: 'bold 8px monospace', fill: elColor, align: 'center' });
 
+        // Weapon info
+        const weaponY = cy + 68;
+        drawText(`${h.weaponIcon || '⚔'} ${h.weaponName || 'Weapon'}`, cx + cardW / 2, weaponY, {
+            font: 'bold 8px monospace', fill: '#ffaa44', align: 'center', outline: false
+        });
+
         // Stats
-        const statsY = cy + 72;
+        const statsY = cy + 82;
         drawText(`HP: ${h.hp}`, cx + 4, statsY, { font: '8px monospace', fill: '#44dd44', outline: false });
         drawText(`SPD: ${h.speed}`, cx + 4, statsY + 11, { font: '8px monospace', fill: '#44bbff', outline: false });
         drawText(`MP: ${h.mp}`, cx + 4, statsY + 22, { font: '8px monospace', fill: '#4488ff', outline: false });
@@ -1041,23 +1056,102 @@ function fireTacticalSkill() {
     P.mp -= tac.mpCost;
     P.tacticalCd = tac.cd;
     P.mpRegenDelay = 1.5;
-    SFX.menuClick();
 
     switch (tac.id) {
-        case 'ground_slam': // Berserker — AoE stun
-            shake(3, 0.2);
-            spawnParticles(P.x, P.y, '#ff4400', 15, 60);
+        case 'ground_slam': // Berserker — FIRE ERUPTION: Lava shockwave + ground fissures + ember rain
+            SFX.groundSlam();
+            shake(5, 0.25);
+            hitStop(0.04);
+            if (typeof triggerFlash === 'function') triggerFlash('#ff2200', 0.1);
+            if (typeof triggerChromatic === 'function') triggerChromatic(2.5);
+            // Double-layer expanding shockwave
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 5, maxRadius: tac.range * 1.1, speed: 220,
+                color: '#ff4400', alpha: 0.9, lineWidth: 4, timer: 0.6
+            });
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 3, maxRadius: tac.range * 0.7, speed: 180,
+                color: '#ffd700', alpha: 0.6, lineWidth: 2, timer: 0.5
+            });
+            // 8 radiating ground fissures
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI * 2 / 8) * i + Math.random() * 0.2;
+                G.skillEffects.push({
+                    type: 'crack', x: P.x, y: P.y, angle: angle,
+                    length: 0, maxLength: tac.range * 0.8, speed: 180,
+                    color: '#ff6600', alpha: 0.8, timer: 0.6
+                });
+            }
+            // Rising ember rain (20 embers)
+            for (let i = 0; i < 20; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const r = Math.random() * tac.range * 0.6;
+                G.skillEffects.push({
+                    type: 'ember',
+                    x: P.x + Math.cos(a) * r, y: P.y + Math.sin(a) * r,
+                    vx: (Math.random() - 0.5) * 30,
+                    vy: -(30 + Math.random() * 60),
+                    color: ['#ff2200', '#ff6600', '#ff8800', '#ffd700'][i % 4],
+                    alpha: 0.9, timer: 0.5 + Math.random() * 0.5,
+                    size: 1.5 + Math.random() * 2.5
+                });
+            }
+            // Fire ground aura
+            G.skillEffects.push({
+                type: 'fire_aura', x: P.x, y: P.y,
+                radius: tac.range * 0.5, color: '#ff4400', alpha: 0.35, timer: 0.4
+            });
+            spawnParticles(P.x, P.y, '#ff4400', 20, 70);
+            spawnParticles(P.x, P.y, '#ffd700', 10, 50);
             G.enemies.forEach(e => {
                 if (dist(P, e) < tac.range) {
                     damageEnemy(e, tac.dmg, P.element);
                     e.stunTimer = (e.stunTimer || 0) + tac.stunDur;
-                    e.speed *= 0; // Will recover after stun
+                    e.speed *= 0;
+                    G.skillEffects.push({
+                        type: 'impact_flash', x: e.x, y: e.y,
+                        radius: 10, color: '#ff4400', alpha: 0.7, timer: 0.1
+                    });
                 }
             });
             break;
 
-        case 'wind_burst': // Strategist — Cone knockback
-            spawnParticles(P.x, P.y, '#44ff44', 12, 50);
+        case 'wind_burst': // Strategist — GALE FORCE: Multi-layer wind + leaf tornado
+            SFX.windBurst();
+            shake(3, 0.18);
+            if (typeof triggerChromatic === 'function') triggerChromatic(1.5);
+            // Primary wide cone blast
+            G.skillEffects.push({
+                type: 'wind_cone', x: P.x, y: P.y,
+                facing: P.facing, angle: Math.PI / 2.5,
+                radius: 8, maxRadius: tac.range * 1.1, speed: 280,
+                color: '#44ff44', alpha: 0.5, timer: 0.45
+            });
+            // Secondary inner cone — narrow + intense
+            G.skillEffects.push({
+                type: 'wind_cone', x: P.x, y: P.y,
+                facing: P.facing, angle: Math.PI / 5,
+                radius: 5, maxRadius: tac.range * 0.8, speed: 320,
+                color: '#88ffaa', alpha: 0.35, timer: 0.35
+            });
+            // Swirling leaf tornado (12 leaves)
+            for (let i = 0; i < 12; i++) {
+                const a = (P.facing > 0 ? -Math.PI / 4 : Math.PI + Math.PI / 4) + Math.random() * Math.PI / 2;
+                G.skillEffects.push({
+                    type: 'leaf', x: P.x + P.facing * 10, y: P.y,
+                    vx: Math.cos(a) * (90 + Math.random() * 70),
+                    vy: Math.sin(a) * (60 + Math.random() * 50) + (Math.random() - 0.5) * 40,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 12,
+                    color: ['#44ff44', '#88ff44', '#66dd33', '#aaffaa'][i % 4],
+                    alpha: 0.85, timer: 0.5 + Math.random() * 0.4,
+                    size: 2.5 + Math.random() * 2.5
+                });
+            }
+            spawnParticles(P.x + P.facing * 15, P.y, '#44ff44', 15, 60);
+            spawnParticles(P.x + P.facing * 15, P.y, '#88ff88', 8, 40);
             G.enemies.forEach(e => {
                 if (dist(P, e) < tac.range) {
                     damageEnemy(e, tac.dmg, P.element);
@@ -1067,42 +1161,165 @@ function fireTacticalSkill() {
                     e.y += (dy / d) * tac.knockback;
                 }
             });
-            shake(2, 0.15);
             break;
 
-        case 'shadow_strike': // Assassin — Teleport to nearest
+        case 'shadow_strike': // Assassin — VOID SLASH: Triple afterimage + lightning web + impact burst
+            SFX.shadowStrike();
             let nearest = null, minD = tac.teleRange;
             G.enemies.forEach(e => {
                 const d = dist(P, e);
                 if (d < minD) { minD = d; nearest = e; }
             });
             if (nearest) {
-                spawnParticles(P.x, P.y, '#ccccff', 6, 30); // Trail from start
+                const startX = P.x, startY = P.y;
+                // Triple fading afterimages at start
+                for (let i = 0; i < 3; i++) {
+                    G.skillEffects.push({
+                        type: 'afterimage', x: startX + i * P.facing * 5, y: startY,
+                        w: P.w, h: P.h, color: '#8866ff',
+                        alpha: 0.7 - i * 0.2, timer: 0.4 + i * 0.1
+                    });
+                }
                 P.x = nearest.x; P.y = nearest.y - 10;
                 damageEnemy(nearest, tac.dmg, P.element);
-                spawnParticles(P.x, P.y, '#aaaaff', 10, 40);
-                shake(2, 0.1);
-                hitStop(0.05);
+                // Dual lightning trails (zigzag)
+                G.skillEffects.push({
+                    type: 'lightning_trail', x1: startX, y1: startY,
+                    x2: P.x, y2: P.y,
+                    color: '#ccaaff', alpha: 0.9, timer: 0.4,
+                    segments: 10 + Math.floor(Math.random() * 4)
+                });
+                G.skillEffects.push({
+                    type: 'lightning_trail', x1: startX + 3, y1: startY - 3,
+                    x2: P.x + 3, y2: P.y - 3,
+                    color: '#aa88ff', alpha: 0.5, timer: 0.3,
+                    segments: 6 + Math.floor(Math.random() * 3)
+                });
+                // Impact burst — multi-layered
+                G.skillEffects.push({
+                    type: 'impact_flash', x: P.x, y: P.y,
+                    radius: 18, color: '#aa88ff', alpha: 0.9, timer: 0.18
+                });
+                G.skillEffects.push({
+                    type: 'shockwave', x: P.x, y: P.y,
+                    radius: 3, maxRadius: 25, speed: 200,
+                    color: '#ccaaff', alpha: 0.5, lineWidth: 2, timer: 0.25
+                });
+                // Slash arcs at landing
+                for (let i = 0; i < 3; i++) {
+                    G.skillEffects.push({
+                        type: 'slash_arc', x: P.x, y: P.y,
+                        radius: 10 + i * 4, startAngle: Math.random() * Math.PI * 2,
+                        color: '#ccccff', alpha: 0.7 - i * 0.2, timer: 0.2 + i * 0.05
+                    });
+                }
+                spawnParticles(P.x, P.y, '#aaaaff', 15, 45);
+                spawnParticles(startX, startY, '#8866ff', 8, 30);
+                shake(3, 0.12);
+                hitStop(0.06);
             }
             break;
 
-        case 'shield_wall': // Vanguard — Block all damage
+        case 'shield_wall': // Vanguard — IRON BASTION: Radiant dome + orbiting sparks + ground pulse
+            SFX.shieldWall();
             P.shieldWall = tac.blockDur;
             P.invincible = tac.blockDur;
-            spawnParticles(P.x, P.y, '#ddaa44', 8, 30);
+            if (typeof triggerFlash === 'function') triggerFlash('#ffd700', 0.08);
+            shake(2, 0.1);
+            // Persistent golden dome — thicker, brighter
+            G.skillEffects.push({
+                type: 'golden_dome', x: P.x, y: P.y,
+                radius: 25, color: '#ffd700', alpha: 0.45,
+                timer: tac.blockDur, followPlayer: true
+            });
+            // Expanding activation ring
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 5, maxRadius: 35, speed: 150,
+                color: '#ffcc00', alpha: 0.6, lineWidth: 2, timer: 0.35
+            });
+            // 8 orbiting sparkles (faster, brighter)
+            for (let i = 0; i < 8; i++) {
+                const a = (Math.PI * 2 / 8) * i;
+                G.skillEffects.push({
+                    type: 'sparkle', x: P.x + Math.cos(a) * 22, y: P.y + Math.sin(a) * 22,
+                    angle: a, orbRadius: 22, speed: 3 + Math.random() * 2,
+                    color: i % 2 === 0 ? '#ffe066' : '#ffd700',
+                    alpha: 0.9, timer: tac.blockDur, followPlayer: true
+                });
+            }
+            // Ground glow ring
+            G.skillEffects.push({
+                type: 'fire_aura', x: P.x, y: P.y,
+                radius: 15, color: '#ffd700', alpha: 0.2,
+                timer: tac.blockDur, followPlayer: true
+            });
+            spawnParticles(P.x, P.y, '#ddaa44', 12, 35);
+            spawnParticles(P.x, P.y, '#ffe066', 6, 25);
             break;
 
-        case 'life_drain': // Mystic — Steal HP
+        case 'life_drain': // Mystic — SOUL SIPHON: Arcane drain beams + pull vortex + heal cascade
+            SFX.lifeDrain();
+            if (typeof triggerChromatic === 'function') triggerChromatic(1.5);
             let healed = 0;
-            spawnParticles(P.x, P.y, '#5588ff', 10, 40);
+            let drainCount = 0;
             G.enemies.forEach(e => {
                 if (dist(P, e) < tac.range) {
-                    const drainDmg = Math.min(e.hp, 10);
+                    const drainDmg = Math.min(e.hp, 12);
                     damageEnemy(e, drainDmg, P.element);
                     healed += drainDmg;
+                    drainCount++;
+                    // Thick energy beam from enemy to player
+                    G.skillEffects.push({
+                        type: 'drain_beam', x1: e.x, y1: e.y,
+                        x2: P.x, y2: P.y,
+                        color: '#44ddff', alpha: 0.8, timer: 0.5,
+                        width: 3, followTarget: true
+                    });
+                    // Secondary dim beam offset
+                    G.skillEffects.push({
+                        type: 'drain_beam', x1: e.x + 2, y1: e.y - 2,
+                        x2: P.x, y2: P.y,
+                        color: '#88eeff', alpha: 0.3, timer: 0.4,
+                        width: 1, followTarget: true
+                    });
+                    // Hit spark on drained enemy
+                    G.skillEffects.push({
+                        type: 'impact_flash', x: e.x, y: e.y,
+                        radius: 8, color: '#44ddff', alpha: 0.6, timer: 0.1
+                    });
                 }
             });
             P.hp = clamp(P.hp + Math.min(healed, tac.healAmt), 0, P.maxHp);
+            if (healed > 0) {
+                // Healing pulse cascade (layered)
+                G.skillEffects.push({
+                    type: 'heal_pulse', x: P.x, y: P.y,
+                    radius: 5, maxRadius: 20, color: '#44ff44', alpha: 0.6,
+                    timer: 0.35, followPlayer: true
+                });
+                G.skillEffects.push({
+                    type: 'heal_pulse', x: P.x, y: P.y,
+                    radius: 3, maxRadius: 14, color: '#88ffaa', alpha: 0.4,
+                    timer: 0.25, followPlayer: true
+                });
+                // Green heal sparkles
+                for (let i = 0; i < Math.min(drainCount, 6); i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    G.skillEffects.push({
+                        type: 'sparkle', x: P.x + Math.cos(a) * 10, y: P.y + Math.sin(a) * 10,
+                        angle: a, orbRadius: 10, speed: 2,
+                        color: '#44ff44', alpha: 0.7, timer: 0.3
+                    });
+                }
+            }
+            // Vortex pull VFX around player
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: tac.range * 0.6, maxRadius: 5, speed: -200,
+                color: '#44ddff', alpha: 0.3, lineWidth: 1.5, timer: 0.3
+            });
+            spawnParticles(P.x, P.y, '#44ddff', 12, 35);
             spawnDmgNum(P.x, P.y - 20, Math.min(healed, tac.healAmt), '#44ff44', false);
             break;
     }
@@ -1121,66 +1338,296 @@ function fireUltimateSkill() {
     if (typeof triggerChromatic === 'function') triggerChromatic(3);
     shake(5, 0.3);
     spawnParticles(P.x, P.y, '#ffd700', 25, 80);
-    SFX.goldPickup();
 
     switch (hero.ultimate.id) {
-        case 'rage_mode': // Berserker — 2x dmg, 1.5x speed for 6s
+        case 'rage_mode': // Berserker — DYNASTY FURY: Devastating fire eruption + persistent blaze
+            SFX.rageMode();
             P.rageModeTimer = hero.ultimate.duration;
-            spawnParticles(P.x, P.y, '#ff4400', 20, 60);
-            break;
-
-        case 'eight_trigrams': // Strategist — 8 elemental bolts
-            for (let i = 0; i < 8; i++) {
-                const angle = (Math.PI * 2 / 8) * i;
-                G.bullets.push({
-                    x: P.x, y: P.y,
-                    vx: Math.cos(angle) * 120,
-                    vy: Math.sin(angle) * 120,
-                    dmg: hero.ultimate.dmg, el: EL_KEYS[i % 5],
-                    life: 3, r: 5, pierce: 3
+            // Persistent fire aura — larger, brighter
+            G.skillEffects.push({
+                type: 'fire_aura', x: P.x, y: P.y,
+                radius: 28, color: '#ff4400', alpha: 0.4,
+                timer: hero.ultimate.duration, followPlayer: true
+            });
+            // Inner golden aura
+            G.skillEffects.push({
+                type: 'fire_aura', x: P.x, y: P.y,
+                radius: 14, color: '#ffd700', alpha: 0.25,
+                timer: hero.ultimate.duration, followPlayer: true
+            });
+            // 16 speed lines radiating outward
+            for (let i = 0; i < 16; i++) {
+                const angle = (Math.PI * 2 / 16) * i;
+                G.skillEffects.push({
+                    type: 'speed_line', x: P.x, y: P.y, angle: angle,
+                    length: 0, maxLength: 40 + Math.random() * 15, speed: 130,
+                    color: i % 2 === 0 ? '#ff6600' : '#ffd700', alpha: 0.7, timer: 0.45
                 });
             }
+            // Triple-layer fire eruption
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 5, maxRadius: 70, speed: 140,
+                color: '#ff2200', alpha: 0.7, lineWidth: 5, timer: 0.6
+            });
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 3, maxRadius: 50, speed: 100,
+                color: '#ff6600', alpha: 0.5, lineWidth: 3, timer: 0.5
+            });
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 2, maxRadius: 30, speed: 80,
+                color: '#ffd700', alpha: 0.4, lineWidth: 2, timer: 0.4
+            });
+            // 25 rising embers
+            for (let i = 0; i < 25; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const r = Math.random() * 40;
+                G.skillEffects.push({
+                    type: 'ember',
+                    x: P.x + Math.cos(a) * r, y: P.y + Math.sin(a) * r,
+                    vx: (Math.random() - 0.5) * 40,
+                    vy: -(25 + Math.random() * 70),
+                    color: ['#ff2200', '#ff4400', '#ff8800', '#ffd700'][i % 4],
+                    alpha: 0.9, timer: 0.6 + Math.random() * 0.6,
+                    size: 2 + Math.random() * 3
+                });
+            }
+            spawnParticles(P.x, P.y, '#ff4400', 25, 70);
+            spawnParticles(P.x, P.y, '#ffd700', 15, 50);
             break;
 
-        case 'blade_storm': // Assassin — Dash through nearby enemies
+        case 'eight_trigrams': // Strategist — HEAVEN’S MANDATE: Grand yin-yang + elemental storm
+            SFX.eightTrigrams();
+            // Large yin-yang ground symbol
+            G.skillEffects.push({
+                type: 'yinyang_symbol', x: P.x, y: P.y,
+                radius: 40, rotation: 0, rotSpeed: 4,
+                alpha: 0.7, timer: 1.8
+            });
+            // Spiraling golden trigram circle (brighter, faster)
+            G.skillEffects.push({
+                type: 'trigram_circle', x: P.x, y: P.y,
+                radius: 50, rotation: 0, rotSpeed: 5,
+                color: '#ffd700', alpha: 0.8, timer: 1.5, boltCount: 8
+            });
+            // Expanding energy ring
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 5, maxRadius: 55, speed: 100,
+                color: '#88ff44', alpha: 0.4, lineWidth: 2, timer: 0.5
+            });
+            // 12 elemental bolts (more, bigger, faster)
+            for (let i = 0; i < 12; i++) {
+                const angle = (Math.PI * 2 / 12) * i;
+                G.bullets.push({
+                    x: P.x, y: P.y,
+                    vx: Math.cos(angle) * 140,
+                    vy: Math.sin(angle) * 140,
+                    dmg: hero.ultimate.dmg, el: EL_KEYS[i % 5],
+                    color: ELEMENTS[EL_KEYS[i % 5]].light,
+                    life: 3.5, r: 6, pierce: 4, type: 'bullet'
+                });
+            }
+            // Swirling leaves around the symbol
+            for (let i = 0; i < 8; i++) {
+                const a = (Math.PI * 2 / 8) * i;
+                G.skillEffects.push({
+                    type: 'leaf', x: P.x + Math.cos(a) * 30, y: P.y + Math.sin(a) * 30,
+                    vx: Math.cos(a + Math.PI / 2) * 60,
+                    vy: Math.sin(a + Math.PI / 2) * 60,
+                    rotation: Math.random() * Math.PI * 2, rotSpeed: 6,
+                    color: i % 2 === 0 ? '#44ff44' : '#ffd700',
+                    alpha: 0.7, timer: 0.8, size: 3
+                });
+            }
+            spawnParticles(P.x, P.y, '#44ff44', 15, 50);
+            spawnParticles(P.x, P.y, '#ffd700', 10, 40);
+            break;
+
+        case 'blade_storm': // Assassin — THOUSAND CUTS: Phantom blur + rapid multi-slash
+            SFX.bladeStorm();
+            // Player blur effect — stronger
+            G.skillEffects.push({
+                type: 'player_blur', x: P.x, y: P.y,
+                alpha: 0.6, timer: 1.8, followPlayer: true
+            });
+            // Initial burst shockwave
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 3, maxRadius: 40, speed: 250,
+                color: '#ccaaff', alpha: 0.4, lineWidth: 2, timer: 0.3
+            });
             const nearby = G.enemies.filter(e => dist(P, e) < hero.ultimate.range).slice(0, hero.ultimate.hits);
             nearby.forEach((e, i) => {
                 setTimeout(() => {
                     if (e.hp > 0) {
                         damageEnemy(e, hero.ultimate.dmg, P.element);
-                        spawnParticles(e.x, e.y, '#ccccff', 5, 30);
+                        // Triple slash arcs at each hit (staggered angles)
+                        for (let j = 0; j < 3; j++) {
+                            G.skillEffects.push({
+                                type: 'slash_arc', x: e.x, y: e.y,
+                                radius: 10 + j * 5, startAngle: Math.random() * Math.PI * 2,
+                                color: j === 0 ? '#ffffff' : '#ccccff',
+                                alpha: 0.85 - j * 0.2, timer: 0.2 + j * 0.05
+                            });
+                        }
+                        // Double dash lines (main + ghost)
+                        G.skillEffects.push({
+                            type: 'dash_line', x1: P.x, y1: P.y,
+                            x2: e.x, y2: e.y,
+                            color: '#aaccff', alpha: 0.6, timer: 0.18, width: 2
+                        });
+                        G.skillEffects.push({
+                            type: 'dash_line', x1: P.x + 2, y1: P.y - 2,
+                            x2: e.x + 2, y2: e.y - 2,
+                            color: '#ccaaff', alpha: 0.3, timer: 0.12, width: 1
+                        });
+                        // Impact flash per hit
+                        G.skillEffects.push({
+                            type: 'impact_flash', x: e.x, y: e.y,
+                            radius: 10, color: '#ccccff', alpha: 0.7, timer: 0.1
+                        });
+                        spawnParticles(e.x, e.y, '#ccccff', 8, 35);
                     }
-                }, i * 50);
+                }, i * 40);
             });
-            P.invincible = Math.max(P.invincible, 1.5);
+            P.invincible = Math.max(P.invincible, 1.8);
             break;
 
-        case 'changban_charge': // Vanguard — Invincible charge
-            P.invincible = Math.max(P.invincible, 2);
+        case 'changban_charge': // Vanguard — IMMORTAL CHARGE: Earth-shattering rush + seismic impact
+            SFX.changbanCharge();
+            P.invincible = Math.max(P.invincible, 2.5);
             P.dodgeDx = P.facing * hero.ultimate.chargeSpeed;
             P.dodgeDy = 0;
             P.dodgeTimer = 0.8;
+            // Dust trail during charge — brighter
+            G.skillEffects.push({
+                type: 'dust_trail', x: P.x, y: P.y,
+                facing: P.facing, timer: 0.8, followPlayer: true,
+                color: '#ddaa44', alpha: 0.6
+            });
+            // Speed lines during charge
+            for (let i = 0; i < 6; i++) {
+                G.skillEffects.push({
+                    type: 'speed_line', x: P.x, y: P.y,
+                    angle: (P.facing > 0 ? Math.PI : 0) + (Math.random() - 0.5) * 0.5,
+                    length: 0, maxLength: 25, speed: 200,
+                    color: '#ddaa44', alpha: 0.5, timer: 0.3
+                });
+            }
+            // Mid-charge shockwave
+            setTimeout(() => {
+                G.skillEffects.push({
+                    type: 'shockwave', x: P.x, y: P.y,
+                    radius: 3, maxRadius: 25, speed: 150,
+                    color: '#ddaa44', alpha: 0.4, lineWidth: 2, timer: 0.25
+                });
+            }, 400);
             // AoE damage at endpoint after delay
             setTimeout(() => {
                 G.enemies.forEach(e => {
                     if (dist(P, e) < hero.ultimate.range) {
                         damageEnemy(e, hero.ultimate.dmg, P.element);
+                        const dx = e.x - P.x, dy = e.y - P.y;
+                        const d = Math.hypot(dx, dy) || 1;
+                        e.x += (dx / d) * 50;
+                        e.y += (dy / d) * 50;
+                        // Impact per enemy
+                        G.skillEffects.push({
+                            type: 'impact_flash', x: e.x, y: e.y,
+                            radius: 8, color: '#ddaa44', alpha: 0.6, timer: 0.1
+                        });
                     }
                 });
-                shake(4, 0.3);
-                spawnParticles(P.x, P.y, '#ddaa44', 20, 60);
+                shake(6, 0.35);
+                hitStop(0.06);
+                if (typeof triggerFlash === 'function') triggerFlash('#ddaa44', 0.1);
+                // Massive impact crater
+                G.skillEffects.push({
+                    type: 'impact_crater', x: P.x, y: P.y,
+                    radius: 40, color: '#ddaa44', alpha: 0.6, timer: 1.2
+                });
+                // Double shockwave
+                G.skillEffects.push({
+                    type: 'shockwave', x: P.x, y: P.y,
+                    radius: 5, maxRadius: hero.ultimate.range * 1.2, speed: 200,
+                    color: '#ddaa44', alpha: 0.8, lineWidth: 4, timer: 0.5
+                });
+                G.skillEffects.push({
+                    type: 'shockwave', x: P.x, y: P.y,
+                    radius: 3, maxRadius: hero.ultimate.range * 0.7, speed: 150,
+                    color: '#ffcc44', alpha: 0.5, lineWidth: 2, timer: 0.4
+                });
+                // 6 ground cracks
+                for (let i = 0; i < 6; i++) {
+                    G.skillEffects.push({
+                        type: 'crack', x: P.x, y: P.y,
+                        angle: (Math.PI * 2 / 6) * i + Math.random() * 0.3,
+                        length: 0, maxLength: hero.ultimate.range * 0.6, speed: 150,
+                        color: '#ddaa44', alpha: 0.6, timer: 0.5
+                    });
+                }
+                spawnParticles(P.x, P.y, '#ddaa44', 25, 70);
+                spawnParticles(P.x, P.y, '#ffcc44', 12, 45);
             }, 800);
             break;
 
-        case 'phoenix_summon': // Mystic — Summon phoenix for 10s
+        case 'phoenix_summon': // Mystic — SACRED PHOENIX: Inferno pillar + dual wings + ember spiral
+            SFX.phoenixSummon();
+            // Wide fire eruption pillar
+            G.skillEffects.push({
+                type: 'fire_pillar', x: P.x, y: P.y,
+                width: 28, height: 0, maxHeight: 100, speed: 240,
+                color: '#ff4400', alpha: 0.7, timer: 1.2
+            });
+            // Dual phoenix wing spread — bigger, brighter
+            G.skillEffects.push({
+                type: 'phoenix_wings', x: P.x, y: P.y - 25,
+                spread: 0, maxSpread: 45, speed: 100,
+                color: '#ff6600', alpha: 0.6, timer: 1.8
+            });
+            // Inner golden wings
+            G.skillEffects.push({
+                type: 'phoenix_wings', x: P.x, y: P.y - 20,
+                spread: 0, maxSpread: 30, speed: 80,
+                color: '#ffd700', alpha: 0.3, timer: 1.5
+            });
+            // 20 rising embers in spiral pattern
+            for (let i = 0; i < 20; i++) {
+                const spiralAngle = (Math.PI * 2 / 20) * i;
+                G.skillEffects.push({
+                    type: 'ember',
+                    x: P.x + Math.cos(spiralAngle) * (5 + i),
+                    y: P.y + Math.sin(spiralAngle) * (5 + i * 0.5),
+                    vy: -(35 + Math.random() * 70),
+                    vx: Math.cos(spiralAngle) * 15 + (Math.random() - 0.5) * 15,
+                    color: ['#ffd700', '#ff8800', '#ff4400', '#ff2200'][i % 4],
+                    alpha: 0.9, timer: 0.7 + Math.random() * 0.6,
+                    size: 2 + Math.random() * 3
+                });
+            }
+            // Ground fire ring
+            G.skillEffects.push({
+                type: 'fire_aura', x: P.x, y: P.y,
+                radius: 30, color: '#ff4400', alpha: 0.3, timer: 1.0
+            });
+            // Shockwave on activation
+            G.skillEffects.push({
+                type: 'shockwave', x: P.x, y: P.y,
+                radius: 5, maxRadius: 60, speed: 130,
+                color: '#ff6600', alpha: 0.5, lineWidth: 3, timer: 0.5
+            });
             G.sacredBeast = {
                 type: 'phoenix', x: P.x, y: P.y - 30,
                 angle: 0, affinity: 50,
                 atkCd: 0, timer: hero.ultimate.duration,
                 dmg: hero.ultimate.dmg
             };
-            spawnParticles(P.x, P.y, '#ff4400', 15, 50);
-            spawnParticles(P.x, P.y, '#ffd700', 10, 40);
+            spawnParticles(P.x, P.y, '#ff4400', 20, 60);
+            spawnParticles(P.x, P.y, '#ffd700', 15, 50);
+            spawnParticles(P.x, P.y, '#ff8800', 10, 40);
             break;
     }
 }
