@@ -195,9 +195,27 @@ function fireHeal(w) {
 function damageEnemy(e, dmg, el) {
     // Element bonus
     let mult = 1;
-    if (GENERATING[el] === e.el) mult = 0.8; // generating = slightly less (feeds their element)
-    if (OVERCOMING[el] === e.el) mult = 1.5; // overcoming = super effective!
-    if (GENERATING[e.el] === el) mult = 1.3; // we overcome them
+    if (GENERATING[el] === e.el) mult = 0.8;
+    if (OVERCOMING[el] === e.el) mult = 1.5;
+    if (GENERATING[e.el] === el) mult = 1.3;
+
+    // Phase E: Hero passive multipliers
+    const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
+
+    // Berserker: Rage mode = 2x damage
+    if (P.rageModeTimer > 0) mult *= 2;
+
+    // Berserker: Combo rage passive (+2% per combo, max 50%)
+    if (hero && hero.passive.stat === 'comboRage') {
+        mult *= 1 + Math.min(G.combo * 0.02, 0.5);
+    }
+
+    // Assassin: Crit chance (20% for 3x)
+    let isCrit = false;
+    if (hero && hero.passive.stat === 'critChance' && Math.random() < 0.20) {
+        mult *= 3;
+        isCrit = true;
+    }
 
     const finalDmg = dmg * mult;
     e.hp -= finalDmg;
@@ -206,12 +224,17 @@ function damageEnemy(e, dmg, el) {
     e.knockY = (e.y - P.y) * 0.3;
 
     const elDef = ELEMENTS[el] || ELEMENTS.METAL;
-    spawnDmgNum(e.x + rng(-5, 5), e.y - 8, finalDmg, mult > 1.2 ? '#ffff00' : elDef.light, mult > 1.2);
+    const dmgColor = isCrit ? '#ff4400' : mult > 1.2 ? '#ffff00' : elDef.light;
+    spawnDmgNum(e.x + rng(-5, 5), e.y - 8, finalDmg, dmgColor, isCrit || mult > 1.2);
     spawnElementParticles(e.x, e.y, el, 3, 35);
     SFX.hit();
 
-    if (mult > 1.2) {
-        spawnDmgNum(e.x, e.y - 20, 0, '#ffff00', true); // shows "EFFECTIVE!"
+    if (isCrit) {
+        spawnDmgNum(e.x, e.y - 20, 0, '#ff4400', true); // "CRIT!"
+        shake(3, 0.08);
+        triggerChromatic(1.5);
+    } else if (mult > 1.2) {
+        spawnDmgNum(e.x, e.y - 20, 0, '#ffff00', true);
         shake(3, 0.08);
         triggerChromatic(1.0);
     }
@@ -229,6 +252,31 @@ function killEnemy(e) {
     G.maxCombo = Math.max(G.maxCombo, G.combo);
     G.enemiesKilled++;
 
+    // Phase E: Musou gauge fill
+    const musouGain = e.type === 'fodder' ? 1 : e.type === 'elite' ? 8 : e.type === 'boss' ? 25 : 3;
+    P.musou = clamp((P.musou || 0) + musouGain, 0, P.musouMax || 100);
+
+    // Phase E: Total kill counter
+    G.totalKills = (G.totalKills || 0) + 1;
+
+    // Phase E: Chain kill tracking
+    G.chainTimer = 0.8; // 0.8s window for chain
+    G.chainCount = (G.chainCount || 0) + 1;
+    if (G.chainCount > (G.chainBest || 0)) G.chainBest = G.chainCount;
+
+    // Phase E: Kill milestones
+    const milestones = [100, 500, 1000, 2000, 5000];
+    for (const m of milestones) {
+        if (G.totalKills >= m && (G.killMilestone || 0) < m) {
+            G.killMilestone = m;
+            G._milestoneTime = G.time;
+            shake(6, 0.4);
+            spawnParticles(P.x, P.y, '#ffd700', 30, 80);
+            if (typeof triggerFlash === 'function') triggerFlash('#ffd700', 0.3);
+            break;
+        }
+    }
+
     // Yang boost on kill
     G.yinYang.yang = clamp(G.yinYang.yang + 1, 0, 100);
 
@@ -238,8 +286,10 @@ function killEnemy(e) {
     spawnElementParticles(e.x, e.y, e.el, 10, 60);
     SFX.kill();
 
-    // Drop XP
-    const xpVal = 3 + G.floor;
+    // Drop XP (Strategist bonus)
+    const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
+    const xpMult = (hero && hero.passive.stat === 'xpBonus') ? 1.3 : 1;
+    const xpVal = Math.floor((3 + G.floor) * xpMult);
     G.pickups.push({ x: e.x + rng(-5, 5), y: e.y + rng(-5, 5), type: 'xp', val: xpVal, color: '#55ffff', r: 3, life: 15 });
 
     // Chance to drop gold
@@ -250,6 +300,19 @@ function killEnemy(e) {
     // Chance to drop HP orb
     if (Math.random() < 0.08) {
         G.pickups.push({ x: e.x, y: e.y, type: 'hp', val: 15, color: '#ff4444', r: 4, life: 15 });
+    }
+
+    // Phase E: Mystic passive — 10% chance dead enemy rises as ally
+    if (hero && hero.passive.stat === 'necro' && Math.random() < 0.10) {
+        G.allies.push({
+            name: 'Undead', behavior: 'melee',
+            x: e.x, y: e.y,
+            hp: 20, maxHp: 20, dmg: 8,
+            atkRate: 1.0, atkCd: 0, range: 20,
+            speed: 50, color: '#8844aa',
+            target: null, respawnTimer: 0,
+            _tempTimer: 8 // Disappears after 8s — tracked in updateAllies
+        });
     }
 
     // Shake on multi-kills

@@ -9,17 +9,31 @@ function startGame() {
     G.floor = 1; G.score = 0; G.combo = 0; G.maxCombo = 0;
     G.enemies = []; G.bullets = []; G.particles = []; G.pickups = []; G.dmgNums = [];
     G.weapons = [];
-    G.spawnTimer = 0; G.spawnRate = 1.5; G.enemiesPerWave = 8;
-    G.enemiesKilled = 0; G.enemiesNeeded = 30;
+    G.spawnTimer = 0; G.spawnRate = 1.2; G.enemiesPerWave = 12;
+    G.enemiesKilled = 0; G.enemiesNeeded = 40;
     G.portalActive = false; G.portal = null;
     G.treasureRoom = null; G.archerBullets = [];
     G.yinYang = { yin: 0, yang: 0, state: 'NEUTRAL', timer: 0 };
+    G.totalKills = 0; G.chainTimer = 0; G.chainCount = 0; G.chainBest = 0; G.killMilestone = 0;
+    G.allies = [];
+    G.sacredBeast = null;
+    G.equipment = { armor: null, talisman: null, mount: null };
 
+    // Apply hero stats
+    const hero = getHeroDef(G.selectedHero || 'berserker');
+    P.heroId = hero.id;
     P.x = G.arenaW / 2; P.y = G.arenaH / 2;
-    P.hp = 100; P.maxHp = 100; P.xp = 0; P.xpNeeded = 20; P.level = 1;
-    P.speed = 100; P.invincible = 0; P.damageFlash = 0;
-    P.element = 'METAL';
+    P.hp = hero.hp; P.maxHp = hero.hp;
+    P.xp = 0; P.xpNeeded = 20; P.level = 1;
+    P.speed = hero.speed;
+    P.invincible = 0; P.damageFlash = 0;
+    P.element = hero.element;
     P.dodgeTimer = 0; P.dodgeCd = 0; P.dodgeDx = 0; P.dodgeDy = 0;
+    // MP & Musou
+    P.mp = hero.mp; P.mpMax = hero.mp; P.mpRegen = hero.mpRegen; P.mpRegenDelay = 0;
+    P.musou = 0; P.musouMax = 100;
+    P.tacticalCd = 0; P.ultimateActive = 0;
+    P.shieldWall = 0; P.rageModeTimer = 0;
 
     // Reset passives
     passives.atkSpd = 0; passives.maxHp = 0; passives.moveSpd = 0;
@@ -28,8 +42,36 @@ function startGame() {
     // Initialize bonding system for this run
     initBondingForRun();
 
-    // Start with a basic melee weapon
-    G.weapons.push(createWeapon(WEAPON_DEFS[0])); // Fire Sword
+    // Apply equipment bonuses
+    const armor = G.equipment.armor;
+    if (armor) {
+        P.maxHp += armor.hp || 0;
+        P.hp = P.maxHp;
+    }
+    const mount = G.equipment.mount;
+    if (mount) {
+        P.speed *= (1 + (mount.speed || 0));
+        P.mpRegen += mount.mpRegen || 0;
+    }
+
+    // Start with hero's weapon
+    const startWep = WEAPON_DEFS.find(w => w.id === hero.startWeapon) || WEAPON_DEFS[0];
+    G.weapons.push(createWeapon(startWep));
+
+    // Spawn AI companions from equipped bond
+    if (BondingState.equippedBond && typeof getCompanionsForBond === 'function') {
+        const compDefs = getCompanionsForBond(BondingState.equippedBond);
+        compDefs.forEach((c, i) => {
+            G.allies.push({
+                name: c.name, behavior: c.behavior,
+                x: P.x + (i === 0 ? -30 : 30), y: P.y + 20,
+                hp: c.hp, maxHp: c.hp, dmg: c.dmg,
+                atkRate: c.atkRate, atkCd: 0, range: c.range,
+                speed: c.speed, color: c.color,
+                target: null, respawnTimer: 0
+            });
+        });
+    }
 
     G.camX = P.x - GAME_W / 2; G.camY = P.y - GAME_H / 2;
     if (typeof HUD !== 'undefined') { HUD.hpDisplay = 1; HUD.xpDisplay = 0; HUD.killTimer = 0; }
@@ -88,8 +130,45 @@ function updatePlayer(dt) {
         P.dodgeTimer -= dt;
         P.x += P.dodgeDx * dt;
         P.y += P.dodgeDy * dt;
-        // Trail particles during dodge
-        if (Math.random() < 0.5) spawnParticles(P.x, P.y, '#aaaaff', 1, 15);
+        // Hero-specific dodge trail
+        const hero = getHeroDef(P.heroId);
+        if (Math.random() < 0.5) spawnParticles(P.x, P.y, hero.dodgeTrail || '#aaaaff', 1, 15);
+    }
+
+    // MP regeneration (pause after skill use)
+    if (P.mpRegenDelay > 0) {
+        P.mpRegenDelay -= dt;
+    } else {
+        P.mp = clamp(P.mp + P.mpRegen * dt, 0, P.mpMax);
+    }
+
+    // Tactical cooldown
+    if (P.tacticalCd > 0) P.tacticalCd -= dt;
+
+    // Rage mode timer (Berserker)
+    if (P.rageModeTimer > 0) {
+        P.rageModeTimer -= dt;
+        if (P.rageModeTimer <= 0) {
+            spawnParticles(P.x, P.y, '#ff4400', 8, 40);
+        }
+    }
+
+    // Shield wall timer (Vanguard)
+    if (P.shieldWall > 0) P.shieldWall -= dt;
+
+    // Chain kill timer
+    if (G.chainTimer > 0) {
+        G.chainTimer -= dt;
+        if (G.chainTimer <= 0) {
+            if (G.chainCount > G.chainBest) G.chainBest = G.chainCount;
+            G.chainCount = 0;
+        }
+    }
+
+    // Equipment: HP regen from armor
+    const eqArmor = G.equipment.armor;
+    if (eqArmor && eqArmor.hpRegen) {
+        P.hp = clamp(P.hp + eqArmor.hpRegen * dt, 0, P.maxHp);
     }
 
     // Yin from idling
@@ -180,6 +259,12 @@ function update(dt) {
 
     // Update HUD animations
     if (typeof updateHUD === 'function') updateHUD(dt);
+
+    // Update AI companions
+    if (typeof updateAllies === 'function') updateAllies(dt);
+
+    // Update sacred beast
+    if (typeof updateSacredBeast === 'function') updateSacredBeast(dt);
 }
 
 // --- Main Draw ---
@@ -188,10 +273,14 @@ function draw() {
 
     if (G.state === 'MENU') {
         drawMenuScreen();
+    } else if (G.state === 'HERO_SELECT') {
+        if (typeof drawHeroSelectScreen === 'function') drawHeroSelectScreen();
     } else if (G.state === 'BONDING') {
         drawBondingScreen();
     } else if (G.state === 'PLAYING') {
         drawGame();
+        if (typeof drawAllies === 'function') drawAllies();
+        if (typeof drawSacredBeast === 'function') drawSacredBeast();
         if (typeof drawTreasureRoom === 'function') drawTreasureRoom();
         if (typeof drawArcherProjectiles === 'function') drawArcherProjectiles();
         if (typeof drawEvolutionPopup === 'function') drawEvolutionPopup();

@@ -51,8 +51,14 @@ function drawHUD() {
         ctx.fillRect(0, 0, GAME_W, GAME_H);
     }
 
+    // --- MP Bar (blue) ---
+    const mpY = hpY + hpH + 2;
+    const mpPct = P.mp / P.mpMax;
+    drawAnimatedBar(hpX, mpY, hpW, 6, mpPct, mpPct, '#4488ff', '#2244aa66');
+    drawText(`MP ${Math.ceil(P.mp)}`, hpX + hpW + 4, mpY - 1, { font: '8px monospace', fill: '#4488ff', outline: false });
+
     // --- XP Bar (animated with glow on near-level) ---
-    const xpY = hpY + hpH + 4;
+    const xpY = mpY + 10;
     const xpPct = P.xp / P.xpNeeded;
     drawAnimatedBar(hpX, xpY, hpW, 6, xpPct, HUD.xpDisplay, '#44bbff', '#2288cc66');
     if (xpPct > 0.85) {
@@ -190,6 +196,25 @@ function drawHUD() {
 
     // --- Minimap ---
     drawMinimap();
+
+    // --- Phase E: Musou Bar, Skill Icons, Kill Counter ---
+    if (typeof drawMusouBar === 'function') drawMusouBar();
+    if (typeof drawSkillIcons === 'function') drawSkillIcons();
+    if (typeof drawKillCounter === 'function') drawKillCounter();
+
+    // Hero name display
+    const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
+    if (hero) {
+        drawText(`${hero.name}`, hpX, hpY - 12, { font: 'bold 9px monospace', fill: hero.colors.accent, outline: false });
+        // Rage mode indicator
+        if (P.rageModeTimer > 0) {
+            drawText('🔥 RAGE MODE', GAME_W / 2, 35, { font: 'bold 12px monospace', fill: '#ff4400', align: 'center', outlineWidth: 3 });
+        }
+        // Shield wall indicator
+        if (P.shieldWall > 0) {
+            drawText('🛡️ SHIELD WALL', GAME_W / 2, 35, { font: 'bold 12px monospace', fill: '#ddaa44', align: 'center', outlineWidth: 3 });
+        }
+    }
 
     // --- Touch Joystick ---
     if (touch.active) {
@@ -790,3 +815,555 @@ function drawFloorAnnounce() {
 
     ctx.globalAlpha = 1;
 }
+
+// ============================================================
+// PHASE E: Hero Select Screen, Musou Bar, Skills, Allies, Beast
+// ============================================================
+
+// --- Musou Bar (drawn as part of HUD, call from drawHUD area) ---
+function drawMusouBar() {
+    const barW = 140, barH = 10;
+    const barX = GAME_W / 2 - barW / 2;
+    const barY = GAME_H - 18;
+    const pct = P.musou / P.musouMax;
+    const isFull = pct >= 1;
+
+    // Background
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(barX, barY, barW, barH);
+    // Fill
+    const fillColor = isFull ? `hsl(${(G.time * 120) % 360}, 80%, 55%)` : '#ccaa22';
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(barX + 1, barY + 1, (barW - 2) * clamp(pct, 0, 1), barH - 2);
+    // Shine
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(barX + 1, barY + 1, (barW - 2) * clamp(pct, 0, 1), 2);
+    // Border
+    ctx.strokeStyle = isFull ? '#ffd700' : '#555';
+    ctx.lineWidth = isFull ? 2 : 1;
+    ctx.strokeRect(barX, barY, barW, barH);
+
+    // Label
+    const label = isFull ? '⚡ MUSOU READY [Q] ⚡' : `Musou ${Math.floor(pct * 100)}%`;
+    const labelColor = isFull ? '#ffd700' : '#999';
+    drawText(label, GAME_W / 2, barY - 10, { font: `bold ${isFull ? '9' : '7'}px monospace`, fill: labelColor, align: 'center', outlineWidth: isFull ? 3 : 0, outline: isFull });
+
+    // Full pulse
+    if (isFull) {
+        ctx.fillStyle = `rgba(255,215,0,${Math.sin(G.time * 6) * 0.08 + 0.08})`;
+        ctx.fillRect(barX, barY, barW, barH);
+    }
+}
+
+// --- Kill Counter & Chain Display ---
+function drawKillCounter() {
+    // Kill count top-right
+    const killText = `斬 ${G.totalKills.toLocaleString()}`;
+    drawText(killText, GAME_W - 8, 8, { font: 'bold 11px monospace', fill: '#ffd700', align: 'right' });
+
+    // Chain display
+    if (G.chainCount >= 5) {
+        const chainSize = Math.min(20, 10 + G.chainCount * 0.3);
+        const chainColor = G.chainCount >= 30 ? '#ff4400' : G.chainCount >= 15 ? '#ffd700' : '#ffaa44';
+        drawText(`CHAIN ×${G.chainCount}`, GAME_W / 2, 50, {
+            font: `bold ${Math.floor(chainSize)}px monospace`, fill: chainColor, align: 'center', outlineWidth: 3
+        });
+    }
+
+    // Kill milestones
+    if (G.killMilestone > 0 && G.time - G._milestoneTime < 2) {
+        const mt = G.time - G._milestoneTime;
+        const ma = mt < 1.5 ? 1 : 1 - (mt - 1.5) / 0.5;
+        ctx.globalAlpha = clamp(ma, 0, 1);
+        drawText(`${G.killMilestone} SLAIN!`, GAME_W / 2, 70, {
+            font: 'bold 18px monospace', fill: '#ff4444', align: 'center', outlineWidth: 4
+        });
+        ctx.globalAlpha = 1;
+    }
+}
+
+// --- Skill Cooldown Icons ---
+function drawSkillIcons() {
+    const hero = getHeroDef(P.heroId);
+    const iconY = GAME_H - 38;
+
+    // Tactical (E) — left of musou bar
+    const eX = GAME_W / 2 - 90;
+    const tac = hero.tactical;
+    const eCdPct = P.tacticalCd > 0 ? P.tacticalCd / tac.cd : 0;
+    const eReady = P.tacticalCd <= 0 && P.mp >= tac.mpCost;
+
+    ctx.fillStyle = eReady ? 'rgba(40,80,40,0.9)' : 'rgba(20,20,30,0.9)';
+    ctx.fillRect(eX, iconY, 28, 28);
+    ctx.strokeStyle = eReady ? '#44ff44' : '#444';
+    ctx.lineWidth = eReady ? 2 : 1;
+    ctx.strokeRect(eX, iconY, 28, 28);
+
+    // Cooldown overlay
+    if (eCdPct > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(eX + 1, iconY + 1, 26, 26 * eCdPct);
+    }
+    drawText(tac.icon, eX + 3, iconY + 3, { font: '14px monospace', fill: eReady ? '#fff' : '#666', outline: false });
+    drawText('[E]', eX + 14, iconY + 20, { font: 'bold 6px monospace', fill: eReady ? '#44ff44' : '#444', align: 'center', outline: false });
+
+    // Ultimate (Q) — right of musou bar
+    const qX = GAME_W / 2 + 62;
+    const ult = hero.ultimate;
+    const qReady = P.musou >= P.musouMax;
+
+    ctx.fillStyle = qReady ? `rgba(80,60,20,${0.7 + Math.sin(G.time * 5) * 0.2})` : 'rgba(20,20,30,0.9)';
+    ctx.fillRect(qX, iconY, 28, 28);
+    ctx.strokeStyle = qReady ? '#ffd700' : '#444';
+    ctx.lineWidth = qReady ? 2 : 1;
+    ctx.strokeRect(qX, iconY, 28, 28);
+
+    drawText(ult.icon, qX + 3, iconY + 3, { font: '14px monospace', fill: qReady ? '#ffd700' : '#666', outline: false });
+    drawText('[Q]', qX + 14, iconY + 20, { font: 'bold 6px monospace', fill: qReady ? '#ffd700' : '#444', align: 'center', outline: false });
+}
+
+// --- Hero Select Screen ---
+function drawHeroSelectScreen() {
+    ctx.fillStyle = '#060612'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    // Animated background particles
+    for (let i = 0; i < 40; i++) {
+        const px = GAME_W * 0.5 + Math.sin(G.time * 0.1 + i * 1.5) * GAME_W * 0.48;
+        const py = GAME_H * 0.5 + Math.cos(G.time * 0.15 + i * 0.9) * GAME_H * 0.48;
+        ctx.globalAlpha = 0.06 + Math.sin(G.time * 0.3 + i) * 0.03;
+        ctx.fillStyle = ['#ff4400', '#44ff44', '#aaaaff', '#ddaa44', '#4466ff'][i % 5];
+        ctx.fillRect(px, py, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+
+    // Title
+    drawText('CHOOSE YOUR HERO', GAME_W / 2, 8, { font: 'bold 16px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
+
+    // Hero cards — 5 cards
+    const cardW = 88, cardH = 240, gap = 4;
+    const totalW = HEROES.length * (cardW + gap) - gap;
+    const startX = GAME_W / 2 - totalW / 2;
+    const startY = 30;
+
+    for (let i = 0; i < HEROES.length; i++) {
+        const h = HEROES[i];
+        const cx = startX + i * (cardW + gap);
+        const cy = startY;
+        const isHover = G._heroHover === i;
+        const elColor = ELEMENTS[h.element] ? ELEMENTS[h.element].color : '#888';
+
+        // Card bg
+        ctx.fillStyle = isHover ? 'rgba(30,25,50,0.95)' : 'rgba(12,10,20,0.9)';
+        ctx.fillRect(cx, cy, cardW, cardH);
+
+        // Element glow border
+        ctx.strokeStyle = elColor;
+        ctx.lineWidth = isHover ? 3 : 1;
+        ctx.strokeRect(cx, cy, cardW, cardH);
+
+        // Hero pixel art preview (simple colored rectangle for now)
+        const previewY = cy + 6;
+        ctx.fillStyle = h.colors.body;
+        ctx.fillRect(cx + cardW / 2 - 8, previewY, 16, 20);
+        ctx.fillStyle = h.colors.accent;
+        ctx.fillRect(cx + cardW / 2 - 6, previewY + 2, 12, 5); // head
+        ctx.fillStyle = h.colors.hair;
+        ctx.fillRect(cx + cardW / 2 - 6, previewY, 12, 3); // hair
+
+        // Element symbol
+        const elSym = ELEMENTS[h.element] ? ELEMENTS[h.element].symbol : '?';
+        drawText(elSym, cx + cardW - 6, cy + 4, { font: 'bold 12px monospace', fill: elColor, align: 'right' });
+
+        // Name
+        drawText(h.name, cx + cardW / 2, cy + 32, { font: 'bold 10px monospace', fill: '#fff', align: 'center', outlineWidth: 2 });
+        // Title
+        drawText(h.title, cx + cardW / 2, cy + 44, { font: '8px monospace', fill: '#aaa', align: 'center', outline: false });
+
+        // Class ID
+        drawText(h.id.toUpperCase(), cx + cardW / 2, cy + 56, { font: 'bold 8px monospace', fill: elColor, align: 'center' });
+
+        // Stats
+        const statsY = cy + 72;
+        drawText(`HP: ${h.hp}`, cx + 4, statsY, { font: '8px monospace', fill: '#44dd44', outline: false });
+        drawText(`SPD: ${h.speed}`, cx + 4, statsY + 11, { font: '8px monospace', fill: '#44bbff', outline: false });
+        drawText(`MP: ${h.mp}`, cx + 4, statsY + 22, { font: '8px monospace', fill: '#4488ff', outline: false });
+
+        // Passive
+        drawText('PASSIVE:', cx + 4, statsY + 38, { font: 'bold 7px monospace', fill: '#ffd700', outline: false });
+        drawText(h.passive.name, cx + 4, statsY + 48, { font: '7px monospace', fill: '#ddd', outline: false });
+
+        // Tactical
+        const tac = h.tactical;
+        drawText(`[E] ${tac.icon} ${tac.name}`, cx + 4, statsY + 64, { font: 'bold 7px monospace', fill: '#44ff44', outline: false });
+        drawText(`${tac.mpCost} MP`, cx + 4, statsY + 74, { font: '7px monospace', fill: '#4488ff', outline: false });
+
+        // Ultimate
+        const ult = h.ultimate;
+        drawText(`[Q] ${ult.icon} ${ult.name}`, cx + 4, statsY + 90, { font: 'bold 7px monospace', fill: '#ffd700', outline: false });
+        drawText('Musou gauge', cx + 4, statsY + 100, { font: '7px monospace', fill: '#ccaa22', outline: false });
+
+        // Element bar at bottom
+        ctx.fillStyle = elColor; ctx.globalAlpha = 0.3;
+        ctx.fillRect(cx + 1, cy + cardH - 14, cardW - 2, 13);
+        ctx.globalAlpha = 1;
+        drawText(ELEMENTS[h.element] ? ELEMENTS[h.element].name : h.element, cx + cardW / 2, cy + cardH - 13, {
+            font: 'bold 9px monospace', fill: '#fff', align: 'center', outline: false
+        });
+    }
+
+    // Instructions
+    drawText('Click a hero to begin', GAME_W / 2, GAME_H - 18, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
+}
+
+// --- Handle Hero Select Click ---
+function handleHeroSelectClick(mx, my) {
+    const cardW = 88, cardH = 240, gap = 4;
+    const totalW = HEROES.length * (cardW + gap) - gap;
+    const startX = GAME_W / 2 - totalW / 2;
+    const startY = 30;
+
+    for (let i = 0; i < HEROES.length; i++) {
+        const cx = startX + i * (cardW + gap);
+        if (mx >= cx && mx <= cx + cardW && my >= startY && my <= startY + cardH) {
+            G.selectedHero = HEROES[i].id;
+            SFX.menuClick();
+            G.state = 'BONDING';
+            return;
+        }
+    }
+}
+
+// --- Tactical Skill Execution (E key) ---
+function fireTacticalSkill() {
+    const hero = getHeroDef(P.heroId);
+    const tac = hero.tactical;
+    if (P.tacticalCd > 0 || P.mp < tac.mpCost) return;
+
+    P.mp -= tac.mpCost;
+    P.tacticalCd = tac.cd;
+    P.mpRegenDelay = 1.5;
+    SFX.menuClick();
+
+    switch (tac.id) {
+        case 'ground_slam': // Berserker — AoE stun
+            shake(3, 0.2);
+            spawnParticles(P.x, P.y, '#ff4400', 15, 60);
+            G.enemies.forEach(e => {
+                if (dist(P, e) < tac.range) {
+                    damageEnemy(e, tac.dmg, P.element);
+                    e.stunTimer = (e.stunTimer || 0) + tac.stunDur;
+                    e.speed *= 0; // Will recover after stun
+                }
+            });
+            break;
+
+        case 'wind_burst': // Strategist — Cone knockback
+            spawnParticles(P.x, P.y, '#44ff44', 12, 50);
+            G.enemies.forEach(e => {
+                if (dist(P, e) < tac.range) {
+                    damageEnemy(e, tac.dmg, P.element);
+                    const dx = e.x - P.x, dy = e.y - P.y;
+                    const d = Math.hypot(dx, dy) || 1;
+                    e.x += (dx / d) * tac.knockback;
+                    e.y += (dy / d) * tac.knockback;
+                }
+            });
+            shake(2, 0.15);
+            break;
+
+        case 'shadow_strike': // Assassin — Teleport to nearest
+            let nearest = null, minD = tac.teleRange;
+            G.enemies.forEach(e => {
+                const d = dist(P, e);
+                if (d < minD) { minD = d; nearest = e; }
+            });
+            if (nearest) {
+                spawnParticles(P.x, P.y, '#ccccff', 6, 30); // Trail from start
+                P.x = nearest.x; P.y = nearest.y - 10;
+                damageEnemy(nearest, tac.dmg, P.element);
+                spawnParticles(P.x, P.y, '#aaaaff', 10, 40);
+                shake(2, 0.1);
+                hitStop(0.05);
+            }
+            break;
+
+        case 'shield_wall': // Vanguard — Block all damage
+            P.shieldWall = tac.blockDur;
+            P.invincible = tac.blockDur;
+            spawnParticles(P.x, P.y, '#ddaa44', 8, 30);
+            break;
+
+        case 'life_drain': // Mystic — Steal HP
+            let healed = 0;
+            spawnParticles(P.x, P.y, '#5588ff', 10, 40);
+            G.enemies.forEach(e => {
+                if (dist(P, e) < tac.range) {
+                    const drainDmg = Math.min(e.hp, 10);
+                    damageEnemy(e, drainDmg, P.element);
+                    healed += drainDmg;
+                }
+            });
+            P.hp = clamp(P.hp + Math.min(healed, tac.healAmt), 0, P.maxHp);
+            spawnDmgNum(P.x, P.y - 20, Math.min(healed, tac.healAmt), '#44ff44', false);
+            break;
+    }
+}
+
+// --- Ultimate / Musou Execution (Q key) ---
+function fireUltimateSkill() {
+    if (P.musou < P.musouMax) return;
+
+    const hero = getHeroDef(P.heroId);
+    P.musou = 0;
+    P.ultimateActive = hero.ultimate.duration || 3;
+
+    // Screen flash + big shake for all ultimates
+    if (typeof triggerFlash === 'function') triggerFlash('#ffd700', 0.3);
+    if (typeof triggerChromatic === 'function') triggerChromatic(3);
+    shake(5, 0.3);
+    spawnParticles(P.x, P.y, '#ffd700', 25, 80);
+    SFX.goldPickup();
+
+    switch (hero.ultimate.id) {
+        case 'rage_mode': // Berserker — 2x dmg, 1.5x speed for 6s
+            P.rageModeTimer = hero.ultimate.duration;
+            spawnParticles(P.x, P.y, '#ff4400', 20, 60);
+            break;
+
+        case 'eight_trigrams': // Strategist — 8 elemental bolts
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI * 2 / 8) * i;
+                G.bullets.push({
+                    x: P.x, y: P.y,
+                    vx: Math.cos(angle) * 120,
+                    vy: Math.sin(angle) * 120,
+                    dmg: hero.ultimate.dmg, el: EL_KEYS[i % 5],
+                    life: 3, r: 5, pierce: 3
+                });
+            }
+            break;
+
+        case 'blade_storm': // Assassin — Dash through nearby enemies
+            const nearby = G.enemies.filter(e => dist(P, e) < hero.ultimate.range).slice(0, hero.ultimate.hits);
+            nearby.forEach((e, i) => {
+                setTimeout(() => {
+                    if (e.hp > 0) {
+                        damageEnemy(e, hero.ultimate.dmg, P.element);
+                        spawnParticles(e.x, e.y, '#ccccff', 5, 30);
+                    }
+                }, i * 50);
+            });
+            P.invincible = Math.max(P.invincible, 1.5);
+            break;
+
+        case 'changban_charge': // Vanguard — Invincible charge
+            P.invincible = Math.max(P.invincible, 2);
+            P.dodgeDx = P.facing * hero.ultimate.chargeSpeed;
+            P.dodgeDy = 0;
+            P.dodgeTimer = 0.8;
+            // AoE damage at endpoint after delay
+            setTimeout(() => {
+                G.enemies.forEach(e => {
+                    if (dist(P, e) < hero.ultimate.range) {
+                        damageEnemy(e, hero.ultimate.dmg, P.element);
+                    }
+                });
+                shake(4, 0.3);
+                spawnParticles(P.x, P.y, '#ddaa44', 20, 60);
+            }, 800);
+            break;
+
+        case 'phoenix_summon': // Mystic — Summon phoenix for 10s
+            G.sacredBeast = {
+                type: 'phoenix', x: P.x, y: P.y - 30,
+                angle: 0, affinity: 50,
+                atkCd: 0, timer: hero.ultimate.duration,
+                dmg: hero.ultimate.dmg
+            };
+            spawnParticles(P.x, P.y, '#ff4400', 15, 50);
+            spawnParticles(P.x, P.y, '#ffd700', 10, 40);
+            break;
+    }
+}
+
+// --- AI Companion Update ---
+function updateAllies(dt) {
+    G.allies.forEach(ally => {
+        if (ally.hp <= 0) {
+            ally.respawnTimer -= dt;
+            if (ally.respawnTimer <= 0) {
+                ally.hp = ally.maxHp;
+                ally.x = P.x + rng(-30, 30);
+                ally.y = P.y + rng(-30, 30);
+            }
+            return;
+        }
+
+        // Find target
+        let target = null, minDist = 150;
+        G.enemies.forEach(e => {
+            const d = dist(ally, e);
+            if (d < minDist) { minDist = d; target = e; }
+        });
+
+        if (target) {
+            const dx = target.x - ally.x, dy = target.y - ally.y;
+            const d = Math.hypot(dx, dy) || 1;
+
+            if (ally.behavior === 'melee' || ally.behavior === 'tank') {
+                // Move toward target
+                if (d > ally.range) {
+                    ally.x += (dx / d) * ally.speed * dt;
+                    ally.y += (dy / d) * ally.speed * dt;
+                }
+            } else if (ally.behavior === 'ranged') {
+                // Keep distance
+                if (d < 50) {
+                    ally.x -= (dx / d) * ally.speed * dt;
+                    ally.y -= (dy / d) * ally.speed * dt;
+                } else if (d > 100) {
+                    ally.x += (dx / d) * ally.speed * dt * 0.5;
+                    ally.y += (dy / d) * ally.speed * dt * 0.5;
+                }
+            }
+
+            // Attack
+            ally.atkCd -= dt;
+            if (ally.atkCd <= 0 && d < (ally.behavior === 'ranged' ? 120 : ally.range + 15)) {
+                ally.atkCd = ally.atkRate;
+                if (ally.behavior === 'ranged') {
+                    // Fire projectile
+                    G.bullets.push({
+                        x: ally.x, y: ally.y,
+                        vx: (dx / d) * 100, vy: (dy / d) * 100,
+                        dmg: ally.dmg, el: P.element, life: 2, r: 3
+                    });
+                } else {
+                    // Melee hit
+                    damageEnemy(target, ally.dmg, P.element);
+                    spawnParticles(target.x, target.y, ally.color, 3, 20);
+                }
+            }
+        } else {
+            // Follow player
+            const pdx = P.x - ally.x, pdy = P.y - ally.y;
+            const pd = Math.hypot(pdx, pdy) || 1;
+            if (pd > 40) {
+                ally.x += (pdx / pd) * ally.speed * 0.8 * dt;
+                ally.y += (pdy / pd) * ally.speed * 0.8 * dt;
+            }
+        }
+
+        // Bounds
+        ally.x = clamp(ally.x, 5, G.arenaW - 5);
+        ally.y = clamp(ally.y, 5, G.arenaH - 5);
+    });
+}
+
+// --- Draw Allies ---
+function drawAllies() {
+    G.allies.forEach(ally => {
+        if (ally.hp <= 0) return;
+        const sx = ally.x - G.camX + G.shakeX;
+        const sy = ally.y - G.camY + G.shakeY;
+        if (sx < -20 || sx > GAME_W + 20 || sy < -20 || sy > GAME_H + 20) return;
+
+        // Body
+        ctx.fillStyle = ally.color;
+        ctx.fillRect(sx - 5, sy - 6, 10, 12);
+        // Head
+        ctx.fillStyle = '#ddc';
+        ctx.fillRect(sx - 3, sy - 9, 6, 4);
+        // Weapon indicator
+        ctx.fillStyle = ally.behavior === 'ranged' ? '#4488ff' : '#ff8844';
+        ctx.fillRect(sx + (ally.behavior === 'ranged' ? 5 : -7), sy - 3, 3, 6);
+
+        // HP bar
+        const hpPct = ally.hp / ally.maxHp;
+        ctx.fillStyle = '#333'; ctx.fillRect(sx - 8, sy - 13, 16, 2);
+        ctx.fillStyle = hpPct > 0.5 ? '#44dd44' : '#dd4444';
+        ctx.fillRect(sx - 8, sy - 13, 16 * hpPct, 2);
+
+        // Name
+        drawText(ally.name, sx, sy + 9, { font: '6px monospace', fill: ally.color, align: 'center', outline: false });
+    });
+}
+
+// --- Sacred Beast Update ---
+function updateSacredBeast(dt) {
+    const beast = G.sacredBeast;
+    if (!beast) return;
+
+    beast.timer -= dt;
+    if (beast.timer <= 0) { G.sacredBeast = null; return; }
+
+    // Orbit player
+    beast.angle += 2.5 * dt;
+    beast.x = P.x + Math.cos(beast.angle) * 35;
+    beast.y = P.y + Math.sin(beast.angle) * 35 - 10;
+
+    // Attack nearest enemy
+    beast.atkCd -= dt;
+    if (beast.atkCd <= 0) {
+        let nearest = null, minD = 120;
+        G.enemies.forEach(e => {
+            const d = dist(beast, e);
+            if (d < minD) { minD = d; nearest = e; }
+        });
+        if (nearest) {
+            beast.atkCd = 1.8;
+            const dx = nearest.x - beast.x, dy = nearest.y - beast.y;
+            const d = Math.hypot(dx, dy) || 1;
+            G.bullets.push({
+                x: beast.x, y: beast.y,
+                vx: (dx / d) * 130, vy: (dy / d) * 130,
+                dmg: beast.dmg || 12, el: 'FIRE', life: 2, r: 4
+            });
+            spawnParticles(beast.x, beast.y, '#ff4400', 3, 20);
+        }
+    }
+
+    // Trail particles
+    if (Math.random() < 0.3) {
+        spawnParticles(beast.x, beast.y, '#ff8800', 1, 10);
+    }
+}
+
+// --- Draw Sacred Beast ---
+function drawSacredBeast() {
+    const beast = G.sacredBeast;
+    if (!beast) return;
+
+    const sx = beast.x - G.camX + G.shakeX;
+    const sy = beast.y - G.camY + G.shakeY;
+    if (sx < -20 || sx > GAME_W + 20 || sy < -20 || sy > GAME_H + 20) return;
+
+    // Glow
+    ctx.globalAlpha = 0.3 + Math.sin(G.time * 4) * 0.1;
+    ctx.fillStyle = '#ff4400';
+    ctx.beginPath(); ctx.arc(sx, sy, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Phoenix body (red-gold bird shape)
+    ctx.fillStyle = '#ff4400';
+    ctx.fillRect(sx - 4, sy - 3, 8, 6); // body
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(sx - 2, sy - 5, 4, 3); // head
+    // Wings
+    ctx.fillStyle = '#ff6600';
+    const wingOffset = Math.sin(G.time * 8) * 2;
+    ctx.fillRect(sx - 7, sy - 1 + wingOffset, 3, 4); // left wing
+    ctx.fillRect(sx + 4, sy - 1 - wingOffset, 3, 4); // right wing
+    // Tail
+    ctx.fillStyle = '#ff8800';
+    ctx.fillRect(sx - 2, sy + 3, 4, 3);
+
+    // Timer display
+    const timeLeft = Math.ceil(beast.timer);
+    drawText(`${timeLeft}s`, sx, sy + 10, { font: 'bold 7px monospace', fill: '#ffd700', align: 'center' });
+}
+
+// Extend drawHUD to include new elements
+const _origDrawHUD = typeof drawHUD_orig === 'undefined' ? null : drawHUD_orig;
+
+// Override drawGame to add musou bar, skill icons, and kill counter after existing HUD
+const _origDrawGame = typeof drawGame === 'function' ? drawGame : null;

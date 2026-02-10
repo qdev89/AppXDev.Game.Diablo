@@ -21,7 +21,7 @@ const OVERCOMING = { WOOD: 'EARTH', FIRE: 'METAL', EARTH: 'WATER', METAL: 'WOOD'
 
 // --- Game State ---
 const G = {
-    state: 'MENU', // MENU, BONDING, PLAYING, LEVEL_UP, PAUSED, GAME_OVER
+    state: 'MENU', // MENU, HERO_SELECT, BONDING, PLAYING, LEVEL_UP, PAUSED, GAME_OVER
     dt: 0, time: 0, lastTime: 0, fps: 60,
     floor: 1, score: 0, combo: 0, maxCombo: 0,
     camX: 0, camY: 0, shakeX: 0, shakeY: 0, shakeDur: 0,
@@ -33,7 +33,20 @@ const G = {
     spawnTimer: 0, spawnRate: 1.5, enemiesPerWave: 8,
     enemiesKilled: 0, enemiesNeeded: 30,
     portalActive: false, portal: null,
-    yinYang: { yin: 0, yang: 0, state: 'NEUTRAL', timer: 0 }
+    yinYang: { yin: 0, yang: 0, state: 'NEUTRAL', timer: 0 },
+    // Phase E: New systems
+    selectedHero: null,       // Hero ID string
+    allies: [],               // AI companion entities
+    sacredBeast: null,        // Active sacred beast
+    equipment: { armor: null, talisman: null, mount: null },
+    totalKills: 0,            // Persistent kill counter for run
+    chainTimer: 0,            // Chain kill timer
+    chainCount: 0,            // Current chain count
+    chainBest: 0,             // Best chain this run
+    killMilestone: 0,         // Last announced milestone
+    treasureRoom: null,
+    archerBullets: [],
+    bondingTab: 0,
 };
 
 // --- Player ---
@@ -43,7 +56,14 @@ const P = {
     hp: 100, maxHp: 100, xp: 0, xpNeeded: 20, level: 1,
     element: 'METAL', facing: 1,
     invincible: 0, damageFlash: 0,
-    dodgeTimer: 0, dodgeCd: 0, dodgeDx: 0, dodgeDy: 0
+    dodgeTimer: 0, dodgeCd: 0, dodgeDx: 0, dodgeDy: 0,
+    // Phase E: MP & Musou
+    heroId: 'berserker',
+    mp: 100, mpMax: 100, mpRegen: 3, mpRegenDelay: 0,
+    musou: 0, musouMax: 100,
+    tacticalCd: 0, ultimateActive: 0,
+    shieldWall: 0,  // Shield wall timer (Vanguard)
+    rageModeTimer: 0, // Rage mode timer (Berserker)
 };
 
 // --- Input ---
@@ -59,7 +79,8 @@ canvas.addEventListener('touchstart', e => {
     const r = canvas.getBoundingClientRect();
     const sx = (t.clientX - r.left) / r.width * GAME_W;
     const sy = (t.clientY - r.top) / r.height * GAME_H;
-    if (G.state === 'MENU') { G.state = 'BONDING'; return; }
+    if (G.state === 'MENU') { G.state = 'HERO_SELECT'; return; }
+    if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(sx, sy); return; }
     if (G.state === 'BONDING') { handleBondingClick(sx, sy); return; }
     if (G.state === 'GAME_OVER') { G.state = 'BONDING'; return; }
     if (G.state === 'LEVEL_UP') { handleLevelUpClick(sx, sy); return; }
@@ -81,7 +102,8 @@ canvas.addEventListener('click', e => {
     const r = canvas.getBoundingClientRect();
     const mx = (e.clientX - r.left) / r.width * GAME_W;
     const my = (e.clientY - r.top) / r.height * GAME_H;
-    if (G.state === 'MENU') { G.state = 'BONDING'; if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction(); }
+    if (G.state === 'MENU') { G.state = 'HERO_SELECT'; if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction(); }
+    else if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(mx, my); }
     else if (G.state === 'BONDING') handleBondingClick(mx, my);
     else if (G.state === 'GAME_OVER') G.state = 'BONDING';
     else if (G.state === 'LEVEL_UP') handleLevelUpClick(mx, my);
@@ -100,6 +122,16 @@ window.addEventListener('keydown', e => {
         if (len > 0) { P.dodgeDx = (P.dodgeDx / len) * 280; P.dodgeDy = (P.dodgeDy / len) * 280; }
         spawnParticles(P.x, P.y, '#ffffff', 6, 30);
         SFX.menuClick();
+    }
+    // --- Tactical Skill (E key) ---
+    if ((e.code === 'KeyE' || e.key === 'e' || e.key === 'E') && G.state === 'PLAYING') {
+        e.preventDefault();
+        if (typeof fireTacticalSkill === 'function') fireTacticalSkill();
+    }
+    // --- Ultimate / Musou (Q key) ---
+    if ((e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && G.state === 'PLAYING') {
+        e.preventDefault();
+        if (typeof fireUltimateSkill === 'function') fireUltimateSkill();
     }
 });
 

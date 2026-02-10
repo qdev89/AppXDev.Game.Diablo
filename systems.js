@@ -7,6 +7,7 @@ function spawnEnemy(x, y, type) {
     const elDef = ELEMENTS[el];
     const floorMult = 1 + (G.floor - 1) * 0.15;
     const types = {
+        fodder: { hp: 5, speed: 25, dmg: 2, r: 4, xp: 1 },
         grunt: { hp: 20, speed: 35, dmg: 5, r: 6, xp: 3 },
         fast: { hp: 12, speed: 65, dmg: 3, r: 5, xp: 4 },
         tank: { hp: 60, speed: 20, dmg: 10, r: 9, xp: 8 },
@@ -40,19 +41,32 @@ function spawnEnemy(x, y, type) {
 }
 
 function spawnWave() {
-    const count = G.enemiesPerWave + G.floor * 2;
     const cx = P.x, cy = P.y;
-    for (let i = 0; i < count; i++) {
+    // DW-style: majority fodder + some officers
+    const fodderCount = 10 + G.floor * 2; // 12, 14, 16...
+    const officerCount = 3 + Math.floor(G.floor * 0.8); // 3, 4, 4...
+    const totalCount = fodderCount + officerCount;
+
+    // Spawn fodder
+    for (let i = 0; i < fodderCount; i++) {
         const angle = rng(0, Math.PI * 2);
-        const dist = rng(180, 300);
-        const x = clamp(cx + Math.cos(angle) * dist, 30, G.arenaW - 30);
-        const y = clamp(cy + Math.sin(angle) * dist, 30, G.arenaH - 30);
+        const d = rng(150, 280);
+        const x = clamp(cx + Math.cos(angle) * d, 30, G.arenaW - 30);
+        const y = clamp(cy + Math.sin(angle) * d, 30, G.arenaH - 30);
+        spawnEnemy(x, y, 'fodder');
+    }
+    // Spawn officers
+    for (let i = 0; i < officerCount; i++) {
+        const angle = rng(0, Math.PI * 2);
+        const d = rng(180, 320);
+        const x = clamp(cx + Math.cos(angle) * d, 30, G.arenaW - 30);
+        const y = clamp(cy + Math.sin(angle) * d, 30, G.arenaH - 30);
         const roll = Math.random();
         let type = 'grunt';
-        if (roll < 0.05 && G.floor >= 3) type = 'elite';
-        else if (roll < 0.12 && G.floor >= 2) type = 'archer';
-        else if (roll < 0.22) type = 'tank';
-        else if (roll < 0.42) type = 'fast';
+        if (roll < 0.06 && G.floor >= 3) type = 'elite';
+        else if (roll < 0.15 && G.floor >= 2) type = 'archer';
+        else if (roll < 0.30) type = 'tank';
+        else if (roll < 0.55) type = 'fast';
         spawnEnemy(x, y, type);
     }
 }
@@ -74,6 +88,17 @@ function updateEnemies(dt) {
             e.y += e.knockY * dt * 10;
             e.knockX *= 0.9; e.knockY *= 0.9;
         }
+
+        // Stun timer (from Ground Slam etc.)
+        if (e.stunTimer > 0) {
+            e.stunTimer -= dt;
+            if (e.stunTimer <= 0 && e._origSpeed) {
+                e.speed = e._origSpeed; // Restore speed
+            }
+            continue; // Skip all AI while stunned
+        }
+        // Save original speed for stun recovery
+        if (!e._origSpeed) e._origSpeed = e.speed;
 
         // Chase player (with boss-specific AI)
         const dx = P.x - e.x, dy = P.y - e.y;
@@ -187,14 +212,30 @@ function updateEnemies(dt) {
         if (d < e.r + 6 && P.invincible <= 0) {
             e.attackCd -= dt;
             if (e.attackCd <= 0) {
+                // Shield wall blocks all damage
+                if (P.shieldWall > 0) {
+                    spawnParticles(P.x, P.y, '#ddaa44', 4, 25);
+                    e.attackCd = 0.5;
+                    continue;
+                }
                 // Apply bonding damage reduction
                 const dr = getBondDmgReduction();
-                const dmg = e.dmg * (1 - dr);
+                let dmg = e.dmg * (1 - dr);
+                // Vanguard passive: -20% damage taken
+                const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
+                if (hero && hero.passive.stat === 'tankAura') dmg *= 0.80;
+                // Equipment armor reduction
+                const eqArmor = G.equipment ? G.equipment.armor : null;
+                if (eqArmor && eqArmor.def) dmg *= (1 - eqArmor.def);
+                // Equipment armor reflect
+                if (eqArmor && eqArmor.reflect && e.hp > 0) {
+                    damageEnemy(e, dmg * eqArmor.reflect, P.element);
+                }
                 P.hp -= dmg;
                 P.damageFlash = 0.15;
                 P.invincible = 0.3;
                 G.combo = 0; // combo reset on hit!
-                G.yinYang.yin = clamp(G.yinYang.yin + 3, 0, 100); // Yin from damage
+                G.yinYang.yin = clamp(G.yinYang.yin + 3, 0, 100);
                 shake(3, 0.1);
                 spawnDmgNum(P.x, P.y - 12, Math.ceil(dmg), '#ff3333', true);
                 spawnParticles(P.x, P.y, '#ff3333', 5, 50);
