@@ -1144,7 +1144,7 @@ function drawPauseMenu() {
     // Menu items
     const items = [
         { label: typeof t === 'function' ? t('resume') : 'Resume', icon: '▶' },
-        { label: (typeof t === 'function' ? t('language') : 'Language') + ': ' + (G.lang === 'vi' ? '🇻🇳 Tiếng Việt' : '🇺🇸 English'), icon: '🌐' },
+        { label: (typeof t === 'function' ? t('language') : 'Language') + ': ' + (G.lang === 'vi' ? '[VN] Tiếng Việt' : '[EN] English'), icon: '🌐' },
         { label: (typeof t === 'function' ? t('volume') : 'Volume') + ': ' + (audioEnabled ? 'ON' : 'OFF'), icon: audioEnabled ? '🔊' : '🔇' },
         { label: typeof t === 'function' ? t('return_menu') : 'Return to Menu', icon: '🏠' }
     ];
@@ -1179,7 +1179,8 @@ function drawPauseMenu() {
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
     ctx.fillRect(menuX + 5, statsY, menuW - 10, 25);
     const hero = HEROES.find(h => h.id === P.heroId);
-    const statsText = (hero ? hero.name : '???') + ' | Lv.' + P.level + ' | HP:' + Math.floor(P.hp) + '/' + P.maxHp + ' | F' + G.floor;
+    const heroName = typeof t === 'function' ? t('hero_' + P.heroId) : (hero ? hero.name : '???');
+    const statsText = heroName + ' | Lv.' + P.level + ' | HP:' + Math.floor(P.hp) + '/' + P.maxHp + ' | F' + G.floor;
     drawText(statsText, GAME_W / 2, statsY + 4, {
         font: '7px monospace', fill: '#aaa', align: 'center', outlineWidth: 1
     });
