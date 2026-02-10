@@ -147,6 +147,33 @@ window.addEventListener('keydown', e => {
         e.preventDefault();
         if (typeof executeBrotherhoodCombo === 'function') executeBrotherhoodCombo();
     }
+    // --- Pause/Resume (ESC key) ---
+    if (e.code === 'Escape') {
+        e.preventDefault();
+        if (G.state === 'PLAYING') {
+            G.state = 'PAUSED';
+            G.pauseMenuIdx = 0;
+            SFX.menuClick();
+        } else if (G.state === 'PAUSED') {
+            G.state = 'PLAYING';
+            SFX.menuClick();
+        }
+    }
+    // --- Navigate pause menu with arrow keys ---
+    if (G.state === 'PAUSED') {
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+            G.pauseMenuIdx = Math.max(0, (G.pauseMenuIdx || 0) - 1);
+            SFX.menuClick();
+        }
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+            G.pauseMenuIdx = Math.min(3, (G.pauseMenuIdx || 0) + 1);
+            SFX.menuClick();
+        }
+        if (e.code === 'Enter' || e.code === 'Space') {
+            e.preventDefault();
+            if (typeof handlePauseMenuSelect === 'function') handlePauseMenuSelect(G.pauseMenuIdx || 0);
+        }
+    }
     // --- Language Toggle (L key) ---
     if ((e.code === 'KeyL' || e.key === 'l' || e.key === 'L') && (G.state === 'MENU' || G.state === 'HERO_SELECT' || G.state === 'PLAYING' || G.state === 'PAUSED')) {
         e.preventDefault();

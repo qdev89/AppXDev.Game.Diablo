@@ -85,9 +85,9 @@ const WEAPON_DEFS = [
         pierce: 2, burnDot: 3, tier: 1
     },
     {
-        id: 'metal_crossbow', name: '🪙 Repeating Crossbow', el: 'METAL', type: 'thrown', desc: 'Rapid-fire crossbow bolts',
-        dmg: 7, cd: 0.3, range: 140, speed: 300, spread: 1, spreadAngle: 0,
-        pierce: 0, tier: 2
+        id: 'metal_crossbow', name: '🪙 Repeating Crossbow', el: 'METAL', type: 'thrown', desc: 'Rapid-fire piercing crossbow bolts',
+        dmg: 9, cd: 0.3, range: 140, speed: 300, spread: 2, spreadAngle: 12,
+        pierce: 1, tier: 2
     },
     // Passives
     { id: 'atk_speed', name: '⚡ Swift Strikes', type: 'passive', desc: '+20% attack speed', stat: 'atkSpd', val: 0.2 },

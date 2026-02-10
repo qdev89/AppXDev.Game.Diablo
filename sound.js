@@ -89,9 +89,13 @@ const SFX = {
         playNote(660, 0.3, 'triangle', 0.15, 0.3);
     },
     bossSpawn() {
-        playNoise(0.3, 0.15);
-        playNote(110, 0.5, 'sawtooth', 0.15);
-        playNote(82, 0.5, 'sawtooth', 0.12, 0.3);
+        // War horn: deep resonant brass tones
+        playNoise(0.3, 0.18);
+        playNote(55, 0.6, 'sawtooth', 0.18);
+        playNote(73, 0.5, 'sawtooth', 0.14, 0.15);
+        playNote(110, 0.5, 'sawtooth', 0.15, 0.3);
+        playNote(82, 0.5, 'sawtooth', 0.12, 0.5);
+        playNoise(0.15, 0.08);
     },
     coin() { playNote(1200, 0.06, 'triangle', 0.12); playNote(1600, 0.08, 'triangle', 0.1, 0.04); playNote(2000, 0.06, 'sine', 0.06, 0.08); },
 

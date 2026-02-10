@@ -68,11 +68,28 @@ function spawnEnemy(x, y, type) {
         enemy.lightColor = ELEMENTS[gen.el].light;
         enemy.ability = gen.ability;
         enemy.generalColor = gen.color;
-        // Announcement with Vietnamese names
-        G.floorAnnounce = { text: '⚔ ' + gen.name + ' — ' + gen.title + ' ⚔', timer: 2.5 };
-        triggerFlash(gen.color, 0.25);
-        shake(3, 0.2);
+        // Announcement with Vietnamese names + element-colored banner
+        G.floorAnnounce = {
+            text: '⚔ ' + gen.name + ' ⚔',
+            subtitle: '— ' + gen.title + ' —',
+            timer: 3.0,
+            color: gen.color
+        };
+        triggerFlash(gen.color, 0.35);
+        shake(6, 0.4);
+        if (typeof triggerChromatic === 'function') triggerChromatic(2);
         if (typeof SFX !== 'undefined' && SFX.bossSpawn) SFX.bossSpawn();
+        // Phase I: Dramatic entrance VFX
+        G._comboDarken = 0.3; // brief screen darken
+        // Spawn shockwave at general position
+        G.skillEffects.push({
+            type: 'shockwave', x, y,
+            radius: 5, maxRadius: 80, speed: 200,
+            color: gen.color, alpha: 0.6, lineWidth: 3, timer: 0.5
+        });
+        // Element particle burst
+        spawnParticles(x, y, gen.color, 20, 60);
+        spawnParticles(x, y, ELEMENTS[gen.el].light, 12, 40);
     }
     G.enemies.push(enemy);
 }
@@ -265,7 +282,7 @@ function updateEnemies(dt) {
             // Special ability cooldown
             e.specialCd -= dt;
             if (e.specialCd <= 0 && d < 180) {
-                e.specialCd = e.phase >= 2 ? 3 : 5;
+                e.specialCd = e.phase >= 2 ? 3.5 : 6;
                 const ability = e.ability || 'fire_slam';
 
                 if (ability === 'fire_slam') {
@@ -337,7 +354,7 @@ function updateEnemies(dt) {
                     });
                     if (d < 55 && P.invincible <= 0) {
                         const dr = getBondDmgReduction();
-                        P.hp -= e.dmg * 1.5 * (1 - dr);
+                        P.hp -= e.dmg * 1.2 * (1 - dr);
                         P.damageFlash = 0.3;
                         P.invincible = 0.4;
                         P.knockX = (dx / d) * -3;
@@ -377,7 +394,7 @@ function updateEnemies(dt) {
                         });
                         if (Math.hypot(P.x - e.x, P.y - e.y) < 50 && P.invincible <= 0) {
                             const dr = getBondDmgReduction();
-                            P.hp -= e.dmg * 2 * (1 - dr);
+                            P.hp -= e.dmg * 1.4 * (1 - dr);
                             P.damageFlash = 0.35;
                             P.invincible = 0.5;
                         }

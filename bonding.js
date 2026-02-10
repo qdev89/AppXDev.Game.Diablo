@@ -332,9 +332,31 @@ function executeBrotherhoodCombo() {
     // Flash announcement
     G.floorAnnounce = { text: '⚔ ' + (typeof t === 'function' ? t('combo_' + combo.id) : combo.name) + ' ⚔', timer: 2.5 };
     triggerFlash(combo.color, 0.5);
-    shake(8, 0.5);
-    triggerChromatic(3);
-    if (typeof triggerSpeedLines === 'function') triggerSpeedLines(1.5);
+    shake(12, 0.6);
+    triggerChromatic(4);
+    if (typeof triggerSpeedLines === 'function') triggerSpeedLines(2.0);
+
+    // === Phase I: Cinematic Brotherhood VFX ===
+    // Time-slow effect (brief freeze frame)
+    G._comboTimeSlow = 0.6; // 0.6s of 20% speed
+    // Screen darken overlay
+    G._comboDarken = 0.5;  // 0.5s of screen darkening
+    // Radial burst lines
+    for (let i = 0; i < 16; i++) {
+        const angle = (Math.PI * 2 / 16) * i;
+        G.skillEffects.push({
+            type: 'speed_line', x: P.x, y: P.y,
+            angle: angle, length: 80 + Math.random() * 40,
+            speed: 300, color: combo.color, alpha: 0.7,
+            timer: 0.4, lineWidth: 2 + Math.random() * 2
+        });
+    }
+    // Ground impact ring
+    G.skillEffects.push({
+        type: 'shockwave', x: P.x, y: P.y,
+        radius: 3, maxRadius: 60, speed: 250,
+        color: '#ffffff', alpha: 0.8, lineWidth: 3, timer: 0.3
+    });
 
     // Damage all enemies in range
     const dmg = combo.dmg * (1 + G.floor * 0.1);

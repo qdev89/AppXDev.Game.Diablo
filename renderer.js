@@ -287,6 +287,65 @@ function drawEnemies() {
             ctx.fillStyle = hpPct > 0.5 ? '#22cc22' : hpPct > 0.25 ? '#ccaa22' : '#cc2222';
             ctx.fillRect(ex - bw / 2, barY, bw * hpPct, bh);
         }
+
+        // === Phase I: Debuff VFX Overlays ===
+
+        // Slow debuff — frost tint overlay + ice crystals
+        if (e._slowTimer > 0) {
+            ctx.globalAlpha = 0.25 + Math.sin(G.time * 8) * 0.1;
+            ctx.fillStyle = '#88ccff';
+            ctx.beginPath();
+            ctx.arc(ex, ey, e.r * 0.9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Tiny ice crystal particles
+            if (Math.random() < 0.3) {
+                G.particles.push({
+                    x: ex + rng(-e.r, e.r), y: ey + rng(-e.r, e.r),
+                    vx: rng(-8, 8), vy: rng(-15, -5),
+                    life: 0.4, decay: 2.5, color: '#aaddff', size: rng(1, 2), glow: true
+                });
+            }
+        }
+
+        // Burn DOT — flame particles rising from enemy
+        if (e._burnTimer > 0) {
+            ctx.globalAlpha = 0.15 + Math.sin(G.time * 10) * 0.08;
+            ctx.fillStyle = '#ff4400';
+            ctx.beginPath();
+            ctx.arc(ex, ey, e.r * 0.85, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Rising flame particles
+            if (Math.random() < 0.5) {
+                const fc = ['#ff4400', '#ff6600', '#ffaa00', '#ffd700'][Math.floor(Math.random() * 4)];
+                G.particles.push({
+                    x: ex + rng(-e.r * 0.6, e.r * 0.6), y: ey + rng(-e.r * 0.3, e.r * 0.3),
+                    vx: rng(-5, 5), vy: rng(-25, -12),
+                    life: 0.35, decay: 3, color: fc, size: rng(1, 3), glow: true
+                });
+            }
+        }
+
+        // Mini-boss name banner
+        if (e.type === 'miniboss' && e.generalName) {
+            const nameY = ey - e.r - 12;
+            const displayName = typeof tGen === 'function' ? tGen(e.generalName) : e.generalName;
+            const displayTitle = typeof tGenTitle === 'function' ? tGenTitle(e.generalName) : '';
+            ctx.font = 'bold 7px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#000';
+            ctx.fillText(displayName, ex + 1, nameY + 1);
+            ctx.fillStyle = e.generalColor || '#ffaa00';
+            ctx.fillText(displayName, ex, nameY);
+            if (displayTitle) {
+                ctx.font = '5px monospace';
+                ctx.fillStyle = '#000';
+                ctx.fillText(displayTitle, ex + 1, nameY - 7);
+                ctx.fillStyle = '#ccc';
+                ctx.fillText(displayTitle, ex, nameY - 8);
+            }
+        }
     }
 }
 
@@ -446,6 +505,8 @@ function drawBullets() {
                     // Phase H: Chain Frost bounce
                     if (b.weaponId === 'water_bolt' && (b._chainLeft === undefined ? 3 : b._chainLeft) > 0) {
                         const chainsLeft = (b._chainLeft === undefined ? 3 : b._chainLeft) - 1;
+                        // Progressive damage falloff: 70% → 50% → 30%
+                        const dmgMult = chainsLeft === 2 ? 0.7 : chainsLeft === 1 ? 0.5 : 0.3;
                         // Find next nearest enemy (not the one we just hit)
                         let nextTarget = null, nd = 120;
                         for (const e2 of G.enemies) {
@@ -458,7 +519,7 @@ function drawBullets() {
                             const spd = Math.hypot(b.vx, b.vy) * 0.9;
                             G.bullets.push({
                                 x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
-                                dmg: b.dmg * 0.8, el: b.el, color: b.color,
+                                dmg: b.dmg * dmgMult, el: b.el, color: b.color,
                                 life: 1.5, type: 'bullet', r: b.r * 0.9,
                                 pierce: 0, weaponId: 'water_bolt', _chainLeft: chainsLeft,
                                 homing: true, homingTarget: nextTarget

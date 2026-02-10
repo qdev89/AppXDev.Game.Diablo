@@ -1071,16 +1071,145 @@ function drawFloorAnnounce() {
 
     ctx.globalAlpha = Math.max(0, alpha);
 
-    // Background bar
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, GAME_H * 0.35, GAME_W, 36);
+    const bannerY = GAME_H * 0.35;
+    const bannerH = fa.color ? 42 : 36; // taller for general banners
 
-    // Text
-    drawText(fa.text, GAME_W / 2, GAME_H * 0.35 + 8, {
-        font: 'bold 16px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4
-    });
+    // Element-colored banner for general spawns
+    if (fa.color) {
+        // Gradient background with element color
+        const grad = ctx.createLinearGradient(0, bannerY, GAME_W, bannerY);
+        grad.addColorStop(0, 'rgba(0,0,0,0.8)');
+        grad.addColorStop(0.3, fa.color + 'cc');
+        grad.addColorStop(0.7, fa.color + 'cc');
+        grad.addColorStop(1, 'rgba(0,0,0,0.8)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, bannerY, GAME_W, bannerH);
+        // Top/bottom border glow
+        ctx.fillStyle = fa.color;
+        ctx.globalAlpha = Math.max(0, alpha) * 0.6;
+        ctx.fillRect(0, bannerY, GAME_W, 2);
+        ctx.fillRect(0, bannerY + bannerH - 2, GAME_W, 2);
+        ctx.globalAlpha = Math.max(0, alpha);
+        // Larger text for generals
+        drawText(fa.text, GAME_W / 2, bannerY + 6, {
+            font: 'bold 14px monospace', fill: '#ffffff', align: 'center', outlineWidth: 4
+        });
+        // Subtitle line
+        if (fa.subtitle) {
+            drawText(fa.subtitle, GAME_W / 2, bannerY + 22, {
+                font: '9px monospace', fill: '#ddd', align: 'center', outlineWidth: 2
+            });
+        }
+    } else {
+        // Default dark banner for regular announcements
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, bannerY, GAME_W, bannerH);
+        drawText(fa.text, GAME_W / 2, bannerY + 8, {
+            font: 'bold 16px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4
+        });
+    }
 
     ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// PHASE I: Pause Menu & Settings
+// ============================================================
+function drawPauseMenu() {
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    const menuW = 200, menuH = 180;
+    const menuX = GAME_W / 2 - menuW / 2;
+    const menuY = GAME_H / 2 - menuH / 2;
+
+    // Menu panel
+    ctx.fillStyle = 'rgba(20,15,10,0.95)';
+    ctx.fillRect(menuX, menuY, menuW, menuH);
+    // Gold border
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(menuX, menuY, menuW, menuH);
+    // Inner border
+    ctx.strokeStyle = 'rgba(255,215,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(menuX + 3, menuY + 3, menuW - 6, menuH - 6);
+
+    // Title
+    drawText('⚔ ' + (typeof t === 'function' ? t('paused') : 'PAUSED') + ' ⚔', GAME_W / 2, menuY + 12, {
+        font: 'bold 14px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3
+    });
+
+    // Menu items
+    const items = [
+        { label: typeof t === 'function' ? t('resume') : 'Resume', icon: '▶' },
+        { label: (typeof t === 'function' ? t('language') : 'Language') + ': ' + (G.lang === 'vi' ? '🇻🇳 Tiếng Việt' : '🇺🇸 English'), icon: '🌐' },
+        { label: (typeof t === 'function' ? t('volume') : 'Volume') + ': ' + (audioEnabled ? 'ON' : 'OFF'), icon: audioEnabled ? '🔊' : '🔇' },
+        { label: typeof t === 'function' ? t('return_menu') : 'Return to Menu', icon: '🏠' }
+    ];
+
+    const itemH = 28;
+    const startY = menuY + 38;
+    const sel = G.pauseMenuIdx || 0;
+
+    items.forEach((item, i) => {
+        const iy = startY + i * itemH;
+        const selected = i === sel;
+
+        // Highlight bar
+        if (selected) {
+            ctx.fillStyle = 'rgba(255,215,0,0.15)';
+            ctx.fillRect(menuX + 8, iy, menuW - 16, itemH - 4);
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(menuX + 8, iy, menuW - 16, itemH - 4);
+        }
+
+        drawText(item.icon + ' ' + item.label, GAME_W / 2, iy + 4, {
+            font: (selected ? 'bold ' : '') + '10px monospace',
+            fill: selected ? '#ffd700' : '#cccccc',
+            align: 'center',
+            outlineWidth: 2
+        });
+    });
+
+    // Hero stats at bottom
+    const statsY = menuY + menuH - 30;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(menuX + 5, statsY, menuW - 10, 25);
+    const hero = HEROES.find(h => h.id === P.heroId);
+    const statsText = (hero ? hero.name : '???') + ' | Lv.' + P.level + ' | HP:' + Math.floor(P.hp) + '/' + P.maxHp + ' | F' + G.floor;
+    drawText(statsText, GAME_W / 2, statsY + 4, {
+        font: '7px monospace', fill: '#aaa', align: 'center', outlineWidth: 1
+    });
+
+    // Controls hint
+    drawText('↑↓ ' + (typeof t === 'function' ? t('navigate') : 'Navigate') + '  Enter ' + (typeof t === 'function' ? t('select') : 'Select') + '  ESC ' + (typeof t === 'function' ? t('resume') : 'Resume'), GAME_W / 2, GAME_H - 10, {
+        font: '6px monospace', fill: '#666', align: 'center'
+    });
+}
+
+function handlePauseMenuSelect(idx) {
+    switch (idx) {
+        case 0: // Resume
+            G.state = 'PLAYING';
+            SFX.menuClick();
+            break;
+        case 1: // Language toggle
+            G.lang = G.lang === 'vi' ? 'en' : 'vi';
+            if (typeof setLang === 'function') setLang(G.lang);
+            SFX.menuClick();
+            break;
+        case 2: // Volume toggle
+            audioEnabled = !audioEnabled;
+            SFX.menuClick();
+            break;
+        case 3: // Return to Menu
+            G.state = 'MENU';
+            SFX.menuClick();
+            break;
+    }
 }
 
 // ============================================================

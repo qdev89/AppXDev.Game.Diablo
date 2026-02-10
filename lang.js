@@ -300,6 +300,14 @@ const LANG = {
         misc_brotherhood: 'HUYNH ĐỆ',
         misc_comboGauge: 'Hợp Kích',
         misc_activate: 'Kích Hoạt [R]',
+        // Pause Menu
+        paused: 'TẠM DỪNG',
+        resume: 'Tiếp Tục',
+        language: 'Ngôn Ngữ',
+        volume: 'Âm Thanh',
+        return_menu: 'Về Menu Chính',
+        navigate: 'Di Chuyển',
+        select: 'Chọn',
     },
 
     // ===== ENGLISH =====
@@ -504,6 +512,10 @@ const LANG = {
         misc_back: 'Back', misc_confirm: 'Confirm',
         misc_brotherhood: 'BROTHERHOOD', misc_comboGauge: 'Combo',
         misc_activate: 'Activate [R]',
+        // Pause Menu
+        paused: 'PAUSED', resume: 'Resume', language: 'Language',
+        volume: 'Volume', return_menu: 'Return to Menu',
+        navigate: 'Navigate', select: 'Select',
     }
 };
 

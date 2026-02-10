@@ -308,6 +308,14 @@ function draw() {
         if (typeof drawArcherProjectiles === 'function') drawArcherProjectiles();
         if (typeof drawEvolutionPopup === 'function') drawEvolutionPopup();
         drawFloorAnnounce();
+        // Phase I: Brotherhood Combo cinematic screen darken
+        if (G._comboDarken > 0) {
+            ctx.fillStyle = `rgba(0,0,0,${Math.min(G._comboDarken * 0.6, 0.3)})`;
+            ctx.fillRect(0, 0, GAME_W, GAME_H);
+        }
+    } else if (G.state === 'PAUSED') {
+        drawGame();
+        if (typeof drawPauseMenu === 'function') drawPauseMenu();
     } else if (G.state === 'LEVEL_UP') {
         drawGame();
         drawLevelUpScreen();
@@ -327,6 +335,14 @@ function gameLoop(timestamp) {
     G.fps = lerp(G.fps, 1 / Math.max(G.dt, 0.001), 0.05);
 
     if (G.state === 'PLAYING') {
+        // Phase I: Brotherhood Combo time-slow effect
+        if (G._comboTimeSlow > 0) {
+            G._comboTimeSlow -= G.dt;
+            G.dt *= 0.2; // 20% speed for cinematic freeze-frame
+        }
+        if (G._comboDarken > 0) {
+            G._comboDarken -= G.dt * 2; // ticks down at 2x
+        }
         update(G.dt);
     }
 
