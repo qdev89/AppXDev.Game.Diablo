@@ -358,7 +358,7 @@ function updatePlayer(dt) {
                     G.roomState = 'DOOR_CHOICE';
                     if (typeof generateDoorChoices === 'function') generateDoorChoices();
                 }
-            }, 1500);
+            }, 3000);
         }
     }
 

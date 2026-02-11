@@ -840,7 +840,7 @@ function checkLevelUp() {
     if (P.xp >= P.xpNeeded) {
         P.xp -= P.xpNeeded;
         P.level++;
-        P.xpNeeded = Math.floor(20 * Math.pow(1.35, P.level - 1));
+        P.xpNeeded = Math.floor(20 * Math.pow(1.5, P.level - 1));
         // Small heal on level up (10% HP) - NOT full recovery
         P.hp = Math.min(P.hp + P.maxHp * 0.1, P.maxHp);
         G.state = 'LEVEL_UP';
@@ -968,7 +968,7 @@ function selectLevelUpChoice(choice) {
         SFX.levelUp();
         // K001: After level-up in room, show doors if room is cleared
         if (G.roomCleared && G.roomState === 'CLEARED') {
-            setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 500);
+            setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 2000);
         }
         return;
     }
@@ -999,7 +999,7 @@ function selectLevelUpChoice(choice) {
 
     // K001: After level-up in room, show doors if room is cleared
     if (G.roomCleared && G.roomState === 'CLEARED') {
-        setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 500);
+        setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 2000);
     }
 }
 
@@ -1266,7 +1266,7 @@ const ROOM_TYPES = {
 };
 
 function generateRoomsForFloor() {
-    G.roomsPerFloor = 5 + Math.floor(Math.random() * 3); // 5-7 rooms
+    G.roomsPerFloor = 3 + Math.floor(Math.random() * 3); // 3-5 rooms
     G.room = 1;
     G.roomHistory = [];
 }
@@ -1289,7 +1289,7 @@ function generateDoorChoices() {
     typePool.push('SHOP');
     typePool.push('REST');
     typePool.push('TREASURE');
-    typePool.push('BLESSING', 'BLESSING'); // 2x weight
+    typePool.push('BLESSING'); // 1x weight (was 2x)
 
     for (let i = 0; i < numDoors; i++) {
         let roomType;
@@ -1357,7 +1357,7 @@ function setupRoom() {
         case 'COMBAT':
             // Standard combat room
             G.enemiesKilled = 0;
-            G.enemiesNeeded = 25 + G.floor * 5 + G.room * 3;
+            G.enemiesNeeded = 35 + G.floor * 8 + G.room * 5;
             G.spawnTimer = 0;
             break;
 
