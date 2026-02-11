@@ -631,7 +631,9 @@ function drawLevelUpScreen() {
         ctx.globalAlpha = 0.3; ctx.fillRect(bx + 1, startY + 1, boxW - 2, 3); ctx.globalAlpha = 1;
 
         // Name
-        drawText(c.def.name, bx + boxW / 2, startY + 8, { font: 'bold 11px monospace', fill: borderColor, align: 'center' });
+        const rawName = c.def.name || '???';
+        const cardName = typeof rawName === 'object' ? (rawName[G.lang || 'vi'] || rawName.vi || rawName.en || '???') : String(rawName);
+        drawText(cardName, bx + boxW / 2, startY + 8, { font: 'bold 11px monospace', fill: borderColor, align: 'center' });
 
         // Level / NEW / EVOLUTION tag
         const isEvoTag = c.isEvolution;
@@ -640,7 +642,8 @@ function drawLevelUpScreen() {
         drawText(lvlText, bx + boxW / 2, startY + 24, { font: 'bold 9px monospace', fill: lvlColor, align: 'center' });
 
         // Description (word wrap)
-        const desc = c.def.desc || '';
+        const rawDesc = c.def.desc || '';
+        const desc = typeof rawDesc === 'object' ? (rawDesc[G.lang || 'vi'] || rawDesc.vi || rawDesc.en || '') : String(rawDesc);
         drawText(desc.substring(0, 22), bx + boxW / 2, startY + 42, { font: '8px monospace', fill: '#bbb', align: 'center', outline: false });
         if (desc.length > 22) drawText(desc.substring(22), bx + boxW / 2, startY + 54, { font: '8px monospace', fill: '#bbb', align: 'center', outline: false });
 
