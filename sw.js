@@ -17,6 +17,7 @@ const ASSETS = [
     './hud.js',
     './evolution.js',
     './achievements.js',
+    './daily.js',
     './manifest.json',
     './icons/icon-192.png',
     './icons/icon-512.png'

@@ -571,6 +571,9 @@ function draw() {
 
     if (G.state === 'MENU') {
         drawMenuScreen();
+    } else if (G.state === 'DAILY_PREVIEW') {
+        // M003: Daily challenge preview
+        if (typeof DailyState !== 'undefined') DailyState.drawChallengePreview(ctx, GAME_W, GAME_H);
     } else if (G.state === 'HERO_SELECT') {
         if (typeof drawHeroSelectScreen === 'function') drawHeroSelectScreen();
     } else if (G.state === 'BONDING') {
@@ -588,6 +591,8 @@ function draw() {
         // K002: Active blessings display
         if (typeof drawActiveBlessings === 'function') drawActiveBlessings();
         drawFloorAnnounce();
+        // M003: Daily Challenge HUD indicator
+        if (typeof DailyState !== 'undefined') DailyState.drawHUD(ctx, GAME_W);
         // Phase I: Brotherhood Combo cinematic screen darken
         if (G._comboDarken > 0) {
             ctx.fillStyle = `rgba(0,0,0,${Math.min(G._comboDarken * 0.6, 0.3)})`;

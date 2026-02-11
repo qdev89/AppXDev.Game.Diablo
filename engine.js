@@ -111,7 +111,20 @@ canvas.addEventListener('touchstart', e => {
     const r = canvas.getBoundingClientRect();
     const sx = (t.clientX - r.left) / r.width * GAME_W;
     const sy = (t.clientY - r.top) / r.height * GAME_H;
-    if (G.state === 'MENU') { transitionTo('HERO_SELECT'); return; }
+    if (G.state === 'MENU') {
+        // M003: Check daily challenge button
+        if (typeof DailyState !== 'undefined' && G._dailyBtnArea) {
+            const b = G._dailyBtnArea;
+            if (sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h) {
+                DailyState.generateChallenge();
+                G.state = 'DAILY_PREVIEW';
+                SFX.menuClick();
+                return;
+            }
+        }
+        transitionTo('HERO_SELECT');
+        return;
+    }
     if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(sx, sy); return; }
     if (G.state === 'BONDING') { handleBondingClick(sx, sy); return; }
     if (G.state === 'GAME_OVER') { transitionTo('BONDING'); return; }
@@ -134,7 +147,20 @@ canvas.addEventListener('click', e => {
     const r = canvas.getBoundingClientRect();
     const mx = (e.clientX - r.left) / r.width * GAME_W;
     const my = (e.clientY - r.top) / r.height * GAME_H;
-    if (G.state === 'MENU') { transitionTo('HERO_SELECT'); if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction(); }
+    if (G.state === 'MENU') {
+        // M003: Check daily challenge button
+        if (typeof DailyState !== 'undefined' && G._dailyBtnArea) {
+            const b = G._dailyBtnArea;
+            if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+                DailyState.generateChallenge();
+                G.state = 'DAILY_PREVIEW';
+                SFX.menuClick();
+                return;
+            }
+        }
+        transitionTo('HERO_SELECT');
+        if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction();
+    }
     else if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(mx, my); }
     else if (G.state === 'BONDING') handleBondingClick(mx, my);
     else if (G.state === 'GAME_OVER') transitionTo('BONDING');
@@ -188,7 +214,15 @@ window.addEventListener('keydown', e => {
         } else if (G.state === 'ACHIEVEMENTS') {
             G.state = G._preAchievementState || 'PLAYING';
             SFX.menuClick();
+        } else if (G.state === 'DAILY_PREVIEW') {
+            G.state = 'MENU';
+            SFX.menuClick();
         }
+    }
+    // --- M003: Daily Challenge start (Enter on preview) ---
+    if (G.state === 'DAILY_PREVIEW' && (e.code === 'Enter' || e.code === 'Space')) {
+        e.preventDefault();
+        if (typeof DailyState !== 'undefined') DailyState.startChallenge();
     }
     // --- Navigate pause menu with arrow keys ---
     if (G.state === 'PAUSED') {
