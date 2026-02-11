@@ -185,6 +185,9 @@ window.addEventListener('keydown', e => {
         } else if (G.state === 'PAUSED') {
             G.state = 'PLAYING';
             SFX.menuClick();
+        } else if (G.state === 'ACHIEVEMENTS') {
+            G.state = G._preAchievementState || 'PLAYING';
+            SFX.menuClick();
         }
     }
     // --- Navigate pause menu with arrow keys ---
@@ -213,6 +216,19 @@ window.addEventListener('keydown', e => {
     if ((e.code === 'KeyM' || e.key === 'm' || e.key === 'M') && G.state === 'PLAYING') {
         e.preventDefault();
         G.showMinimap = !G.showMinimap;
+    }
+
+    // --- M002: Achievements Toggle (TAB key) ---
+    if (e.code === 'Tab') {
+        e.preventDefault();
+        if (G.state === 'ACHIEVEMENTS') {
+            G.state = G._preAchievementState || 'PLAYING';
+            SFX.menuClick();
+        } else if (G.state === 'PLAYING' || G.state === 'PAUSED') {
+            G._preAchievementState = G.state;
+            G.state = 'ACHIEVEMENTS';
+            SFX.menuClick();
+        }
     }
 
     // --- L003: Victory Screen Controls ---

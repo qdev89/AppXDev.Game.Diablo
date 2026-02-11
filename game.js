@@ -553,6 +553,16 @@ function update(dt) {
     }
     // L001: Forge buff timer
     if (G._forgeBuff > 0) G._forgeBuff -= dt;
+
+    // M002: Achievement checks (every 2 seconds for performance)
+    if (!G._achCheckTimer) G._achCheckTimer = 0;
+    G._achCheckTimer += dt;
+    if (G._achCheckTimer >= 2.0) {
+        G._achCheckTimer = 0;
+        if (typeof AchievementState !== 'undefined') AchievementState.checkAll();
+    }
+    // M002: Achievement toast update
+    if (typeof AchievementState !== 'undefined') AchievementState.updateToast(dt);
 }
 
 // --- Main Draw ---
@@ -603,10 +613,17 @@ function draw() {
     } else if (G.state === 'VICTORY') {
         drawGame();
         if (typeof drawVictoryScreen === 'function') drawVictoryScreen();
+    } else if (G.state === 'ACHIEVEMENTS') {
+        // M002: Achievement list overlay
+        drawGame();
+        if (typeof AchievementState !== 'undefined') AchievementState.drawAchievementList(ctx, GAME_W, GAME_H);
     }
 
     // K001: Room transition overlay
     if (typeof drawRoomTransition === 'function') drawRoomTransition();
+
+    // M002: Achievement toast (always on top, before transitions)
+    if (typeof AchievementState !== 'undefined') AchievementState.drawToast(ctx, GAME_W, GAME_H);
 
     // Screen transition overlay (always on top)
     drawTransition();

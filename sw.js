@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dbd-v1.0.0';
+const CACHE_NAME = 'dbd-v1.1.0';
 const ASSETS = [
     './',
     './index.html',
@@ -16,6 +16,7 @@ const ASSETS = [
     './postfx.js',
     './hud.js',
     './evolution.js',
+    './achievements.js',
     './manifest.json',
     './icons/icon-192.png',
     './icons/icon-512.png'
