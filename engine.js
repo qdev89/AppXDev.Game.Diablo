@@ -209,6 +209,29 @@ window.addEventListener('keydown', e => {
         if (typeof setLang === 'function') setLang(G.lang);
     }
 
+    // --- L002: Minimap Toggle (M key) ---
+    if ((e.code === 'KeyM' || e.key === 'm' || e.key === 'M') && G.state === 'PLAYING') {
+        e.preventDefault();
+        G.showMinimap = !G.showMinimap;
+    }
+
+    // --- L003: Victory Screen Controls ---
+    if (G.state === 'VICTORY') {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            // Continue in endless mode
+            G.state = 'PLAYING';
+            G.finalBoss = null; // Clear so victory doesn't retrigger
+            G.floorAnnounce = { text: '♾ ENDLESS MODE ♾', sub: 'The fight continues...', timer: 2, color: '#ffd700' };
+            SFX.menuClick();
+        }
+        if (e.code === 'Escape') {
+            e.preventDefault();
+            G.state = 'MENU';
+            SFX.menuClick();
+        }
+    }
+
     // --- Quick Select: Level-Up choices (1/2/3 keys) ---
     if (G.state === 'LEVEL_UP' && G.levelUpChoices && G.levelUpChoices.length > 0) {
         const keyNum = parseInt(e.key);

@@ -22,7 +22,7 @@ function drawGame() {
 
     // --- HUD (screen-space) ---
     drawHUD();
-
+    if (typeof drawMinimap === 'function') drawMinimap();
     // --- Post-processing (screen-space) ---
     applyPostFX();
 }
@@ -251,10 +251,15 @@ function drawEnemies() {
         ctx.ellipse(ex, ey + e.r * 0.4, e.r * 0.7, e.r * 0.2 + 1, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Elite / mini-boss / boss aura
-        if (e.type === 'elite' || e.type === 'boss' || e.type === 'miniboss') {
+        // Elite / mini-boss / boss / finalboss aura
+        if (e.type === 'elite' || e.type === 'boss' || e.type === 'miniboss' || e.type === 'finalboss') {
             let auraColor, auraR;
-            if (e.type === 'boss') {
+            if (e.type === 'finalboss') {
+                auraColor = '#ffd700';
+                auraR = e.r * 2.2;
+                // Extra fire ring for final boss
+                drawGlow(ex, ey, auraR * 0.8, '#ff4400', 0.25 + Math.sin(G.time * 5) * 0.15);
+            } else if (e.type === 'boss') {
                 auraColor = '#ff2222';
                 auraR = e.r * 1.8;
             } else if (e.type === 'miniboss') {

@@ -35,6 +35,10 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 - **12 Mini-Boss Generals** — Named Three Kingdoms characters with unique abilities
 - **Death Defiance** — Revive once per run when HP reaches 0
 - **Difficulty Tiers** — Normal, Hard, Dynasty difficulty modes
+- **Minimap Radar** — Toggle with [M] key, shows enemies, pickups, portal
+- **Endgame Boss** — Đổng Trác spawns at 25:00, 3-phase fight with unique mechanics
+- **Victory Screen** — Gold-themed run stats with Endless Mode continuation
+- **Status Effect Combos** — Element + Element interactions for enhanced damage
 - **Reroll & Banish** — QoL for level-up choices
 - **Chain Frost Bolt** — Ice projectile that chains between enemies with slow debuff
 - **Thrown Weapons** — Shurikens, Kunai, and Crossbow with fan-spread mechanics
@@ -58,7 +62,9 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 | E | Tactical Skill (costs MP) |
 | Q | Ultimate / Musou (requires full gauge) |
 | R | Brotherhood Combo (requires full Brotherhood gauge) |
+| M | Toggle Minimap |
 | L | Toggle Language (Vietnamese ↔ English) |
+| ESC | Pause / Return to Menu |
 | Click | Menu navigation |
 
 ## 🦸 Hero Classes
@@ -114,7 +120,7 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 
 ## 📦 Version
 
-**v0.9.5** — Phase K: "The Roguelike Soul"
+**v1.0.0** — Phase L: "The Living World"
 
 ---
 

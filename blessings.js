@@ -635,3 +635,367 @@ function getBlessingDamageReduction() {
     const stats = getBlessingStats();
     return Math.min(stats.dmgReduction, 0.75); // Cap at 75% reduction
 }
+
+// ============================================================
+// L001: Wu Xing Elemental Combo System
+// ============================================================
+
+// Combo definitions: element pairs → effects
+const WU_XING_COMBOS = {
+    // --- GENERATING CYCLE (Wood→Fire→Earth→Metal→Water→Wood) ---
+    // The generating element FEEDS the next
+    'WOOD_FIRE': {
+        name: 'WILDFIRE',
+        color1: '#44dd44', color2: '#ff4400',
+        desc: 'Poison ignites into spreading flames!',
+        cycle: 'generating',
+        baseDmg: 25,
+        effect: 'spread_fire', // Burning spreads to nearby enemies
+        radius: 50
+    },
+    'FIRE_EARTH': {
+        name: 'MAGMA FLOW',
+        color1: '#ff4400', color2: '#ddaa44',
+        desc: 'Burn + Stun creates a lava pool!',
+        cycle: 'generating',
+        baseDmg: 30,
+        effect: 'lava_pool', // AoE damage zone
+        radius: 45
+    },
+    'EARTH_METAL': {
+        name: 'SHATTER',
+        color1: '#ddaa44', color2: '#ccccee',
+        desc: 'Stun + Bleed shatters armor!',
+        cycle: 'generating',
+        baseDmg: 15,
+        effect: 'armor_break', // 2x damage for 3s
+        radius: 0
+    },
+    'METAL_WATER': {
+        name: 'FROST BLADE',
+        color1: '#ccccee', color2: '#5588ff',
+        desc: 'Bleed + Freeze = instant shatter!',
+        cycle: 'generating',
+        baseDmg: 50,
+        effect: 'shatter_burst', // Big burst damage
+        radius: 35
+    },
+    'WATER_WOOD': {
+        name: 'OVERGROWTH',
+        color1: '#5588ff', color2: '#44dd44',
+        desc: 'Freeze + Poison erupts into vines!',
+        cycle: 'generating',
+        baseDmg: 20,
+        effect: 'root_dot', // Root + massive DoT
+        radius: 40
+    },
+
+    // --- OVERCOMING CYCLE (Wood>Earth, Earth>Water, Water>Fire, Fire>Metal, Metal>Wood) ---
+    // The overcoming element DESTROYS the next
+    'WOOD_EARTH': {
+        name: 'UPHEAVAL',
+        color1: '#44dd44', color2: '#ddaa44',
+        desc: 'Roots tear through stone!',
+        cycle: 'overcoming',
+        baseDmg: 35,
+        effect: 'earthquake', // AoE knockback + stun
+        radius: 55
+    },
+    'EARTH_WATER': {
+        name: 'DAM BREAK',
+        color1: '#ddaa44', color2: '#5588ff',
+        desc: 'Stone dams shatter, unleashing a flood!',
+        cycle: 'overcoming',
+        baseDmg: 40,
+        effect: 'ice_explosion', // AoE freeze
+        radius: 50
+    },
+    'WATER_FIRE': {
+        name: 'STEAM BURST',
+        color1: '#5588ff', color2: '#ff4400',
+        desc: 'Water meets flame — blinding steam!',
+        cycle: 'overcoming',
+        baseDmg: 30,
+        effect: 'fog_blind', // Enemies in radius slowed + miss attacks
+        radius: 60
+    },
+    'FIRE_METAL': {
+        name: 'FORGE STRIKE',
+        color1: '#ff4400', color2: '#ccccee',
+        desc: 'Molten metal forges deadly weapons!',
+        cycle: 'overcoming',
+        baseDmg: 20,
+        effect: 'molten_weapons', // Player bonus damage for 5s
+        radius: 0
+    },
+    'METAL_WOOD': {
+        name: 'HARVEST',
+        color1: '#ccccee', color2: '#44dd44',
+        desc: 'Metal reaps wood — life blooms!',
+        cycle: 'overcoming',
+        baseDmg: 25,
+        effect: 'hp_orbs', // Drop healing orbs
+        radius: 30
+    }
+};
+
+// Which debuff maps to which element
+function getEnemyActiveElements(enemy) {
+    const active = [];
+    if (enemy.poisonTimer > 0 || enemy.poisonDps > 0) active.push('WOOD');
+    if (enemy.burnTimer > 0 || enemy.burnDps > 0 || enemy._burnTimer > 0) active.push('FIRE');
+    if (enemy.stunTimer > 0) active.push('EARTH');
+    if (enemy.bleedTimer > 0 || enemy.bleedDps > 0) active.push('BLEED_METAL');
+    if (enemy.frozenTimer > 0) active.push('WATER');
+    // Normalize BLEED_METAL → METAL
+    return active.map(e => e === 'BLEED_METAL' ? 'METAL' : e);
+}
+
+// Combo counter for HUD
+if (typeof G !== 'undefined') {
+    G.comboCount = G.comboCount || 0;
+    G.comboNotification = G.comboNotification || null;
+}
+
+// Check and trigger elemental combos on an enemy
+function checkElementalCombo(enemy) {
+    if (!enemy || enemy.dead || enemy.hp <= 0) return;
+
+    // Cooldown per enemy — prevent spam
+    if (enemy._comboCooldown > 0) return;
+
+    const elements = getEnemyActiveElements(enemy);
+    if (elements.length < 2) return; // Need at least 2 elements
+
+    // Check all possible pairs
+    for (let i = 0; i < elements.length; i++) {
+        for (let j = i + 1; j < elements.length; j++) {
+            const key1 = elements[i] + '_' + elements[j];
+            const key2 = elements[j] + '_' + elements[i];
+            const combo = WU_XING_COMBOS[key1] || WU_XING_COMBOS[key2];
+
+            if (combo) {
+                triggerElementalCombo(enemy, combo);
+                enemy._comboCooldown = 1.5; // 1.5s cooldown per enemy
+                return; // Only one combo per check
+            }
+        }
+    }
+}
+
+// Execute the combo effect
+function triggerElementalCombo(enemy, combo) {
+    const level = G.floor || 1;
+    const scaledDmg = Math.ceil(combo.baseDmg * (1 + level * 0.15));
+
+    // Increment combo counter
+    G.comboCount = (G.comboCount || 0) + 1;
+
+    // Show combo notification
+    G.comboNotification = {
+        text: combo.name + '!',
+        color1: combo.color1,
+        color2: combo.color2,
+        timer: 1.5,
+        cycle: combo.cycle
+    };
+
+    // Combo VFX — two-color burst
+    spawnParticles(enemy.x, enemy.y, combo.color1, 10, 50);
+    spawnParticles(enemy.x, enemy.y, combo.color2, 10, 50);
+
+    // Shockwave VFX
+    if (combo.radius > 0) {
+        G.skillEffects.push({
+            type: 'shockwave', x: enemy.x, y: enemy.y,
+            radius: 5, maxRadius: combo.radius, speed: 200,
+            color: combo.color1, alpha: 0.5, lineWidth: 2, timer: 0.4
+        });
+    }
+
+    // Screen effects
+    shake(3, 0.2);
+    triggerChromatic(1);
+
+    // Damage text
+    spawnDmgNum(enemy.x, enemy.y - 20, scaledDmg, combo.color1, true);
+
+    // Apply primary damage
+    enemy.hp -= scaledDmg;
+    enemy.flash = 0.2;
+
+    // Apply combo-specific effects
+    switch (combo.effect) {
+        case 'spread_fire': // WILDFIRE: Spreading fire to nearby
+            for (const e2 of G.enemies) {
+                if (e2.dead || e2 === enemy) continue;
+                if (Math.hypot(e2.x - enemy.x, e2.y - enemy.y) <= combo.radius) {
+                    e2.burnTimer = Math.max(e2.burnTimer || 0, 3);
+                    e2.burnDps = Math.max(e2.burnDps || 0, 8);
+                    e2.flash = 0.1;
+                    spawnParticles(e2.x, e2.y, '#ff4400', 3, 15);
+                }
+            }
+            break;
+
+        case 'lava_pool': // MAGMA FLOW: AoE damage zone
+            for (const e2 of G.enemies) {
+                if (e2.dead || e2 === enemy) continue;
+                if (Math.hypot(e2.x - enemy.x, e2.y - enemy.y) <= combo.radius) {
+                    e2.hp -= Math.ceil(scaledDmg * 0.5);
+                    e2.burnTimer = Math.max(e2.burnTimer || 0, 2);
+                    e2.burnDps = Math.max(e2.burnDps || 0, 6);
+                    e2.flash = 0.15;
+                    spawnDmgNum(e2.x, e2.y - 10, Math.ceil(scaledDmg * 0.5), '#ff6600', false);
+                }
+            }
+            // Lava pool VFX
+            G.skillEffects.push({
+                type: 'shockwave', x: enemy.x, y: enemy.y,
+                radius: combo.radius * 0.8, maxRadius: combo.radius, speed: 50,
+                color: '#ff4400', alpha: 0.3, lineWidth: 4, timer: 1.5
+            });
+            break;
+
+        case 'armor_break': // SHATTER: Double damage debuff
+            enemy._armorBroken = 3; // 3 seconds of 2x damage
+            spawnDmgNum(enemy.x, enemy.y - 28, 'BREAK!', '#ccccee', true);
+            spawnParticles(enemy.x, enemy.y, '#ccccee', 15, 60);
+            spawnParticles(enemy.x, enemy.y, '#ddaa44', 8, 40);
+            break;
+
+        case 'shatter_burst': // FROST BLADE: Huge burst on frozen+bleeding
+            // Extra burst damage
+            const burstDmg = Math.ceil(scaledDmg * 1.5);
+            enemy.hp -= burstDmg;
+            spawnDmgNum(enemy.x, enemy.y - 30, burstDmg, '#aaddff', true);
+            // Ice shatter VFX
+            spawnParticles(enemy.x, enemy.y, '#88ccff', 20, 70);
+            spawnParticles(enemy.x, enemy.y, '#ccccee', 12, 50);
+            // Splash to nearby
+            for (const e2 of G.enemies) {
+                if (e2.dead || e2 === enemy) continue;
+                if (Math.hypot(e2.x - enemy.x, e2.y - enemy.y) <= combo.radius) {
+                    e2.hp -= Math.ceil(burstDmg * 0.3);
+                    e2.flash = 0.1;
+                }
+            }
+            shake(5, 0.3);
+            break;
+
+        case 'root_dot': // OVERGROWTH: Root + massive poison
+            for (const e2 of G.enemies) {
+                if (e2.dead || e2 === enemy) continue;
+                if (Math.hypot(e2.x - enemy.x, e2.y - enemy.y) <= combo.radius) {
+                    e2.stunTimer = Math.max(e2.stunTimer || 0, 1.5); // Root via stun
+                    e2.poisonTimer = Math.max(e2.poisonTimer || 0, 4);
+                    e2.poisonDps = Math.max(e2.poisonDps || 0, 10);
+                    spawnParticles(e2.x, e2.y, '#44dd44', 4, 15);
+                }
+            }
+            // Root VFX
+            spawnParticles(enemy.x, enemy.y, '#228822', 15, 35);
+            break;
+
+        case 'earthquake': // UPHEAVAL: AoE knockback + stun
+            for (const e2 of G.enemies) {
+                if (e2.dead || e2 === enemy) continue;
+                const dist = Math.hypot(e2.x - enemy.x, e2.y - enemy.y);
+                if (dist <= combo.radius) {
+                    e2.hp -= Math.ceil(scaledDmg * 0.4);
+                    e2.stunTimer = Math.max(e2.stunTimer || 0, 2);
+                    // Knockback away from center
+                    if (dist > 0) {
+                        e2.knockX = (e2.knockX || 0) + (e2.x - enemy.x) / dist * 5;
+                        e2.knockY = (e2.knockY || 0) + (e2.y - enemy.y) / dist * 5;
+                    }
+                    e2.flash = 0.15;
+                    spawnDmgNum(e2.x, e2.y - 8, Math.ceil(scaledDmg * 0.4), '#ddaa44', false);
+                }
+            }
+            shake(6, 0.35);
+            break;
+
+        case 'ice_explosion': // DAM BREAK: AoE freeze
+            for (const e2 of G.enemies) {
+                if (e2.dead || e2 === enemy) continue;
+                if (Math.hypot(e2.x - enemy.x, e2.y - enemy.y) <= combo.radius) {
+                    e2.frozenTimer = Math.max(e2.frozenTimer || 0, 2.5);
+                    e2.hp -= Math.ceil(scaledDmg * 0.3);
+                    e2.flash = 0.15;
+                    spawnParticles(e2.x, e2.y, '#88ccff', 5, 20);
+                }
+            }
+            // Ice burst VFX
+            spawnParticles(enemy.x, enemy.y, '#5588ff', 20, 60);
+            spawnParticles(enemy.x, enemy.y, '#88ccff', 15, 45);
+            break;
+
+        case 'fog_blind': // STEAM BURST: Slow + miss chance area
+            for (const e2 of G.enemies) {
+                if (e2.dead || e2 === enemy) continue;
+                if (Math.hypot(e2.x - enemy.x, e2.y - enemy.y) <= combo.radius) {
+                    e2._slowTimer = Math.max(e2._slowTimer || 0, 3);
+                    e2._slowPct = 0.5; // 50% slow
+                    e2._fogBlind = 3; // 3s miss chance — attacks miss player
+                    e2.flash = 0.1;
+                    spawnParticles(e2.x, e2.y, '#aaccdd', 3, 10);
+                }
+            }
+            // Steam cloud VFX
+            for (let k = 0; k < 20; k++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * combo.radius * 0.8;
+                const px = enemy.x + Math.cos(angle) * dist;
+                const py = enemy.y + Math.sin(angle) * dist;
+                spawnParticles(px, py, '#ccddee', 1, 5);
+            }
+            break;
+
+        case 'molten_weapons': // FORGE STRIKE: Player dmg boost
+            G._forgeBuff = 5; // 5 seconds of +50% damage
+            G._forgeTimer = 5;
+            spawnDmgNum(P.x, P.y - 25, '+50% DMG!', '#ffaa44', true);
+            spawnParticles(P.x, P.y, '#ff6600', 12, 40);
+            spawnParticles(P.x, P.y, '#ccccee', 8, 30);
+            break;
+
+        case 'hp_orbs': // HARVEST: Drop healing pickups
+            const orbCount = 3 + Math.floor(Math.random() * 3);
+            for (let k = 0; k < orbCount; k++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 15 + Math.random() * combo.radius;
+                G.pickups.push({
+                    x: enemy.x + Math.cos(angle) * dist,
+                    y: enemy.y + Math.sin(angle) * dist,
+                    type: 'heal', value: Math.ceil(5 + level * 0.5),
+                    timer: 8, magnet: 0
+                });
+            }
+            spawnParticles(enemy.x, enemy.y, '#44dd44', 10, 35);
+            spawnParticles(enemy.x, enemy.y, '#88ff88', 6, 25);
+            break;
+    }
+
+    // Kill check after combo damage
+    if (enemy.hp <= 0 && !enemy.dead) {
+        if (typeof killEnemy === 'function') killEnemy(enemy);
+    }
+}
+
+// Update combo cooldowns (called in updateEnemies)
+function updateComboCooldowns(dt) {
+    for (const e of G.enemies) {
+        if (e._comboCooldown > 0) e._comboCooldown -= dt;
+        if (e._armorBroken > 0) e._armorBroken -= dt;
+        if (e._fogBlind > 0) e._fogBlind -= dt;
+    }
+    // Forge buff timer
+    if (G._forgeBuff > 0) G._forgeBuff -= dt;
+    if (G._forgeTimer > 0) G._forgeTimer -= dt;
+    // Combo notification timer
+    if (G.comboNotification && G.comboNotification.timer > 0) {
+        G.comboNotification.timer -= dt;
+        if (G.comboNotification.timer <= 0) G.comboNotification = null;
+    }
+}

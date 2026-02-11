@@ -96,6 +96,205 @@ function spawnEnemy(x, y, type) {
     G.enemies.push(enemy);
 }
 
+// L003: Final Boss — Dong Zhuo, The Tyrant
+function spawnFinalBoss() {
+    const cx = G.arenaW / 2;
+    const cy = G.arenaH / 2;
+    const floorMult = 1 + (G.floor - 1) * 0.12;
+
+    const boss = {
+        x: cx, y: cy, vx: 0, vy: 0,
+        hp: 3000 * floorMult, maxHp: 3000 * floorMult,
+        speed: 22, dmg: 40 * floorMult,
+        r: 22, el: 'FIRE', color: '#ff2200', lightColor: '#ff8844',
+        type: 'finalboss', flash: 0, knockX: 0, knockY: 0, dead: false,
+        attackCd: 0, spawnAnim: 1.0,
+        // Final boss specific
+        phase: 1,
+        phaseTransition: 0,
+        generalName: 'Đổng Trác',
+        generalTitle: 'Bạo Chúa Cuối Cùng',
+        isFinalBoss: true,
+        // Ability timers
+        slamCd: 0,
+        summonCd: 3,
+        fireCd: 0,
+        enraged: false,
+        desperation: false,
+        cloneSpawned: false,
+        entranceTimer: 2.0
+    };
+
+    G.enemies.push(boss);
+    G.finalBoss = boss;
+
+    // Dramatic entrance
+    G.floorAnnounce = {
+        text: '⚔ ĐỔNG TRÁC — BẠO CHÚA ⚔',
+        sub: 'The Tyrant descends!',
+        timer: 3,
+        color: '#ff2200'
+    };
+    triggerFlash('#ff0000', 0.5);
+    triggerChromatic(5);
+    shake(10, 1.0);
+
+    // Clear all other enemies to make room for the epic battle
+    for (const e of G.enemies) {
+        if (e !== boss && !e.dead) {
+            e.dead = true;
+            spawnParticles(e.x, e.y, e.color || '#666', 8, 30);
+        }
+    }
+
+    // Massive entrance VFX
+    G.skillEffects.push({
+        type: 'shockwave', x: cx, y: cy,
+        radius: 5, maxRadius: 250, speed: 150,
+        color: '#ff2200', alpha: 0.6, lineWidth: 4, timer: 0.8
+    });
+    spawnParticles(cx, cy, '#ff4400', 40, 120);
+    spawnParticles(cx, cy, '#ffd700', 30, 100);
+}
+
+// L003: Update Final Boss AI (called from updateEnemies)
+function updateFinalBossAI(boss, dt) {
+    if (!boss || boss.dead || !boss.isFinalBoss) return;
+
+    boss.slamCd -= dt;
+    boss.summonCd -= dt;
+    boss.fireCd -= dt;
+
+    const hpRatio = boss.hp / boss.maxHp;
+
+    // Phase transitions
+    if (hpRatio <= 0.5 && boss.phase === 1) {
+        boss.phase = 2;
+        boss.enraged = true;
+        boss.speed = 35;
+        boss.phaseTransition = 1.5;
+        G.floorAnnounce = {
+            text: '💀 ĐỔNG TRÁC CUỒNG NỘ! 💀',
+            sub: 'Phase 2: Enraged!',
+            timer: 2,
+            color: '#ff4400'
+        };
+        shake(6, 0.5);
+        triggerFlash('#ff4400', 0.4);
+        spawnParticles(boss.x, boss.y, '#ff4400', 30, 80);
+    }
+    if (hpRatio <= 0.25 && boss.phase === 2) {
+        boss.phase = 3;
+        boss.desperation = true;
+        boss.speed = 45;
+        boss.phaseTransition = 1.5;
+        G.floorAnnounce = {
+            text: '🔥 TUYỆT VỌNG! 🔥',
+            sub: 'Phase 3: Desperation!',
+            timer: 2,
+            color: '#ff0000'
+        };
+        shake(8, 0.6);
+        triggerFlash('#ff0000', 0.5);
+        triggerChromatic(4);
+        // Spawn Lu Bu clone ally
+        if (!boss.cloneSpawned) {
+            boss.cloneSpawned = true;
+            const clone = {
+                x: boss.x + rng(-60, 60), y: boss.y + rng(-60, 60),
+                vx: 0, vy: 0,
+                hp: 800, maxHp: 800,
+                speed: 40, dmg: 20,
+                r: 12, el: 'METAL', color: '#aaaaff', lightColor: '#ddddff',
+                type: 'officer', flash: 0, knockX: 0, knockY: 0, dead: false,
+                attackCd: 0, spawnAnim: 0.8,
+                generalName: 'Lữ Bố (Bóng)', generalTitle: 'Phân Thân',
+                isClone: true
+            };
+            G.enemies.push(clone);
+            spawnParticles(clone.x, clone.y, '#aaaaff', 20, 60);
+            G.floorAnnounce = {
+                text: '👤 LỮ BỐ PHÂN THÂN! 👤',
+                sub: 'A shadow of the God of War appears!',
+                timer: 2,
+                color: '#aaaaff'
+            };
+        }
+    }
+
+    // Phase transition freeze
+    if (boss.phaseTransition > 0) {
+        boss.phaseTransition -= dt;
+        return; // boss paused during transition
+    }
+
+    // --- Abilities ---
+
+    // Phase 1: summon officer waves
+    if (boss.phase >= 1 && boss.summonCd <= 0) {
+        boss.summonCd = boss.phase >= 3 ? 6 : 10;
+        const count = boss.phase >= 3 ? 4 : 2;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i) / count;
+            const sx = boss.x + Math.cos(angle) * 80;
+            const sy = boss.y + Math.sin(angle) * 80;
+            spawnEnemy(sx, sy, 'grunt');
+            spawnParticles(sx, sy, '#ff4400', 8, 30);
+        }
+    }
+
+    // Fire Slam (AOE ground pound)
+    if (boss.slamCd <= 0) {
+        boss.slamCd = boss.enraged ? 3 : 5;
+        const radius = boss.enraged ? 100 : 70;
+
+        // AOE damage to player
+        const dist = Math.hypot(P.x - boss.x, P.y - boss.y);
+        if (dist < radius) {
+            P.hp -= boss.dmg * 0.6;
+            P.invincible = 0.3;
+            shake(4, 0.2);
+            spawnDmgNum(P.x, P.y - 15, Math.ceil(boss.dmg * 0.6), '#ff4400', false);
+        }
+
+        // VFX
+        G.skillEffects.push({
+            type: 'shockwave', x: boss.x, y: boss.y,
+            radius: 5, maxRadius: radius, speed: 200,
+            color: '#ff4400', alpha: 0.5, lineWidth: 3, timer: 0.3
+        });
+        spawnParticles(boss.x, boss.y, '#ff4400', 15, 50);
+    }
+
+    // Phase 2+: Fire projectiles
+    if (boss.phase >= 2 && boss.fireCd <= 0) {
+        boss.fireCd = boss.desperation ? 1.5 : 2.5;
+        const count = boss.desperation ? 8 : 5;
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i) / count;
+            G.skillEffects.push({
+                type: 'projectile_fire',
+                x: boss.x, y: boss.y,
+                vx: Math.cos(angle) * 120,
+                vy: Math.sin(angle) * 120,
+                dmg: boss.dmg * 0.3,
+                color: '#ff4400',
+                r: 5,
+                timer: 2.0
+            });
+        }
+        spawnParticles(boss.x, boss.y, '#ff8800', 10, 40);
+    }
+
+    // Enraged: faster, glow effect
+    if (boss.enraged) {
+        // Continuously emit fire particles
+        if (Math.random() < 0.3) {
+            spawnParticles(boss.x + rng(-15, 15), boss.y + rng(-15, 15), '#ff4400', 1, 20);
+        }
+    }
+}
+
 function spawnWave() {
     const cx = P.x, cy = P.y;
     // DW-style: majority fodder + some officers
@@ -128,6 +327,9 @@ function spawnWave() {
 }
 
 function updateEnemies(dt) {
+    // L001: Update elemental combo cooldowns and timers
+    if (typeof updateComboCooldowns === 'function') updateComboCooldowns(dt);
+
     for (let i = G.enemies.length - 1; i >= 0; i--) {
         const e = G.enemies[i];
         if (e.dead) { G.enemies.splice(i, 1); continue; }
@@ -234,6 +436,18 @@ function updateEnemies(dt) {
         // Chase player (with boss-specific AI)
         const dx = P.x - e.x, dy = P.y - e.y;
         const d = Math.hypot(dx, dy);
+
+        // L003: Final boss AI
+        if (e.type === 'finalboss') {
+            if (e.entranceTimer > 0) {
+                e.entranceTimer -= dt;
+                if (Math.random() < 0.5) {
+                    spawnParticles(e.x + rng(-15, 15), e.y + rng(-15, 15), '#ff4400', 2, 30);
+                }
+                continue;
+            }
+            if (typeof updateFinalBossAI === 'function') updateFinalBossAI(e, dt);
+        }
 
         if (e.type === 'boss') {
             // Boss entrance freeze
@@ -565,6 +779,12 @@ function updateEnemies(dt) {
                 // Shield wall blocks all damage
                 if (P.shieldWall > 0) {
                     spawnParticles(P.x, P.y, '#ddaa44', 4, 25);
+                    e.attackCd = 0.5;
+                    continue;
+                }
+                // L001: Fog blind from STEAM BURST combo — 50% miss chance
+                if (e._fogBlind > 0 && Math.random() < 0.5) {
+                    spawnDmgNum(e.x, e.y - 12, 'MISS', '#aaccdd', false);
                     e.attackCd = 0.5;
                     continue;
                 }

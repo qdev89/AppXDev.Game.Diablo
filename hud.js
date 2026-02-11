@@ -187,6 +187,54 @@ function drawHUD() {
         drawText(comboLabel, comboX, comboY + comboSize + 2, { font: 'bold 9px monospace', fill: '#ccc', align: 'right' });
     }
 
+    // --- L001: Wu Xing Elemental Combo Notification ---
+    if (G.comboNotification) {
+        const cn = G.comboNotification;
+        const t2 = cn.timer / 1.5; // 1 → 0
+        const fadeIn = Math.min(1, (1.5 - cn.timer) * 5); // Quick fade in
+        const fadeOut = Math.min(1, cn.timer * 3); // Slow fade out
+        const alpha = fadeIn * fadeOut;
+        const yOff = (1 - fadeIn) * 20; // Slide in from above
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        // Glow behind text
+        const glowPulse = Math.sin(G.time * 8) * 0.1 + 0.3;
+        const grad = ctx.createLinearGradient(GAME_W / 2 - 80, 0, GAME_W / 2 + 80, 0);
+        grad.addColorStop(0, cn.color1 + '00');
+        grad.addColorStop(0.3, cn.color1 + '55');
+        grad.addColorStop(0.7, cn.color2 + '55');
+        grad.addColorStop(1, cn.color2 + '00');
+        ctx.fillStyle = grad;
+        ctx.fillRect(GAME_W / 2 - 100, 55 - yOff, 200, 24);
+
+        // Combo name text
+        const textSize = 14 + (1 - t2) * 4;
+        drawText(cn.text, GAME_W / 2, 57 - yOff,
+            { font: `bold ${Math.round(textSize)}px monospace`, fill: cn.color1, align: 'center', outlineWidth: 3 });
+
+        // Cycle indicator
+        const cycleText = cn.cycle === 'generating' ? '⚡ generating ⚡' : '💀 overcoming 💀';
+        drawText(cycleText, GAME_W / 2, 72 - yOff,
+            { font: '7px monospace', fill: cn.color2, align: 'center', outline: false });
+
+        ctx.restore();
+    }
+
+    // --- L001: Elemental Combo Counter ---
+    if (G.comboCount > 0) {
+        drawText(`五行 ${G.comboCount}`, hpX, 42, { font: '8px monospace', fill: '#aa88ff', outline: false });
+    }
+
+    // --- L001: Forge Strike Buff Indicator ---
+    if (G._forgeBuff > 0) {
+        const forgeAlpha = Math.min(1, G._forgeBuff);
+        ctx.globalAlpha = forgeAlpha;
+        drawText('⚔ FORGED +50%', hpX, 52, { font: 'bold 8px monospace', fill: '#ffaa44', outline: false });
+        ctx.globalAlpha = 1;
+    }
+
     // --- Floor & Score ---
     drawText(`${typeof t === 'function' ? t('hud_floor') : 'Floor'} ${G.floor}`, GAME_W - 12, 6, { font: 'bold 14px monospace', fill: '#fff', align: 'right', outlineWidth: 4 });
     // K004: Difficulty tier indicator
@@ -196,10 +244,11 @@ function drawHUD() {
         drawText(`${dTier.icon} ${dTier.name[lang]}`, GAME_W - 12, 22, { font: 'bold 8px monospace', fill: dTier.color, align: 'right', outline: false });
     }
     drawText(`${G.score}G`, GAME_W - 12, G.difficulty > 0 ? 34 : 60, { font: 'bold 11px monospace', fill: '#ffdd44', align: 'right' });
-    // Kill timer
-    const mins = Math.floor(HUD.killTimer / 60);
-    const secs = Math.floor(HUD.killTimer % 60);
-    drawText(`${mins}:${secs.toString().padStart(2, '0')}`, GAME_W - 12, 74, { font: '9px monospace', fill: '#888', align: 'right', outline: false });
+    // Run timer (L003)
+    const mins = Math.floor((G.runTimer || 0) / 60);
+    const secs = Math.floor((G.runTimer || 0) % 60);
+    const timerColor = (G.runTimer || 0) >= 1200 ? '#ff4444' : (G.runTimer || 0) >= 900 ? '#ffaa44' : '#888';
+    drawText(`${mins}:${secs.toString().padStart(2, '0')}`, GAME_W - 12, 74, { font: '9px monospace', fill: timerColor, align: 'right', outline: false });
 
     // --- Phase G: Morale Bar ---
     const morale = G.morale || 0;
@@ -426,7 +475,7 @@ function drawHUD() {
 
 // --- Boss HP Bar ---
 function drawBossHPBar() {
-    const boss = G.enemies.find(e => e.type === 'boss' && !e.dead);
+    const boss = G.enemies.find(e => (e.type === 'boss' || e.type === 'finalboss') && !e.dead);
     const miniboss = G.enemies.find(e => e.type === 'miniboss' && !e.dead);
     if (!boss && !miniboss) return;
 
@@ -753,7 +802,7 @@ function drawMenuScreen() {
     }
 
     // Version
-    drawText('v0.9.2 \u2014 The Atmosphere', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
+    drawText('v1.0.0 \u2014 The Living World', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
 }
 
 // --- High Score System ---
@@ -2722,6 +2771,292 @@ function drawRoomIndicator() {
         x, y + 10, { font: 'bold 8px monospace', fill: rt.color, align: 'center', outlineWidth: 2 });
 }
 
+// ============================================================
+// L003: Victory Screen
+// ============================================================
+function drawVictoryScreen() {
+    // Dark overlay with gold tint
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    const cx = GAME_W / 2;
+    const t = G.time;
+
+    // Gold border frame
+    ctx.save();
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 15;
+    ctx.strokeRect(40, 30, GAME_W - 80, GAME_H - 60);
+    ctx.restore();
+
+    // Inner frame
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(46, 36, GAME_W - 92, GAME_H - 72);
+
+    // === Title ===
+    const titleGlow = Math.sin(t * 3) * 0.3 + 0.7;
+    ctx.save();
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 20 * titleGlow;
+
+    // "RUN COMPLETE" with gold gradient
+    drawText('⭐ RUN COMPLETE ⭐', cx, 65, {
+        font: 'bold 22px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3
+    });
+    ctx.restore();
+
+    // Subtitle — hero name (HEROES is an array indexed by number, find by class)
+    let heroName = G.selectedHero || 'WARRIOR';
+    if (typeof HEROES !== 'undefined') {
+        for (let i = 0; i < HEROES.length; i++) {
+            if (HEROES[i] && HEROES[i].id === G.selectedHero) {
+                heroName = HEROES[i].name;
+                break;
+            }
+        }
+    }
+    drawText('— ' + heroName + ' —', cx, 88, {
+        font: 'bold 10px monospace', fill: '#ffcc44', align: 'center', outlineWidth: 2
+    });
+
+    // === Run Time ===
+    const mins = Math.floor(G.runTimer / 60);
+    const secs = Math.floor(G.runTimer % 60);
+    const timeStr = mins + ':' + (secs < 10 ? '0' : '') + secs;
+
+    drawText('TIME: ' + timeStr, cx, 115, {
+        font: 'bold 14px monospace', fill: '#ffffff', align: 'center', outlineWidth: 2
+    });
+
+    // === Stats Grid ===
+    const statY = 145;
+    const col1 = cx - 120;
+    const col2 = cx + 20;
+    const rowH = 22;
+
+    const stats = [
+        ['Tầng', (G.floor || 1) + ''],
+        ['Phòng', (G.room || 1) + '/' + (G.roomsPerFloor || 6)],
+        ['Kẻ Thù', (G.totalKills || G.score || 0) + ''],
+        ['Wu Xing Combo', (G.comboCount || 0) + ''],
+        ['Max Combo', (G.maxCombo || G.combo || 0) + ''],
+        ['Blessings', (G.blessings ? G.blessings.length : 0) + ''],
+        ['Gold', (G.gold || 0) + 'G'],
+        ['Difficulty', (typeof DIFFICULTY_TIERS !== 'undefined' && DIFFICULTY_TIERS[G.difficulty])
+            ? (DIFFICULTY_TIERS[G.difficulty].name[G.lang || 'vi'] || DIFFICULTY_TIERS[G.difficulty].name.en || DIFFICULTY_TIERS[G.difficulty].name) : 'Normal']
+    ];
+
+    for (let i = 0; i < stats.length; i++) {
+        const col = i % 2 === 0 ? col1 : col2;
+        const row = Math.floor(i / 2);
+        const y = statY + row * rowH;
+
+        // Label
+        drawText(stats[i][0] + ':', col, y, {
+            font: '9px monospace', fill: '#aaaaaa', align: 'left', outline: false
+        });
+        // Value
+        drawText(stats[i][1], col + 100, y, {
+            font: 'bold 10px monospace', fill: '#ffd700', align: 'left', outline: false
+        });
+    }
+
+    // === Divider ===
+    const divY = statY + Math.ceil(stats.length / 2) * rowH + 5;
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(80, divY);
+    ctx.lineTo(GAME_W - 80, divY);
+    ctx.stroke();
+
+    // === Element Affinity ===
+    if (P && P.element) {
+        const elDef = ELEMENTS[P.element] || ELEMENTS.METAL;
+        drawText('元素: ' + (elDef.symbol || elDef.kanji || '') + ' ' + P.element, cx, divY + 18, {
+            font: 'bold 10px monospace', fill: elDef.color, align: 'center', outlineWidth: 2
+        });
+    }
+
+    // === Call to action ===
+    const blink = Math.sin(t * 4) > 0;
+    if (blink) {
+        drawText('Press SPACE to continue (Endless Mode)', cx, GAME_H - 60, {
+            font: '9px monospace', fill: '#ffd700', align: 'center', outlineWidth: 2
+        });
+    }
+    drawText('Press ESC to return to menu', cx, GAME_H - 42, {
+        font: '8px monospace', fill: '#888888', align: 'center', outline: false
+    });
+
+    // === Animated gold particles (decorative) ===
+    ctx.save();
+    for (let i = 0; i < 12; i++) {
+        const px = 60 + Math.sin(t * 0.5 + i * 0.8) * (GAME_W / 2 - 60);
+        const py = 40 + Math.cos(t * 0.3 + i * 1.1) * (GAME_H / 2 - 40);
+        const size = 1 + Math.sin(t * 2 + i) * 0.5;
+        ctx.globalAlpha = 0.3 + Math.sin(t * 2 + i * 0.7) * 0.2;
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(px, py, size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+// ============================================================
+// L002: Minimap Radar
+// ============================================================
+function drawMinimap() {
+    if (!G.showMinimap || G.state !== 'PLAYING') return;
+
+    const MAP_SIZE = 76;
+    const MAP_PAD = 6;
+    const MAP_X = GAME_W - MAP_SIZE - MAP_PAD;
+    const MAP_Y = 100; // Below floor/score/morale HUD elements
+    const MAP_ALPHA = 0.55;
+
+    ctx.save();
+    ctx.globalAlpha = MAP_ALPHA;
+
+    // Background circle
+    ctx.beginPath();
+    ctx.fillStyle = '#0a0a1a';
+    ctx.strokeStyle = '#335588';
+    ctx.lineWidth = 1.5;
+    const cx = MAP_X + MAP_SIZE / 2;
+    const cy = MAP_Y + MAP_SIZE / 2;
+    const radius = MAP_SIZE / 2;
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Clip to circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius - 1, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Scale factor: arena → minimap
+    const scaleX = MAP_SIZE / G.arenaW;
+    const scaleY = MAP_SIZE / G.arenaH;
+    const scale = Math.min(scaleX, scaleY);
+
+    // Arena boundary (faint border)
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#446688';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(
+        cx - (G.arenaW * scale) / 2,
+        cy - (G.arenaH * scale) / 2,
+        G.arenaW * scale,
+        G.arenaH * scale
+    );
+
+    ctx.globalAlpha = MAP_ALPHA;
+
+    // Helper: world pos → minimap pos (relative to player center)
+    function toMap(wx, wy) {
+        const relX = (wx - P.x) * scale;
+        const relY = (wy - P.y) * scale;
+        return { mx: cx + relX, my: cy + relY };
+    }
+
+    // Pickups (green=heal, yellow=gold, blue=xp, magenta=chest)
+    for (const p of G.pickups) {
+        const { mx, my } = toMap(p.x, p.y);
+        if (Math.hypot(mx - cx, my - cy) > radius) continue;
+        const pickColor = p.type === 'heal' ? '#44dd44' :
+            p.type === 'gold' ? '#ffdd44' :
+                p.type === 'xp' ? '#6688ff' : '#dd44dd';
+        ctx.fillStyle = pickColor;
+        ctx.fillRect(mx - 1, my - 1, 2, 2);
+    }
+
+    // Enemies (red, scaled by type)
+    for (const e of G.enemies) {
+        if (e.dead) continue;
+        const { mx, my } = toMap(e.x, e.y);
+        if (Math.hypot(mx - cx, my - cy) > radius) continue;
+
+        const dotSize = e.type === 'finalboss' ? 6 :
+            e.type === 'boss' ? 4 :
+                e.type === 'officer' ? 2.5 :
+                    e.type === 'elite' ? 2 : 1.2;
+        const dotColor = e.type === 'finalboss' ? '#ffd700' :
+            e.type === 'boss' ? '#ff2222' :
+                e.type === 'officer' ? '#ff6644' :
+                    e.type === 'elite' ? '#ff8844' : '#cc4444';
+
+        ctx.fillStyle = dotColor;
+        ctx.beginPath();
+        ctx.arc(mx, my, dotSize, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Portal (cyan pulsing)
+    if (G.portalActive && G.portal) {
+        const { mx, my } = toMap(G.portal.x, G.portal.y);
+        if (Math.hypot(mx - cx, my - cy) <= radius) {
+            const pulse = Math.sin(G.time * 4) * 0.3 + 0.7;
+            ctx.globalAlpha = MAP_ALPHA * pulse;
+            ctx.fillStyle = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(mx, my, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Portal ring
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.arc(mx, my, 5 + Math.sin(G.time * 3) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = MAP_ALPHA;
+        }
+    }
+
+    // Player dot (white, always center)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Player direction indicator
+    const facing = P.facing || 1;
+    const vx = P.vx || 0;
+    const vy = P.vy || 0;
+    if (Math.abs(vx) > 1 || Math.abs(vy) > 1) {
+        const angle = Math.atan2(vy, vx);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(angle) * 6, cy + Math.sin(angle) * 6);
+        ctx.stroke();
+    }
+
+    // Compass ring (subtle)
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#668899';
+    ctx.lineWidth = 0.5;
+    // Cross-hairs
+    ctx.beginPath();
+    ctx.moveTo(cx - radius, cy);
+    ctx.lineTo(cx + radius, cy);
+    ctx.moveTo(cx, cy - radius);
+    ctx.lineTo(cx, cy + radius);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Label (outside clip)
+    ctx.globalAlpha = 0.4;
+    drawText('[M]', MAP_X + MAP_SIZE, MAP_Y + MAP_SIZE + 4,
+        { font: '6px monospace', fill: '#668899', align: 'right', outline: false });
+    ctx.globalAlpha = 1;
+}
+
 function drawDoorChoices() {
     if (G.roomState !== 'DOOR_CHOICE' || !G.doorChoices) return;
     const doors = G.doorChoices;
@@ -2920,7 +3255,7 @@ function drawActiveBlessings() {
 }
 
 function drawRoomTransition() {
-    if (G.roomTransition <= 0) return;
+    if (!G.roomTransition || G.roomTransition <= 0) return;
     const alpha = Math.min(G.roomTransition * 2, 1);
     ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
     ctx.fillRect(0, 0, GAME_W, GAME_H);

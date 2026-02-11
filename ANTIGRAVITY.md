@@ -32,7 +32,7 @@ blessings.js → weapons.js → systems.js → game.js → renderer.js → postf
 ```
 
 ## Game States
-`MENU → HERO_SELECT → BONDING → PLAYING → LEVEL_UP → SHOP → BLESSING_CHOICE → GAME_OVER → BONDING`
+`MENU → HERO_SELECT → BONDING → PLAYING → LEVEL_UP → SHOP → BLESSING_CHOICE → GAME_OVER → VICTORY → BONDING`
 
 ### Room States (within PLAYING)
 `FIGHTING → CLEARED → DOOR_CHOICE → TRANSITIONING → (next room)`
@@ -51,11 +51,13 @@ blessings.js → weapons.js → systems.js → game.js → renderer.js → postf
 | Key | Action | State |
 |-----|--------|-------|
 | WASD / Arrows | Move | PLAYING |
-| Space | Dodge Roll | PLAYING |
+| Space | Dodge Roll / Continue (Endless Mode) | PLAYING / VICTORY |
 | E | Tactical Skill (costs MP) | PLAYING |
 | Q | Ultimate / Musou (requires full gauge) | PLAYING |
 | R | Brotherhood Combo (requires full gauge) | PLAYING |
+| M | Toggle Minimap | PLAYING |
 | L | Language Toggle (VI ↔ EN) | ALL |
+| ESC | Pause / Return to Menu | PLAYING / VICTORY |
 | 1-5 | Quick hero select | HERO_SELECT |
 | 1-3 | Quick level-up choice | LEVEL_UP |
 | Click | Menu navigation | ALL |
@@ -203,6 +205,30 @@ blessings.js → weapons.js → systems.js → game.js → renderer.js → postf
 - **BlessingState**: Global blessing state manager (active blessings, affinity, set/duo bonuses)
 - `catch` blocks must include `(e)` parameter for compatibility (no bare `catch {}`)
 
+## Minimap Radar (Phase L)
+- Toggle with [M] key (default: on)
+- Circular minimap in top-right corner (76px diameter)
+- Player (white), enemies (red, gold for finalboss), pickups (colored by type), portal (cyan pulsing)
+- Enemy dot size scales by type: fodder (1.2), elite (2), officer (2.5), boss (4), finalboss (6)
+
+## Victory / Endgame Boss System (Phase L)
+- **Run Timer**: `G.runTimer` increments during PLAYING state, displayed in HUD
+- **Boss Warning** (20:00): `G.bossWarning` triggers floor announce "THE DYNASTY AWAITS..."
+- **Final Boss Spawn** (25:00): `G.bossSpawned` → `spawnFinalBoss()` creates Đổng Trác
+- **Final Boss**: Đổng Trác (Bạo Chúa Cuối Cùng) — 3000 HP, `finalboss` type
+  - Phase 1: Normal attacks + officer wave summoning
+  - Phase 2 (50% HP): Enraged — faster, AoE fire attacks
+  - Phase 3 (25% HP): Desperation — spawns Lu Bu clone ally
+- **Victory Screen**: Gold-themed overlay with stats grid, element affinity, animated particles
+- **Endless Mode**: SPACE to continue playing after victory (clears finalBoss)
+- **Key State Variables**: `G.runTimer`, `G.bossWarning`, `G.bossSpawned`, `G.finalBoss`, `G.victoryTimer`
+
+## Status Effect Combos (Phase L)
+- Element + Element combinations create enhanced effects
+- Burn + Poison = Toxic Fire (increased DPS)
+- Freeze + Bleed = Shatter (burst damage)
+- Status effects interact through the Wu Xing cycle
+
 ## Enemy Types
 | Type | HP | Speed | Behavior | Floor |
 |------|-----|-------|----------|-------|
@@ -214,6 +240,7 @@ blessings.js → weapons.js → systems.js → game.js → renderer.js → postf
 | elite | 120 | 30 | Chase | 3+ |
 | miniboss | 300+ | 28 | Unique ability AI, named general | 3+ |
 | boss | 500 | 18 | Multi-phase AI, charge, shockwave | 5/10/15... |
+| finalboss | 3000 | 40 | 3-phase AI, Đổng Trác, spawns at 25:00 | Timer |
 
 ## Spawning (Dynasty Warriors Style)
 - Each wave: ~60% fodder (dies in 1 hit) + ~40% officers (grunt/fast/tank/archer/elite)
@@ -235,6 +262,7 @@ blessings.js → weapons.js → systems.js → game.js → renderer.js → postf
 - Bonding screen uses 480×320 canvas — text must be 9px+ for readability
 
 ## Version History
+- **v1.0.0** — Phase L: The Living World — Status Effect Combos, Minimap Radar, Victory Timer + Endgame Boss (Đổng Trác 3-phase boss at 25:00), Victory Screen with full run stats, Endless Mode post-victory
 - **v0.9.5** — Phase K: The Roguelike Soul — Room-Based Dungeon Progression (6 room types, door choices, room state machine), Wu Xing Blessing System (5 deities, 25 blessings, 3 duo blessings, set bonuses, on-hit/on-kill/DoT effects), Death Defiance (revive once per run), Difficulty Tiers (Normal/Hard/Dynasty), Reroll/Banish QoL for level-up choices
 - **v0.9.2** — Phase J: The Atmosphere — Screen Transitions (fade), Procedural BGM (3 moods), localStorage Persistence (settings/stats/Arcana), Enhanced Main Menu (embers, glow, orbiting elements)
 - **v0.9.0** — Phase H: Dynasty Warriors Expansion — 6th Hero (Ranger), Chain Frost Bolt, Brotherhood Combos, 12 Mini-Boss Generals, Bilingual (VI/EN), Thrown Weapons, Morale System

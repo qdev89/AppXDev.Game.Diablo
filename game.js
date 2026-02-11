@@ -153,6 +153,22 @@ function startGame() {
     G.blessingChoices = null; // Active blessing choice cards
     G.blessingOfferTimer = 0; // Timer for blessing offer after room clear
 
+    // L001: Wu Xing Elemental Combo counters
+    G.comboCount = 0; // Total elemental combos triggered this run
+    G.comboNotification = null; // Active combo notification
+    G._forgeBuff = 0; // Forge Strike damage buff timer
+    G._forgeTimer = 0;
+
+    // L002: Minimap
+    G.showMinimap = true;
+
+    // L003: Victory Timer + Final Boss
+    G.runTimer = 0; // Total run time in seconds
+    G.bossWarning = false; // 20:00 warning triggered
+    G.bossSpawned = false; // Final boss spawned
+    G.finalBoss = null; // Reference to final boss enemy
+    G.victoryTimer = 0; // VFX timer for victory celebration
+
     // K001: Room-Based Dungeon Progression
     G.room = 1; // Current room number
     G.roomsPerFloor = 6; // Rooms per floor (5-7, varies)
@@ -479,6 +495,64 @@ function update(dt) {
 
     // Update skill VFX
     if (typeof updateSkillEffects === 'function') updateSkillEffects(dt);
+
+    // L003: Run Timer + Boss Warning/Spawn + Victory Check
+    G.runTimer += dt;
+
+    // 20:00 warning
+    if (G.runTimer >= 1200 && !G.bossWarning) {
+        G.bossWarning = true;
+        G.floorAnnounce = {
+            text: '⚔ THE DYNASTY AWAITS... ⚔',
+            sub: 'Prepare for the final battle',
+            timer: 3,
+            color: '#ff2222'
+        };
+        shake(4, 0.5);
+        triggerFlash('#ff0000', 0.3);
+        triggerChromatic(3);
+    }
+
+    // 25:00 — Spawn Final Boss: Dong Zhuo, The Tyrant
+    if (G.runTimer >= 1500 && !G.bossSpawned) {
+        G.bossSpawned = true;
+        if (typeof spawnFinalBoss === 'function') spawnFinalBoss();
+    }
+
+    // Check if final boss is defeated → VICTORY
+    if (G.finalBoss && G.finalBoss.dead) {
+        G.state = 'VICTORY';
+        G.victoryTimer = 5; // 5 seconds of celebration
+        // Dramatic celebration effects
+        spawnParticles(P.x, P.y, '#ffd700', 60, 150);
+        spawnParticles(P.x, P.y, '#ff8800', 40, 120);
+        triggerFlash('#ffd700', 0.6);
+        triggerChromatic(5);
+        shake(8, 0.5);
+        if (typeof SFX !== 'undefined') SFX.revive();
+        // Save stats
+        if (typeof saveHighScore === 'function') saveHighScore();
+        if (typeof updatePersistentStats === 'function') updatePersistentStats();
+        // Unlock next difficulty
+        if (typeof DIFFICULTY_TIERS !== 'undefined') {
+            const nextDiff = (G.difficulty || 0) + 1;
+            if (nextDiff < DIFFICULTY_TIERS.length) {
+                const unlocked = JSON.parse(localStorage.getItem('dbd_unlockedDifficulties') || '[]');
+                if (!unlocked.includes(nextDiff)) {
+                    unlocked.push(nextDiff);
+                    localStorage.setItem('dbd_unlockedDifficulties', JSON.stringify(unlocked));
+                }
+            }
+        }
+    }
+
+    // L001: Combo notification timer
+    if (G.comboNotification) {
+        G.comboNotification.timer -= dt;
+        if (G.comboNotification.timer <= 0) G.comboNotification = null;
+    }
+    // L001: Forge buff timer
+    if (G._forgeBuff > 0) G._forgeBuff -= dt;
 }
 
 // --- Main Draw ---
@@ -526,6 +600,9 @@ function draw() {
     } else if (G.state === 'GAME_OVER') {
         drawGame();
         drawGameOverScreen();
+    } else if (G.state === 'VICTORY') {
+        drawGame();
+        if (typeof drawVictoryScreen === 'function') drawVictoryScreen();
     }
 
     // K001: Room transition overlay

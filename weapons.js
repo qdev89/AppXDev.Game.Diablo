@@ -505,6 +505,12 @@ function damageEnemy(e, dmg, el) {
         mult *= getBlessingDamageMult();
     }
 
+    // L001: Armor Break bonus (from SHATTER combo)
+    if (e._armorBroken > 0) mult *= 2;
+
+    // L001: Forge Strike buff (from FORGE STRIKE combo — +50% dmg)
+    if (G._forgeBuff > 0) mult *= 1.5;
+
     const finalDmg = dmg * mult;
     e.hp -= finalDmg;
     e.flash = 0.1;
@@ -532,6 +538,9 @@ function damageEnemy(e, dmg, el) {
 
     // K002: Apply blessing on-hit effects (slow, poison, burn, bleed, lifesteal, execute)
     if (typeof applyBlessingOnHit === 'function') applyBlessingOnHit(e, finalDmg);
+
+    // L001: Check for Wu Xing elemental combos (two debuffs → synergy)
+    if (typeof checkElementalCombo === 'function') checkElementalCombo(e);
 
     if (e.hp <= 0) killEnemy(e);
 }
