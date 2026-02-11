@@ -2,9 +2,15 @@
 
 **Vampire Survivors × Dynasty Warriors — A roguelike action game with Three Kingdoms mythology**
 
-> Pure HTML5 Canvas · No frameworks · Asset-free · Procedural everything · Bilingual (VI/EN)
+> Pure HTML5 Canvas · No frameworks · Asset-free · Procedural everything · Bilingual (VI/EN) · PWA Installable
 
-## 🚀 Quick Start
+## 🌐 Play Now
+
+**[▶ Play Online](https://qdev89.github.io/AppXDev.Game.Diablo/)** — No install needed, runs in any browser!
+
+📱 **Install as PWA** — Open the link above on mobile/desktop and click "Install" for offline play.
+
+## 🚀 Quick Start (Local Development)
 
 ```bash
 # Option 1: Direct open
@@ -38,6 +44,9 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 - **Minimap Radar** — Toggle with [M] key, shows enemies, pickups, portal
 - **Endgame Boss** — Đổng Trác spawns at 25:00, 3-phase fight with unique mechanics
 - **Victory Screen** — Gold-themed run stats with Endless Mode continuation
+- **🏆 Achievement System** — 18 achievements across Combat, Exploration, Mastery, and Secret categories
+- **📅 Daily Challenge** — Seeded daily runs with unique modifiers (same challenge for all players)
+- **📱 PWA Support** — Installable as app, offline play via Service Worker
 - **Status Effect Combos** — Element + Element interactions for enhanced damage
 - **Reroll & Banish** — QoL for level-up choices
 - **Chain Frost Bolt** — Ice projectile that chains between enemies with slow debuff
@@ -50,7 +59,7 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 - **Bilingual** — Full Vietnamese (VI) and English (EN), toggle with [L] key
 - **Screen Transitions** — Smooth fade transitions between all game states
 - **Procedural BGM** — 3-mood background music (menu ambient, combat drums, boss tension) via Web Audio API
-- **Persistent Progress** — Settings, stats, and Arcana progress saved via localStorage
+- **Persistent Progress** — Settings, stats, achievements, and Arcana progress saved via localStorage
 - **Animated Main Menu** — Ember particles, orbiting element symbols, glowing title
 
 ## ⚔️ Controls
@@ -64,8 +73,26 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 | R | Brotherhood Combo (requires full Brotherhood gauge) |
 | M | Toggle Minimap |
 | L | Toggle Language (Vietnamese ↔ English) |
+| TAB | Toggle Achievement List |
 | ESC | Pause / Return to Menu |
 | Click | Menu navigation |
+
+## 🏆 Achievement System
+
+18 achievements across 4 categories with tier-colored toast notifications:
+
+| Category | Examples |
+|----------|----------|
+| ⚔️ Combat | First Blood, Slayer, Massacre, Combo King |
+| 🏔️ Exploration | Deep Enough, Into The Abyss, Depth Dweller |
+| 🌀 Mastery | Tyrant Slayer, Speed Demon, Elemental Master |
+| 🔮 Secret | Untouchable, Rich Beyond Measure, Veteran |
+
+## 📅 Daily Challenge
+
+- **Seeded RNG** — Same hero + modifiers for all players each day
+- **10 Unique Modifiers** — Speed Rush, Glass Cannon, Horde Mode, Treasure Hunter, Elemental Chaos, Boss Rush, Frugal, Blessing Rain, One HP Warrior, Titan Foes
+- **Personal Best** — Track your best floor, kills, and time each day
 
 ## 🦸 Hero Classes
 
@@ -93,34 +120,44 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 ## 📁 File Structure
 
 ```
-├── index.html      # Entry point
-├── lang.js         # Bilingual localization (VI/EN)
-├── engine.js       # Core engine, constants, state, input
-├── game.js         # Game loop, player update, state machine, room progression
-├── heroes.js       # 6 hero classes, equipment, companions, sacred beasts
-├── weapons.js      # Weapon system, damage, musou, thrown weapons
-├── systems.js      # Enemy AI, spawning, level-up, pickups, rooms, shops, doors
-├── renderer.js     # All drawing/rendering, chain frost VFX
-├── hud.js          # HUD, menus, hero select, room indicators, blessing UI
-├── bonding.js      # Brotherhood bonds, Arcana skill tree, combos
-├── blessings.js    # Wu Xing Blessing System (5 deities, 25 blessings)
-├── sound.js        # Procedural SFX (Web Audio API)
-├── sprites.js      # Pixel art sprite definitions
-├── postfx.js       # Post-processing, biome tiles
-├── evolution.js    # Weapon evolution system
-└── agile-kanban/   # Development backlog
+├── index.html          # Entry point + PWA meta tags
+├── manifest.json       # PWA manifest
+├── sw.js               # Service Worker (cache-first offline)
+├── icons/              # PWA icons (192x192, 512x512)
+├── lang.js             # Bilingual localization (VI/EN)
+├── engine.js           # Core engine, constants, state, input
+├── game.js             # Game loop, player update, state machine
+├── heroes.js           # 6 hero classes, equipment, companions
+├── weapons.js          # Weapon system, damage, musou
+├── systems.js          # Enemy AI, spawning, level-up, rooms, shops
+├── renderer.js         # All drawing/rendering, VFX
+├── hud.js              # HUD, menus, hero select, daily challenge button
+├── bonding.js          # Brotherhood bonds, Arcana skill tree
+├── blessings.js        # Wu Xing Blessing System
+├── achievements.js     # Achievement System (18 achievements, 4 categories)
+├── daily.js            # Daily Challenge System (seeded runs, 10 modifiers)
+├── sound.js            # Procedural SFX (Web Audio API)
+├── sprites.js          # Pixel art sprite definitions
+├── postfx.js           # Post-processing, biome tiles
+├── evolution.js        # Weapon evolution system
+└── agile-kanban/       # Development backlog
 ```
 
 ## 🏗️ Tech Stack
 
 - **Canvas 2D** — All rendering via `ctx.fillRect()`, `ctx.arc()`, `ctx.fillText()`
 - **Web Audio API** — All sounds generated procedurally (oscillators + noise)
-- **localStorage** — High scores and meta-progression persistence
+- **localStorage** — High scores, achievements, and meta-progression persistence
+- **Service Worker** — Cache-first offline strategy for PWA
 - **Zero dependencies** — No npm, no build step, no external assets
 
-## 📦 Version
+## 📦 Version History
 
-**v1.0.0** — Phase L: "The Living World"
+| Version | Phase | Highlights |
+|---------|-------|------------|
+| **v1.1.0** | Phase M: "The Infinite" | 🏆 Achievements, 📅 Daily Challenges, 📱 PWA + GitHub Pages |
+| v1.0.0 | Phase L: "The Living World" | Minimap, Wu Xing combos, Đổng Trác final boss, Victory screen |
+| v0.9.0 | Phases A-K | Core gameplay, 6 heroes, blessings, rooms, bonding, weapons |
 
 ---
 
