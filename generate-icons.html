@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Gen Icons</title>
+</head>
+
+<body style="background:#000">
+    <div id="status">Generating...</div>
+    <script>
+        function gen(size) {
+            var c = document.createElement('canvas');
+            c.width = size; c.height = size;
+            var ctx = c.getContext('2d');
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, size, size);
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = size * 0.04;
+            ctx.strokeRect(size * 0.04, size * 0.04, size * 0.92, size * 0.92);
+            var g = ctx.createRadialGradient(size / 2, size / 2, size * 0.05, size / 2, size / 2, size * 0.44);
+            g.addColorStop(0, 'rgba(255,215,0,0.15)');
+            g.addColorStop(1, 'rgba(255,215,0,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, size, size);
+            var els = [{ c: '\u6728', cl: '#00ff88' }, { c: '\u706B', cl: '#ff4444' }, { c: '\u571F', cl: '#cc8800' }, { c: '\u91D1', cl: '#cccccc' }, { c: '\u6C34', cl: '#4488ff' }];
+            var cx = size / 2, cy = size / 2 - size * 0.05;
+            ctx.font = 'bold ' + size * 0.115 + 'px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            els.forEach(function (el, i) {
+                var a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+                ctx.shadowColor = el.cl; ctx.shadowBlur = size * 0.03;
+                ctx.fillStyle = el.cl;
+                ctx.fillText(el.c, cx + Math.cos(a) * size * 0.28, cy + Math.sin(a) * size * 0.28);
+            });
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold ' + size * 0.145 + 'px monospace';
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowColor = '#ffd700'; ctx.shadowBlur = size * 0.04;
+            ctx.fillText('DBD', cx, cy);
+            ctx.shadowBlur = 0;
+            ctx.font = size * 0.052 + 'px monospace';
+            ctx.fillStyle = '#888';
+            ctx.fillText('DYNASTY BRUHHH', cx, size * 0.88);
+            document.body.appendChild(c);
+            c.style.border = '1px solid #333';
+            c.style.margin = '10px';
+            c.id = 'icon' + size;
+            return c;
+        }
+        gen(192); gen(512);
+        document.getElementById('status').textContent = 'DONE';
+    </script>
+</body>
+
+</html>

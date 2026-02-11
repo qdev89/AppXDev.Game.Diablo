@@ -6,9 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="description"
+        content="Vampire Survivors × Dynasty Warriors — A roguelike action game with Three Kingdoms mythology. Pure HTML5 Canvas, no frameworks, asset-free.">
+    <meta name="theme-color" content="#ffd700">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Dynasty Bruhhh Dungeon</title>
+    <link rel="manifest" href="manifest.json">
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <style>
         * {
             margin: 0;
@@ -60,6 +66,16 @@
     <script src="renderer.js"></script>
     <script src="hud.js"></script>
     <script src="game.js"></script>
+    <script>
+        // Register Service Worker for PWA offline support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('[PWA] SW registered:', reg.scope))
+                    .catch(err => console.log('[PWA] SW failed:', err));
+            });
+        }
+    </script>
 </body>
 
 </html>
