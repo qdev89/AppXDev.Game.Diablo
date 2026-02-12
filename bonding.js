@@ -346,9 +346,9 @@ function executeBrotherhoodCombo() {
         const angle = (Math.PI * 2 / 16) * i;
         G.skillEffects.push({
             type: 'speed_line', x: P.x, y: P.y,
-            angle: angle, length: 80 + Math.random() * 40,
+            angle: angle, length: 0, maxLength: 80 + Math.random() * 40,
             speed: 300, color: combo.color, alpha: 0.7,
-            timer: 0.4, lineWidth: 2 + Math.random() * 2
+            timer: 0.3, lineWidth: 2 + Math.random() * 2
         });
     }
     // Ground impact ring

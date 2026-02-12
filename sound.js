@@ -110,6 +110,9 @@ const SFX = {
     bladeStorm() { for (let i = 0; i < 5; i++) playNote(800 + i * 200, 0.04, 'sawtooth', 0.1 - i * 0.015, i * 0.06); playNoise(0.15, 0.12); },
     changbanCharge() { playNote(110, 0.5, 'sawtooth', 0.2); playNoise(0.3, 0.15); playNote(82, 0.4, 'sawtooth', 0.15, 0.2); },
     phoenixSummon() { playNote(440, 0.2, 'sine', 0.15); playNote(660, 0.2, 'triangle', 0.12, 0.15); playNote(880, 0.3, 'sine', 0.15, 0.3); playNote(1100, 0.4, 'triangle', 0.12, 0.45); },
+    hitHeavy() { playNote(150, 0.12, 'sawtooth', 0.18); playNoise(0.08, 0.14); playNote(80, 0.15, 'square', 0.1, 0.04); },
+    fireRain() { playNoise(0.1, 0.1); playNote(600, 0.08, 'sine', 0.08); playNote(500, 0.08, 'sine', 0.06, 0.06); playNote(400, 0.1, 'sine', 0.05, 0.12); },
+    ultimateActivate() { playNoise(0.15, 0.15); playNote(220, 0.2, 'sawtooth', 0.15); playNote(440, 0.2, 'triangle', 0.12, 0.1); playNote(880, 0.3, 'sine', 0.15, 0.2); },
 };
 
 // ============================================================

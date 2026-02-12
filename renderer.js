@@ -969,8 +969,8 @@ function updateSkillEffects(dt) {
                 }
                 break;
             case 'speed_line':
-                fx.length = Math.min(fx.length + fx.speed * dt, fx.maxLength);
-                fx.alpha *= 0.93;
+                if (fx.maxLength) fx.length = Math.min(fx.length + fx.speed * dt, fx.maxLength);
+                fx.alpha *= 0.88;
                 break;
             case 'yinyang_symbol':
                 fx.rotation += fx.rotSpeed * dt;
