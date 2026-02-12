@@ -391,11 +391,11 @@ function fireMelee(w, el) {
     } else if (w.id === 'earth_spear') {
         // Dragon Spear — Linear thrust trail + ground crack
         shake(3, 0.08);
-        // Thrust line effect
+        // Subtle thrust impact (use crack instead of speed_line — fires too often)
         G.skillEffects.push({
-            type: 'speed_line', x: P.x, y: P.y,
-            angle: aimAngle || 0, length: 0, maxLength: 40,
-            speed: 400, color: '#ddaa44', alpha: 0.5, timer: 0.15
+            type: 'crack', x: P.x + Math.cos(aimAngle || 0) * 20, y: P.y + Math.sin(aimAngle || 0) * 20,
+            angle: aimAngle || 0, length: 15, width: 1,
+            color: '#ddaa44', alpha: 0.4, timer: 0.1
         });
         // Impact crack at tip
         G.skillEffects.push({

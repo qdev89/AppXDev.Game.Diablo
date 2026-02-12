@@ -905,17 +905,12 @@ function drawDmgNums() {
 // ============================================================
 
 function updateSkillEffects(dt) {
-    // Cap speed_line count to prevent visual clutter
+    // Cap speed_line count — remove ALL excess aggressively
     let slCount = 0;
-    for (let j = 0; j < G.skillEffects.length; j++) {
-        if (G.skillEffects[j].type === 'speed_line') slCount++;
-    }
-    if (slCount > 8) {
-        for (let j = 0; j < G.skillEffects.length; j++) {
-            if (G.skillEffects[j].type === 'speed_line') {
-                G.skillEffects.splice(j, 1);
-                break;
-            }
+    for (let j = G.skillEffects.length - 1; j >= 0; j--) {
+        if (G.skillEffects[j].type === 'speed_line') {
+            slCount++;
+            if (slCount > 4) G.skillEffects.splice(j, 1);
         }
     }
     for (let i = G.skillEffects.length - 1; i >= 0; i--) {
@@ -983,7 +978,7 @@ function updateSkillEffects(dt) {
                 break;
             case 'speed_line':
                 if (fx.maxLength) fx.length = Math.min(fx.length + fx.speed * dt, fx.maxLength);
-                fx.alpha *= 0.75;
+                fx.alpha *= 0.5; // Aggressive decay — fades in ~3 frames
                 break;
             case 'yinyang_symbol':
                 fx.rotation += fx.rotSpeed * dt;
@@ -1219,8 +1214,8 @@ function drawSkillEffects() {
             }
             case 'speed_line': {
                 ctx.strokeStyle = fx.color;
-                ctx.lineWidth = fx.lineWidth || 1;
-                const drawLen = Math.min(fx.length, 50);
+                ctx.lineWidth = Math.min(fx.lineWidth || 1, 1); // Max 1px wide
+                const drawLen = Math.min(fx.length, 20); // Max 20px long
                 ctx.beginPath();
                 ctx.moveTo(fx.x, fx.y);
                 ctx.lineTo(

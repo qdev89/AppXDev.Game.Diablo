@@ -341,14 +341,14 @@ function executeBrotherhoodCombo() {
     G._comboTimeSlow = 0.6; // 0.6s of 20% speed
     // Screen darken overlay
     G._comboDarken = 0.5;  // 0.5s of screen darkening
-    // Radial burst lines
-    for (let i = 0; i < 8; i++) {
-        const angle = (Math.PI * 2 / 8) * i;
+    // Subtle radial burst lines
+    for (let i = 0; i < 4; i++) {
+        const angle = (Math.PI * 2 / 4) * i;
         G.skillEffects.push({
             type: 'speed_line', x: P.x, y: P.y,
-            angle: angle, length: 0, maxLength: 40 + Math.random() * 20,
-            speed: 400, color: combo.color, alpha: 0.5,
-            timer: 0.2, lineWidth: 1.5 + Math.random()
+            angle: angle, length: 0, maxLength: 18,
+            speed: 500, color: combo.color, alpha: 0.3,
+            timer: 0.1, lineWidth: 1
         });
     }
     // Ground impact ring
