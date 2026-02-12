@@ -473,7 +473,7 @@ function drawBullets() {
             ctx.globalAlpha = 1;
 
         } else if (b.type === 'thrust') {
-            // New Finisher VFX: Piercing Beam/Thrust
+            // Finisher VFX: Short piercing flash (NOT a long beam)
             const alpha = b.life / b.maxLife;
             const el = b.el ? ELEMENTS[b.el] : null;
             const color = el ? el.light : b.color;
@@ -481,30 +481,33 @@ function drawBullets() {
             ctx.translate(b.x, b.y);
             ctx.rotate(b.angle);
 
-            // Core Thrust Beam
-            const grd = ctx.createLinearGradient(0, 0, b.range, 0);
+            // Core Thrust — capped short
+            const thrustLen = Math.min(b.range * 0.6, 40);
+            const grd = ctx.createLinearGradient(0, 0, thrustLen, 0);
             grd.addColorStop(0, 'rgba(255,255,255,0.8)');
             grd.addColorStop(0.5, color);
             grd.addColorStop(1, 'rgba(255,255,255,0)');
 
             ctx.fillStyle = grd;
-            ctx.globalAlpha = alpha;
+            ctx.globalAlpha = alpha * 0.7;
             ctx.beginPath();
-            ctx.moveTo(0, -5);
-            ctx.lineTo(b.range * 1.1, 0); // Extended tip
-            ctx.lineTo(0, 5);
+            ctx.moveTo(0, -3);
+            ctx.lineTo(thrustLen, 0);
+            ctx.lineTo(0, 3);
             ctx.fill();
 
-            // Side energy waves
+            // Subtle side wisps
+            const wispLen = Math.min(b.range * 0.4, 30);
             ctx.strokeStyle = color;
-            ctx.lineWidth = 2 * alpha;
+            ctx.lineWidth = 1 * alpha;
+            ctx.globalAlpha = alpha * 0.4;
             ctx.beginPath();
-            ctx.moveTo(10, -10);
-            ctx.lineTo(b.range * 0.8, -15);
+            ctx.moveTo(8, -4);
+            ctx.lineTo(wispLen, -6);
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(10, 10);
-            ctx.lineTo(b.range * 0.8, 15);
+            ctx.moveTo(8, 4);
+            ctx.lineTo(wispLen, 6);
             ctx.stroke();
 
             ctx.restore();
