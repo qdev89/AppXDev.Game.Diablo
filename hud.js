@@ -2195,13 +2195,13 @@ function fireUltimateSkill() {
                 radius: 14, color: '#ffd700', alpha: 0.25,
                 timer: hero.ultimate.duration, followPlayer: true
             });
-            // 16 speed lines radiating outward
-            for (let i = 0; i < 16; i++) {
-                const angle = (Math.PI * 2 / 16) * i;
+            // 8 speed lines radiating outward
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI * 2 / 8) * i;
                 G.skillEffects.push({
                     type: 'speed_line', x: P.x, y: P.y, angle: angle,
-                    length: 0, maxLength: 40 + Math.random() * 15, speed: 130,
-                    color: i % 2 === 0 ? '#ff6600' : '#ffd700', alpha: 0.7, timer: 0.45
+                    length: 0, maxLength: 30 + Math.random() * 10, speed: 200,
+                    color: i % 2 === 0 ? '#ff6600' : '#ffd700', alpha: 0.5, timer: 0.25
                 });
             }
             // Triple-layer fire eruption
@@ -2349,12 +2349,12 @@ function fireUltimateSkill() {
                 color: '#ddaa44', alpha: 0.6
             });
             // Speed lines during charge
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 4; i++) {
                 G.skillEffects.push({
                     type: 'speed_line', x: P.x, y: P.y,
                     angle: (P.facing > 0 ? Math.PI : 0) + (Math.random() - 0.5) * 0.5,
-                    length: 0, maxLength: 25, speed: 200,
-                    color: '#ddaa44', alpha: 0.5, timer: 0.3
+                    length: 0, maxLength: 20, speed: 250,
+                    color: '#ddaa44', alpha: 0.4, timer: 0.2
                 });
             }
             // Mid-charge shockwave

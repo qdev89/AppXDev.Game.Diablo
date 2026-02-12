@@ -905,10 +905,23 @@ function drawDmgNums() {
 // ============================================================
 
 function updateSkillEffects(dt) {
+    // Cap speed_line count to prevent visual clutter
+    let slCount = 0;
+    for (let j = 0; j < G.skillEffects.length; j++) {
+        if (G.skillEffects[j].type === 'speed_line') slCount++;
+    }
+    if (slCount > 8) {
+        for (let j = 0; j < G.skillEffects.length; j++) {
+            if (G.skillEffects[j].type === 'speed_line') {
+                G.skillEffects.splice(j, 1);
+                break;
+            }
+        }
+    }
     for (let i = G.skillEffects.length - 1; i >= 0; i--) {
         const fx = G.skillEffects[i];
         fx.timer -= dt;
-        if (fx.timer <= 0) { G.skillEffects.splice(i, 1); continue; }
+        if (fx.timer <= 0 || fx.alpha < 0.05) { G.skillEffects.splice(i, 1); continue; }
 
         // Follow player for persistent effects
         if (fx.followPlayer) { fx.x = P.x; fx.y = P.y; }
@@ -970,7 +983,7 @@ function updateSkillEffects(dt) {
                 break;
             case 'speed_line':
                 if (fx.maxLength) fx.length = Math.min(fx.length + fx.speed * dt, fx.maxLength);
-                fx.alpha *= 0.88;
+                fx.alpha *= 0.75;
                 break;
             case 'yinyang_symbol':
                 fx.rotation += fx.rotSpeed * dt;
@@ -1206,12 +1219,13 @@ function drawSkillEffects() {
             }
             case 'speed_line': {
                 ctx.strokeStyle = fx.color;
-                ctx.lineWidth = 1.5;
+                ctx.lineWidth = fx.lineWidth || 1;
+                const drawLen = Math.min(fx.length, 50);
                 ctx.beginPath();
                 ctx.moveTo(fx.x, fx.y);
                 ctx.lineTo(
-                    fx.x + Math.cos(fx.angle) * fx.length,
-                    fx.y + Math.sin(fx.angle) * fx.length
+                    fx.x + Math.cos(fx.angle) * drawLen,
+                    fx.y + Math.sin(fx.angle) * drawLen
                 );
                 ctx.stroke();
                 break;

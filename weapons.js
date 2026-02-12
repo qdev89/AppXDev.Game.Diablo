@@ -219,7 +219,7 @@ window.applyPassive = function (def) {
 // --- Weapon Update ---
 function updateWeapons(dt) {
     const auraAtkSpd = (G.allyAura && G.allyAura.atkSpd) ? G.allyAura.atkSpd : 0;
-    const spdMult = 1 + window.passives.atkSpd + auraAtkSpd;
+    const spdMult = 1 + (window.passives ? window.passives.atkSpd : 0) + auraAtkSpd;
     for (const w of G.weapons) {
         w.timer -= dt * spdMult;
         if (w.comboReset > 0) w.comboReset -= dt;
@@ -389,8 +389,8 @@ function fireMelee(w, el) {
         // Thrust line effect
         G.skillEffects.push({
             type: 'speed_line', x: P.x, y: P.y,
-            angle: aimAngle || 0, length: 0, maxLength: range * 0.8,
-            speed: 300, color: '#ddaa44', alpha: 0.7, timer: 0.25
+            angle: aimAngle || 0, length: 0, maxLength: 40,
+            speed: 400, color: '#ddaa44', alpha: 0.5, timer: 0.15
         });
         // Impact crack at tip
         G.skillEffects.push({
