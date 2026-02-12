@@ -296,6 +296,21 @@ function startGame() {
     G.blessingChoices = null; // Active blessing choice cards
     G.blessingOfferTimer = 0; // Timer for blessing offer after room clear
 
+    // R001+S001+S003+U001: Reset new systems for fresh run
+    if (typeof resetRunRelic === 'function') resetRunRelic();
+    if (typeof clearGhostSelection === 'function') clearGhostSelection();
+    // U001: Apply ghost trait if selected
+    // (will be called after hero init, see below)
+
+    // T002: Apply workshop meta effects
+    if (typeof getWorkshopMetaEffects === 'function') {
+        const workshopMeta = getWorkshopMetaEffects();
+        // Starting gold
+        if (workshopMeta.startingGold > 0) G.gold = (G.gold || 0) + workshopMeta.startingGold;
+        // Extra death defiance from workshop
+        // Applied after base init below
+    }
+
     // L001: Wu Xing Elemental Combo counters
     G.comboCount = 0; // Total elemental combos triggered this run
     G.comboNotification = null; // Active combo notification
@@ -378,6 +393,16 @@ function startGame() {
 
     G.camX = P.x - GAME_W / 2; G.camY = P.y - GAME_H / 2;
     if (typeof HUD !== 'undefined') { HUD.hpDisplay = 1; HUD.xpDisplay = 0; HUD.killTimer = 0; }
+
+    // T002: Workshop meta — extra death defiance
+    if (typeof getWorkshopMetaEffects === 'function') {
+        const wm = getWorkshopMetaEffects();
+        G.deathDefiance += wm.extraLives;
+        G.deathDefianceMax += wm.extraLives;
+    }
+
+    // U001: Apply selected lineage ghost trait
+    if (typeof applyGhostTrait === 'function') applyGhostTrait();
 }
 
 // --- Update Player ---
@@ -641,6 +666,8 @@ function update(dt) {
             SFX.revive();
             spawnDmgNum(P.x, P.y - 20, 0, '#ffd700', false);
         } else {
+            // U001: Create ghost trait from death
+            if (typeof createGhostTrait === 'function') createGhostTrait();
             endRunBonding();
             SFX.gameOver();
             G.state = 'GAME_OVER';
@@ -712,6 +739,12 @@ function update(dt) {
     // Update evolution popup
     if (typeof updateEvolutionPopup === 'function') updateEvolutionPopup(dt);
 
+    // R001: Update mutation popup
+    if (typeof updateMutationPopup === 'function') updateMutationPopup(dt);
+
+    // S003: Update relics (dragon summon, etc.)
+    if (typeof updateRelics === 'function') updateRelics(dt);
+
     // Update floor announcement
     if (G.floorAnnounce) {
         G.floorAnnounce.timer -= dt;
@@ -778,6 +811,11 @@ function update(dt) {
                 }
             }
         }
+        // T001: Unlock Mandate of Heaven + record victory
+        if (typeof unlockMandate === 'function') unlockMandate();
+        if (typeof recordMandateVictory === 'function') recordMandateVictory();
+        // T002: Grant victory workshop resources
+        if (typeof grantRunResources === 'function') grantRunResources('boss_kill');
     }
 
     // L001: Combo notification timer
@@ -819,6 +857,8 @@ function draw() {
         if (typeof drawTreasureRoom === 'function') drawTreasureRoom();
         if (typeof drawArcherProjectiles === 'function') drawArcherProjectiles();
         if (typeof drawEvolutionPopup === 'function') drawEvolutionPopup();
+        // R001: Mutation popup
+        if (typeof drawMutationPopup === 'function') drawMutationPopup();
         // K001: Room indicator & door choices
         if (typeof drawRoomIndicator === 'function') drawRoomIndicator();
         if (typeof drawDoorChoices === 'function') drawDoorChoices();

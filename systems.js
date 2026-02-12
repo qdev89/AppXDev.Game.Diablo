@@ -1315,6 +1315,9 @@ function startNextFloor() {
         }
     }
 
+    // T002: Grant workshop resources on floor clear
+    if (typeof grantRunResources === 'function') grantRunResources('floor_clear');
+
     // Re-init ambient particles for new biome
     if (typeof initAmbientParticles === 'function') initAmbientParticles();
 

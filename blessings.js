@@ -299,7 +299,7 @@ const ARCHETYPES = {
 
 // --- Blessing State Manager ---
 window.BlessingState = {
-    active: [],          // Active blessings for this run [{id, deity, rarity, effect, ...}]
+    active: [],          // Active blessings for this run [{id, deity, rarity, effect, level, ...}]
     affinity: { WOOD: 0, FIRE: 0, EARTH: 0, METAL: 0, WATER: 0 }, // Count per element
     setBonuses: [],      // Active set bonus element names
     duoBlessings: [],    // Active duo blessing ids
@@ -309,6 +309,8 @@ window.BlessingState = {
     shieldActive: false,
     waveTimer: 0,        // For tidal wave blessing
     auraTimer: 0,        // For fire aura tick
+    maxBlessingLevel: 3, // R002: Max stacking level
+    jadeShardsCollected: 0, // R002: Jade Shards collected this run
 };
 
 function resetBlessings() {
@@ -322,14 +324,32 @@ function resetBlessings() {
     window.BlessingState.shieldActive = false;
     window.BlessingState.waveTimer = 0;
     window.BlessingState.auraTimer = 0;
+    window.BlessingState.jadeShardsCollected = 0;
+    // R001: Reset mutations
+    if (typeof resetMutations === 'function') resetMutations();
 }
 
 // --- Add Blessing ---
 function addBlessing(blessingDef) {
-    // Don't add duplicates
-    if (window.BlessingState.active.find(b => b.id === blessingDef.id)) return false;
+    // R002: Blessing Stacking — duplicate blessings stack up to Lv.3
+    const existing = window.BlessingState.active.find(b => b.id === blessingDef.id);
+    if (existing) {
+        if ((existing.level || 1) >= window.BlessingState.maxBlessingLevel) return false; // Already max
+        existing.level = (existing.level || 1) + 1;
+        // VFX for stacking
+        if (typeof spawnDmgNum === 'function') {
+            spawnDmgNum(P.x, P.y - 40, '⬆ LV.' + existing.level + '!', '#44ffaa', true);
+        }
+        if (typeof spawnParticles === 'function') {
+            spawnParticles(P.x, P.y, '#44ffaa', 10, 40);
+        }
+        if (typeof SFX !== 'undefined' && SFX.levelUp) SFX.levelUp();
+        return true;
+    }
 
-    window.BlessingState.active.push(blessingDef);
+    // New blessing — add with level 1
+    const newBlessing = { ...blessingDef, level: 1 };
+    window.BlessingState.active.push(newBlessing);
     window.BlessingState.affinity[blessingDef.deity]++;
 
     // Apply immediate effects
@@ -350,23 +370,24 @@ function addBlessing(blessingDef) {
         // K003: Cursed item effects (immediate)
         case 'dmg_mult':
             if (eff.hpMult) {
-                // Blood Oath: -50% HP
                 const oldMax = P.maxHp;
                 P.maxHp = Math.floor(P.maxHp * eff.hpMult);
                 P.hp = Math.min(P.hp, P.maxHp);
                 spawnDmgNum(P.x, P.y - 40, '-' + (oldMax - P.maxHp) + ' Max HP', '#aa0000', true);
             }
             if (eff.forceHp) {
-                // Glass Cannon: HP = 1
                 P.maxHp = eff.forceHp;
                 P.hp = eff.forceHp;
                 spawnDmgNum(P.x, P.y - 40, 'MAX HP = 1', '#aa0000', true);
             }
             break;
         case 'gold_gain':
-            // Forbidden Greed: instant gold? No, it's a passive multiplier mostly.
-            // But we can give some gold immediately too if we want.
             break;
+    }
+
+    // R001: Check Wu Xing Mutations — magic happens here!
+    if (typeof checkMutations === 'function') {
+        checkMutations(newBlessing);
     }
 
     // Check set bonuses
@@ -376,6 +397,31 @@ function addBlessing(blessingDef) {
     // Check archetypes
     checkArchetypes();
 
+    return true;
+}
+
+// R002: Jade Shard — upgrade a random blessing +1 level
+function upgradeRandomBlessing() {
+    const upgradeable = window.BlessingState.active.filter(b =>
+        (b.level || 1) < window.BlessingState.maxBlessingLevel
+    );
+    if (upgradeable.length === 0) return false;
+
+    const target = upgradeable[Math.floor(Math.random() * upgradeable.length)];
+    target.level = (target.level || 1) + 1;
+    window.BlessingState.jadeShardsCollected++;
+
+    // VFX
+    if (typeof triggerFlash === 'function') triggerFlash('#44ffaa', 0.3);
+    if (typeof spawnDmgNum === 'function') {
+        const name = target.name[G.lang || 'vi'] || target.name;
+        spawnDmgNum(P.x, P.y - 45, '💎 ' + name + ' LV.' + target.level, '#44ffaa', true);
+    }
+    if (typeof spawnParticles === 'function') {
+        spawnParticles(P.x, P.y, '#44ffaa', 15, 60);
+        spawnParticles(P.x, P.y, '#ffffff', 8, 30);
+    }
+    if (typeof SFX !== 'undefined' && SFX.levelUp) SFX.levelUp();
     return true;
 }
 
@@ -484,32 +530,33 @@ function getBlessingStats() {
 
     for (const b of window.BlessingState.active) {
         const e = b.effect;
+        const lv = b.level || 1; // R002: Level multiplier for stacking
         switch (e.type) {
-            case 'dmg_mult': stats.dmgMult += e.value; break;
-            case 'dmg_reduction': stats.dmgReduction += e.value; break;
-            case 'crit_chance': stats.critChance += e.value; break;
-            case 'attack_speed': stats.attackSpeed += e.value; break;
-            case 'lifesteal': stats.lifesteal += e.value; break;
-            case 'heal_on_kill': stats.healOnKill += e.value; break;
-            case 'slow': stats.slowAmount = Math.max(stats.slowAmount, e.value); break;
-            case 'pierce': stats.pierce += e.value; break;
-            case 'knockback_mult': stats.knockbackMult += e.value; break;
-            case 'execute_threshold': stats.executeThreshold = Math.max(stats.executeThreshold, e.value); break;
-            case 'thorns': stats.hasThorns = true; stats.thornsValue += e.value; break;
-            case 'regen': stats.hasRegen = true; stats.regenValue += e.value; stats.regenInterval = e.interval; break;
-            case 'poison': stats.hasPoison = true; stats.poisonDps += e.dps; stats.poisonDuration = Math.max(stats.poisonDuration, e.duration); break;
-            case 'burn': stats.hasBurn = true; stats.burnDps += e.dps; stats.burnDuration = Math.max(stats.burnDuration, e.duration); break;
-            case 'bleed': stats.hasBleed = true; stats.bleedDps += e.dps; stats.bleedDuration = Math.max(stats.bleedDuration, e.duration); break;
-            case 'explosion_on_kill': stats.hasExplosion = true; stats.explosionChance = Math.max(stats.explosionChance, e.chance); stats.explosionRadius = Math.max(stats.explosionRadius, e.radius); stats.explosionDmg += e.dmg; break;
-            case 'stun_chance': stats.hasStun = true; stats.stunChance = Math.max(stats.stunChance, e.chance); stats.stunDuration = Math.max(stats.stunDuration, e.duration); break;
-            case 'freeze_chance': stats.hasFreeze = true; stats.freezeChance = Math.max(stats.freezeChance, e.chance); stats.freezeDuration = Math.max(stats.freezeDuration, e.duration); break;
+            case 'dmg_mult': stats.dmgMult += e.value * lv; break;
+            case 'dmg_reduction': stats.dmgReduction += e.value * lv; break;
+            case 'crit_chance': stats.critChance += e.value * lv; break;
+            case 'attack_speed': stats.attackSpeed += e.value * lv; break;
+            case 'lifesteal': stats.lifesteal += e.value * lv; break;
+            case 'heal_on_kill': stats.healOnKill += e.value * lv; break;
+            case 'slow': stats.slowAmount = Math.max(stats.slowAmount, e.value * lv); break;
+            case 'pierce': stats.pierce += e.value * lv; break;
+            case 'knockback_mult': stats.knockbackMult += e.value * lv; break;
+            case 'execute_threshold': stats.executeThreshold = Math.max(stats.executeThreshold, e.value * lv); break;
+            case 'thorns': stats.hasThorns = true; stats.thornsValue += e.value * lv; break;
+            case 'regen': stats.hasRegen = true; stats.regenValue += e.value * lv; stats.regenInterval = e.interval; break;
+            case 'poison': stats.hasPoison = true; stats.poisonDps += e.dps * lv; stats.poisonDuration = Math.max(stats.poisonDuration, e.duration); break;
+            case 'burn': stats.hasBurn = true; stats.burnDps += e.dps * lv; stats.burnDuration = Math.max(stats.burnDuration, e.duration); break;
+            case 'bleed': stats.hasBleed = true; stats.bleedDps += e.dps * lv; stats.bleedDuration = Math.max(stats.bleedDuration, e.duration); break;
+            case 'explosion_on_kill': stats.hasExplosion = true; stats.explosionChance = Math.max(stats.explosionChance, e.chance * lv); stats.explosionRadius = Math.max(stats.explosionRadius, e.radius); stats.explosionDmg += e.dmg * lv; break;
+            case 'stun_chance': stats.hasStun = true; stats.stunChance = Math.max(stats.stunChance, e.chance * lv); stats.stunDuration = Math.max(stats.stunDuration, e.duration); break;
+            case 'freeze_chance': stats.hasFreeze = true; stats.freezeChance = Math.max(stats.freezeChance, e.chance * lv); stats.freezeDuration = Math.max(stats.freezeDuration, e.duration); break;
             case 'shield': stats.hasShield = true; stats.shieldInterval = Math.min(stats.shieldInterval, e.interval); break;
-            case 'fire_aura': stats.hasFireAura = true; stats.fireAuraDps += e.dps; stats.fireAuraRadius = Math.max(stats.fireAuraRadius, e.radius); break;
-            case 'tidal_wave': stats.hasTidalWave = true; stats.waveInterval = Math.min(stats.waveInterval, e.interval); stats.waveDmg += e.dmg; stats.waveRadius = Math.max(stats.waveRadius, e.radius); break;
-            case 'ice_armor': stats.hasIceArmor = true; stats.iceArmorFreeze = Math.max(stats.iceArmorFreeze, e.freezeDuration); stats.dmgReduction += e.dmgReduction; break;
-            case 'fortress': stats.dmgReduction += e.dmgReduction; break;
+            case 'fire_aura': stats.hasFireAura = true; stats.fireAuraDps += e.dps * lv; stats.fireAuraRadius = Math.max(stats.fireAuraRadius, e.radius); break;
+            case 'tidal_wave': stats.hasTidalWave = true; stats.waveInterval = Math.min(stats.waveInterval, e.interval); stats.waveDmg += e.dmg * lv; stats.waveRadius = Math.max(stats.waveRadius, e.radius); break;
+            case 'ice_armor': stats.hasIceArmor = true; stats.iceArmorFreeze = Math.max(stats.iceArmorFreeze, e.freezeDuration); stats.dmgReduction += e.dmgReduction * lv; break;
+            case 'fortress': stats.dmgReduction += e.dmgReduction * lv; break;
             // Cursed
-            case 'gold_gain': stats.goldGain += e.value; if (e.enemyDmgMult) stats.enemyDmgMult *= e.enemyDmgMult; break;
+            case 'gold_gain': stats.goldGain += e.value * lv; if (e.enemyDmgMult) stats.enemyDmgMult *= e.enemyDmgMult; break;
         }
     }
 
