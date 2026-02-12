@@ -512,7 +512,19 @@ function damageEnemy(e, dmg, el) {
     if (G._forgeBuff > 0) mult *= 1.5;
 
     const finalDmg = dmg * mult;
-    e.hp -= finalDmg;
+
+    // N003: Shielded modifier — 50% DR for first 3 hits
+    let reducedDmg = finalDmg;
+    if (e.modifiers && e.modifiers.includes('shielded') && e._shieldHits > 0) {
+        reducedDmg = finalDmg * 0.5;
+        e._shieldHits--;
+        spawnDmgNum(e.x, e.y - 18, 'SHIELDED!', '#4488ff', false);
+        if (e._shieldHits <= 0) {
+            spawnDmgNum(e.x, e.y - 25, 'SHIELD BREAK!', '#ff4400', true);
+            spawnParticles(e.x, e.y, '#4488ff', 12, 50);
+        }
+    }
+    e.hp -= reducedDmg;
     e.flash = 0.1;
     e.knockX = (e.x - P.x) * 0.3;
     e.knockY = (e.y - P.y) * 0.3;
@@ -524,11 +536,11 @@ function damageEnemy(e, dmg, el) {
     SFX.hit();
 
     if (isCrit) {
-        spawnDmgNum(e.x, e.y - 20, 0, '#ff4400', true); // "CRIT!"
+        spawnDmgNum(e.x, e.y - 20, 'CRIT!', '#ff4400', true);
         shake(3, 0.08);
         triggerChromatic(1.5);
     } else if (mult > 1.2) {
-        spawnDmgNum(e.x, e.y - 20, 0, '#ffff00', true);
+        spawnDmgNum(e.x, e.y - 20, 'EFFECTIVE!', '#ffff00', true);
         shake(3, 0.08);
         triggerChromatic(1.0);
     }
@@ -554,12 +566,69 @@ function killEnemy(e) {
     G.maxCombo = Math.max(G.maxCombo, G.combo);
     G.enemiesKilled++;
 
+    // N002: Kill Streak System
+    G.killStreak++;
+    G.killStreakTimer = 0; // Reset kill timer (decays in game loop, resets at 3s)
+    // Check for tier promotions
+    if (typeof KILL_STREAK_TIERS !== 'undefined') {
+        for (let ti = KILL_STREAK_TIERS.length - 1; ti >= 0; ti--) {
+            const tier = KILL_STREAK_TIERS[ti];
+            if (G.killStreak >= tier.threshold && G.killStreakTier <= ti) {
+                G.killStreakTier = ti + 1;
+                G.killStreakXpMult = tier.xpMult;
+                G.killStreakAnnounce = { text: tier.text, color: tier.color, timer: 2.5 };
+                // VFX burst for streak milestone
+                shake(4, 0.2);
+                triggerFlash(tier.color, 0.25);
+                triggerChromatic(2);
+                if (typeof triggerSpeedLines === 'function') triggerSpeedLines(1);
+                spawnParticles(P.x, P.y, tier.color, 20, 70);
+                spawnDmgNum(P.x, P.y - 30, tier.text.replace(/[^\w\s!]/g, '').trim(), tier.color, true);
+                break;
+            }
+        }
+    }
+
     // K002: Apply blessing on-kill effects (heal, explosion, spreading burn)
     if (typeof applyBlessingOnKill === 'function') applyBlessingOnKill(e);
 
     // Phase E: Musou gauge fill
     const musouGain = e.type === 'fodder' ? 1 : e.type === 'elite' ? 8 : e.type === 'boss' ? 25 : e.type === 'miniboss' ? 15 : 3;
     P.musou = clamp((P.musou || 0) + musouGain, 0, P.musouMax || 100);
+
+    // N003: Death-trigger modifiers
+    if (e.modifiers && e.modifiers.length > 0) {
+        // Splitting: Spawn 2 smaller copies
+        if (e.modifiers.includes('splitting') && !e._splitChild) {
+            for (let si = 0; si < 2; si++) {
+                const angle = Math.random() * Math.PI * 2;
+                const sx = e.x + Math.cos(angle) * 15;
+                const sy = e.y + Math.sin(angle) * 15;
+                const child = typeof spawnEnemy === 'function' ? spawnEnemy(sx, sy, e.type === 'elite' ? 'grunt' : 'elite') : null;
+                if (child) {
+                    child._splitChild = true; // prevent infinite recursion
+                    child.modifiers = [];
+                    child.hp = child.maxHp * 0.5;
+                    child.r = Math.max(3, e.r - 2);
+                }
+            }
+            spawnDmgNum(e.x, e.y - 15, 'SPLIT!', '#44dd44', true);
+            spawnParticles(e.x, e.y, '#44dd44', 12, 40);
+        }
+        // Molten: Leave fire AoE on death
+        if (e.modifiers.includes('molten')) {
+            // Add a fire pool to bullets as an AoE hazard
+            G.bullets.push({
+                x: e.x, y: e.y, type: 'aoe_ring', r: 30,
+                color: '#ff6600', el: 'FIRE',
+                life: 3, maxLife: 3, dmg: e.dmg * 0.3,
+                _moltenPool: true
+            });
+            spawnDmgNum(e.x, e.y - 15, 'MOLTEN!', '#ff6600', true);
+            spawnParticles(e.x, e.y, '#ff6600', 15, 50);
+            shake(2, 0.1);
+        }
+    }
 
     // Phase G: Morale gain on kill
     G.morale = clamp((G.morale || 0) + (e.type === 'miniboss' ? 15 : e.type === 'boss' ? 25 : 1), 0, 100);

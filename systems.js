@@ -25,8 +25,31 @@ function spawnEnemy(x, y, type) {
         speed: t.speed * diffTier.spdMult, dmg: t.dmg * floorMult * diffTier.hpMult,
         r: t.r, el, color: elDef.color, lightColor: elDef.light,
         type, flash: 0, knockX: 0, knockY: 0, dead: false,
-        attackCd: 0, spawnAnim: 0.4
+        attackCd: 0, spawnAnim: 0.4,
+        modifiers: [] // N003: Elite modifier slots
     };
+    // N003: Assign random modifiers to elite/miniboss enemies
+    if ((type === 'elite' || type === 'miniboss') && typeof ELITE_MODIFIERS !== 'undefined') {
+        const numMods = G.floor >= 5 ? (Math.random() < 0.4 ? 2 : 1) : (G.floor >= 3 ? 1 : 0);
+        const pool = [...ELITE_MODIFIERS];
+        for (let mi = 0; mi < numMods && pool.length > 0; mi++) {
+            const idx = Math.floor(Math.random() * pool.length);
+            const mod = pool.splice(idx, 1)[0];
+            enemy.modifiers.push(mod.id);
+            // Modifier-specific init state
+            if (mod.id === 'shielded') enemy._shieldHits = 3;
+            if (mod.id === 'teleporter') enemy._teleportCd = 3;
+            if (mod.id === 'berserker') enemy._enraged = false;
+        }
+        // Announce modifiers
+        if (enemy.modifiers.length > 0) {
+            const modNames = enemy.modifiers.map(id => {
+                const m = ELITE_MODIFIERS.find(m2 => m2.id === id);
+                return m ? m.label : id;
+            }).join(' ');
+            spawnDmgNum(x, y - 20, modNames, '#ffaa00', true);
+        }
+    }
     // Boss-specific phase tracking
     if (type === 'boss') {
         enemy.phase = 1;
@@ -94,6 +117,7 @@ function spawnEnemy(x, y, type) {
         spawnParticles(x, y, ELEMENTS[gen.el].light, 12, 40);
     }
     G.enemies.push(enemy);
+    return enemy; // N003: Return for modifier use (e.g. Splitting)
 }
 
 // L003: Final Boss — Dong Zhuo, The Tyrant
@@ -431,6 +455,44 @@ function updateEnemies(dt) {
             e.frozenTimer -= dt;
             if (Math.random() < 0.1) spawnParticles(e.x, e.y, '#88ccff', 1, 6);
             continue; // Skip all AI while frozen
+        }
+
+        // N003: Elite Modifier Behaviors (per-frame)
+        if (e.modifiers && e.modifiers.length > 0) {
+            // Berserker: Enrage at <30% HP
+            if (e.modifiers.includes('berserker') && !e._enraged && e.hp / e.maxHp < 0.3) {
+                e._enraged = true;
+                e.speed = (e._origSpeed || e.speed) * 2;
+                e.dmg *= 1.5;
+                spawnDmgNum(e.x, e.y - 15, 'ENRAGED!', '#ff2222', true);
+                shake(3, 0.15);
+                spawnParticles(e.x, e.y, '#ff2222', 10, 40);
+            }
+            // Berserker visual: red pulse
+            if (e._enraged && Math.random() < 0.15) {
+                spawnParticles(e.x + rng(-5, 5), e.y + rng(-5, 5), '#ff2222', 1, 15);
+            }
+            // Teleporter: Blink every 3s
+            if (e.modifiers.includes('teleporter')) {
+                e._teleportCd = (e._teleportCd || 3) - dt;
+                if (e._teleportCd <= 0) {
+                    e._teleportCd = 3;
+                    // Blink to random position near player
+                    const angle = Math.random() * Math.PI * 2;
+                    const blinkDist = 40 + Math.random() * 60;
+                    e.x = clamp(P.x + Math.cos(angle) * blinkDist, 20, G.arenaW - 20);
+                    e.y = clamp(P.y + Math.sin(angle) * blinkDist, 20, G.arenaH - 20);
+                    spawnParticles(e.x, e.y, '#44dddd', 8, 30);
+                }
+                // Flicker visual near teleport
+                if (e._teleportCd < 0.5 && Math.random() < 0.3) {
+                    spawnParticles(e.x + rng(-8, 8), e.y + rng(-8, 8), '#44dddd', 1, 10);
+                }
+            }
+            // Vampiric visual: purple aura
+            if (e.modifiers.includes('vampiric') && Math.random() < 0.08) {
+                spawnParticles(e.x + rng(-6, 6), e.y + rng(-6, 6), '#aa44cc', 1, 8);
+            }
         }
 
         // Chase player (with boss-specific AI)
@@ -813,6 +875,13 @@ function updateEnemies(dt) {
                 spawnDmgNum(P.x, P.y - 12, Math.ceil(dmg), '#ff3333', true);
                 spawnParticles(P.x, P.y, '#ff3333', 5, 50);
                 SFX.playerHit();
+                // N003: Vampiric modifier — heal 10% of damage dealt
+                if (e.modifiers && e.modifiers.includes('vampiric') && dmg > 0) {
+                    const healAmt = dmg * 0.1;
+                    e.hp = Math.min(e.hp + healAmt, e.maxHp);
+                    spawnDmgNum(e.x, e.y - 10, '+' + Math.ceil(healAmt), '#aa44cc', false);
+                    spawnParticles(e.x, e.y, '#aa44cc', 3, 15);
+                }
                 e.attackCd = 0.5;
             }
         }
@@ -1054,10 +1123,15 @@ function updatePickups(dt) {
         if (d < 8) {
             // Collect
             if (p.type === 'xp') {
-                P.xp += p.val * (1 + passives.xpGain);
+                // N002: Kill streak XP multiplier + N004: Blood Moon bonus
+                const streakMult = G.killStreakXpMult || 1;
+                const moonMult = G.bloodMoon ? (G.bloodMoonRewardMult || 1.5) : 1;
+                P.xp += p.val * (1 + passives.xpGain) * streakMult * moonMult;
                 SFX.xpPickup();
             } else if (p.type === 'gold') {
-                G.score += p.val;
+                // N004: Blood Moon gold bonus
+                const moonGoldMult = G.bloodMoon ? (G.bloodMoonRewardMult || 1.5) : 1;
+                G.score += Math.floor(p.val * moonGoldMult);
                 SFX.goldPickup();
             } else if (p.type === 'hp') {
                 P.hp = Math.min(P.hp + p.val, P.maxHp);

@@ -59,6 +59,18 @@ const G = {
     // Phase K: Difficulty Tiers
     difficulty: 0,              // Selected difficulty index (0-3)
     difficultyUnlocked: [true, false, false, false], // Which tiers are unlocked
+    // N002: Kill Streak System
+    killStreak: 0,              // Current kill streak count
+    killStreakTimer: 0,          // Time since last kill (resets streak at 3s)
+    killStreakTier: 0,           // Current streak tier index
+    killStreakXpMult: 1,         // Current XP bonus from streak
+    killStreakAnnounce: null,    // { text, color, timer } for center announcements
+    // N004: Blood Moon Events
+    bloodMoon: false,           // Is Blood Moon active?
+    bloodMoonTimer: 0,          // Time remaining for Blood Moon
+    bloodMoonCooldown: 0,       // Cooldown before next Blood Moon can trigger
+    bloodMoonWaves: 0,          // Extra enemy waves spawned
+    bloodMoonRewardMult: 1.5,   // XP/gold bonus during Blood Moon
 };
 
 // --- Difficulty Tiers (K004) ---
@@ -81,7 +93,24 @@ const DIFFICULTY_TIERS = [
     }
 ];
 
-// --- Player ---
+// N002: Kill Streak Tiers
+const KILL_STREAK_TIERS = [
+    { threshold: 25, text: '🔥 KILLING SPREE!', xpMult: 1.1, color: '#ffaa00' },
+    { threshold: 50, text: '💀 RAMPAGE!', xpMult: 1.2, color: '#ff6600' },
+    { threshold: 100, text: '⚡ MASSACRE!', xpMult: 1.3, color: '#ff3300' },
+    { threshold: 200, text: '🌟 UNSTOPPABLE!', xpMult: 1.5, color: '#ff00ff' },
+    { threshold: 500, text: '👑 GODLIKE!', xpMult: 2.0, color: '#ffd700' }
+];
+
+// N003: Elite Enemy Modifiers
+const ELITE_MODIFIERS = [
+    { id: 'shielded', icon: '🛡️', label: 'Shielded', color: '#4488ff', desc: '50% DR for first 3 hits' },
+    { id: 'berserker', icon: '⚡', label: 'Berserker', color: '#ff2222', desc: 'Enrages below 30% HP' },
+    { id: 'splitting', icon: '🧬', label: 'Splitting', color: '#44dd44', desc: 'Splits into 2 on death' },
+    { id: 'vampiric', icon: '🧛', label: 'Vampiric', color: '#aa44cc', desc: 'Heals 10% of dmg dealt' },
+    { id: 'teleporter', icon: '💫', label: 'Teleporter', color: '#44dddd', desc: 'Blinks every 3s' },
+    { id: 'molten', icon: '🔥', label: 'Molten', color: '#ff6600', desc: 'Fire AoE on death' }
+];
 const P = {
     x: 1000, y: 1000, w: 12, h: 14,
     vx: 0, vy: 0, speed: 100,
@@ -327,7 +356,19 @@ function shake(amount, dur) { G.shakeDur = Math.max(G.shakeDur, dur); G.shakeX =
 function hitStop(dur) { G.hitStop = Math.max(G.hitStop, dur); }
 
 function spawnDmgNum(x, y, val, color, big) {
-    G.dmgNums.push({ x, y, val: Math.round(val), color, big: !!big, life: 1.0, vy: -40 });
+    // N001: Pool cap — prevent GC pressure
+    if (G.dmgNums.length >= 50) G.dmgNums.shift();
+    // Support string labels ("CRIT!", "EXECUTE!", etc.)
+    const isStr = typeof val === 'string';
+    const numVal = isStr ? 0 : Math.round(val);
+    const label = isStr ? val : null;
+    // N001: Font size by magnitude (small 1-10, med 10-50, large 50-200, huge 200+)
+    let sz = 8;
+    if (big) sz = 12;
+    else if (!isStr && numVal >= 200) sz = 14;
+    else if (!isStr && numVal >= 50) sz = 11;
+    else if (!isStr && numVal >= 10) sz = 9;
+    G.dmgNums.push({ x, y, val: numVal, label, color, big: !!big, sz, life: 1.0, vy: -40 - (big ? 15 : 0) });
 }
 
 function spawnParticles(x, y, color, count, speed) {

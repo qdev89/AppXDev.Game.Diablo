@@ -446,6 +446,28 @@ function drawHUD() {
     if (typeof drawSkillIcons === 'function') drawSkillIcons();
     if (typeof drawKillCounter === 'function') drawKillCounter();
 
+    // N004: Blood Moon HUD indicator
+    if (G.bloodMoon) {
+        const bmPct = G.bloodMoonTimer / 15;
+        const barW = 80, barH = 5;
+        const barX = GAME_W / 2 - barW / 2;
+        const barY = 5;
+        const pulse = 0.7 + Math.sin(G.time * 4) * 0.3;
+        // Background
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+        // Timer bar
+        ctx.fillStyle = `rgba(204, 0, 0, ${pulse})`;
+        ctx.fillRect(barX, barY, barW * bmPct, barH);
+        // Label
+        drawText('🌑 BLOOD MOON', GAME_W / 2, barY + barH + 2, {
+            font: 'bold 8px monospace', fill: '#ff4444', align: 'center', outlineWidth: 2
+        });
+        drawText(`+${Math.round((G.bloodMoonRewardMult - 1) * 100)}% REWARDS`, GAME_W / 2, barY + barH + 10, {
+            font: '7px monospace', fill: '#ffaa44', align: 'center', outlineWidth: 1
+        });
+    }
+
     // Hero name display
     const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
     if (hero) {
@@ -1476,6 +1498,62 @@ function drawKillCounter() {
         drawText(`${G.killMilestone} SLAIN!`, GAME_W / 2, 70, {
             font: 'bold 18px monospace', fill: '#ff4444', align: 'center', outlineWidth: 4
         });
+        ctx.globalAlpha = 1;
+    }
+
+    // N002: Kill Streak counter (top-right, below kill count)
+    if (G.killStreak >= 10) {
+        const streakPulse = 1 + Math.sin(G.time * 6) * 0.1;
+        const streakSz = Math.floor(9 * streakPulse);
+        const tierColor = G.killStreakTier > 0 && typeof KILL_STREAK_TIERS !== 'undefined'
+            ? KILL_STREAK_TIERS[Math.min(G.killStreakTier - 1, KILL_STREAK_TIERS.length - 1)].color
+            : '#ffaa44';
+        // Streak timer bar (shows time remaining before reset)
+        const timerPct = 1 - (G.killStreakTimer / 3.0);
+        const barX = GAME_W - 70, barY = 36, barW = 58, barH = 3;
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(barX, barY, barW, barH);
+        ctx.fillStyle = tierColor;
+        ctx.fillRect(barX, barY, barW * timerPct, barH);
+        // Streak text
+        drawText(`🔥 ×${G.killStreak}`, GAME_W - 12, 30, {
+            font: `bold ${streakSz}px monospace`, fill: tierColor, align: 'right', outlineWidth: 2
+        });
+    }
+
+    // N002: Kill Streak milestone announcement (center screen banner)
+    if (G.killStreakAnnounce) {
+        const sa = G.killStreakAnnounce;
+        const alpha = sa.timer > 1.5 ? (2.5 - sa.timer) : sa.timer > 0.5 ? 1 : sa.timer * 2;
+        ctx.globalAlpha = clamp(alpha, 0, 1);
+        // Banner background
+        const bannerY = GAME_H * 0.25;
+        const grad = ctx.createLinearGradient(0, bannerY, GAME_W, bannerY);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.2, sa.color + '88');
+        grad.addColorStop(0.5, sa.color + 'cc');
+        grad.addColorStop(0.8, sa.color + '88');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, bannerY, GAME_W, 32);
+        // Glow borders
+        ctx.fillStyle = sa.color;
+        ctx.globalAlpha = clamp(alpha * 0.5, 0, 1);
+        ctx.fillRect(GAME_W * 0.15, bannerY, GAME_W * 0.7, 1);
+        ctx.fillRect(GAME_W * 0.15, bannerY + 31, GAME_W * 0.7, 1);
+        ctx.globalAlpha = clamp(alpha, 0, 1);
+        // Text
+        const popScale = sa.timer > 2 ? 1 + (2.5 - sa.timer) * 2 : 1;
+        drawText(sa.text, GAME_W / 2, bannerY + 5, {
+            font: `bold ${Math.floor(14 * popScale)}px monospace`, fill: '#fff', align: 'center', outlineWidth: 4
+        });
+        // XP bonus subtext
+        const xpBonus = Math.round((G.killStreakXpMult - 1) * 100);
+        if (xpBonus > 0) {
+            drawText(`+${xpBonus}% XP`, GAME_W / 2, bannerY + 20, {
+                font: 'bold 9px monospace', fill: sa.color, align: 'center', outlineWidth: 2
+            });
+        }
         ctx.globalAlpha = 1;
     }
 }

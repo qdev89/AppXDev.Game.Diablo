@@ -135,6 +135,10 @@ function startGame() {
     G.treasureRoom = null; G.archerBullets = [];
     G.yinYang = { yin: 0, yang: 0, state: 'NEUTRAL', timer: 0 };
     G.totalKills = 0; G.chainTimer = 0; G.chainCount = 0; G.chainBest = 0; G.killMilestone = 0;
+    // N002: Reset kill streak
+    G.killStreak = 0; G.killStreakTimer = 0; G.killStreakTier = 0; G.killStreakXpMult = 1; G.killStreakAnnounce = null;
+    // N004: Reset Blood Moon
+    G.bloodMoon = false; G.bloodMoonTimer = 0; G.bloodMoonCooldown = 30; G.bloodMoonWaves = 0;
     G.allies = [];
     G.sacredBeast = null;
     G.equipment = { armor: null, talisman: null, mount: null };
@@ -333,6 +337,69 @@ function updatePlayer(dt) {
         if (G.chainTimer <= 0) {
             if (G.chainCount > G.chainBest) G.chainBest = G.chainCount;
             G.chainCount = 0;
+        }
+    }
+
+    // N002: Kill Streak timer — reset streak after 3s without a kill
+    if (G.killStreak > 0) {
+        G.killStreakTimer += dt;
+        if (G.killStreakTimer >= 3.0) {
+            G.killStreak = 0;
+            G.killStreakTimer = 0;
+            G.killStreakTier = 0;
+            G.killStreakXpMult = 1;
+        }
+    }
+    // N002: Streak announcement timer
+    if (G.killStreakAnnounce) {
+        G.killStreakAnnounce.timer -= dt;
+        if (G.killStreakAnnounce.timer <= 0) G.killStreakAnnounce = null;
+    }
+
+    // N004: Blood Moon Event System
+    if (G.bloodMoon) {
+        G.bloodMoonTimer -= dt;
+        // Extra enemy waves during Blood Moon
+        G._bloodMoonSpawnTick = (G._bloodMoonSpawnTick || 0) + dt;
+        if (G._bloodMoonSpawnTick >= 1.5) {
+            G._bloodMoonSpawnTick = 0;
+            G.bloodMoonWaves++;
+            // Spawn a burst of enemies
+            if (typeof spawnEnemy === 'function') {
+                const count = 3 + Math.floor(G.floor * 0.5);
+                for (let bmi = 0; bmi < count; bmi++) {
+                    const edge = Math.floor(Math.random() * 4);
+                    let sx, sy;
+                    if (edge === 0) { sx = Math.random() * G.arenaW; sy = 5; }
+                    else if (edge === 1) { sx = Math.random() * G.arenaW; sy = G.arenaH - 5; }
+                    else if (edge === 2) { sx = 5; sy = Math.random() * G.arenaH; }
+                    else { sx = G.arenaW - 5; sy = Math.random() * G.arenaH; }
+                    const types = ['fodder', 'grunt', 'fast', 'grunt'];
+                    spawnEnemy(sx, sy, types[Math.floor(Math.random() * types.length)]);
+                }
+            }
+        }
+        // Blood Moon end
+        if (G.bloodMoonTimer <= 0) {
+            G.bloodMoon = false;
+            G.bloodMoonCooldown = 45 + Math.random() * 15;
+            G._bloodMoonSpawnTick = 0;
+            G.floorAnnounce = { text: '🌕 BLOOD MOON FADES', timer: 2 };
+        }
+    } else {
+        // Cooldown tick
+        if (G.bloodMoonCooldown > 0) {
+            G.bloodMoonCooldown -= dt;
+        } else if (G.floor >= 3 && G.roomState === 'FIGHTING' && Math.random() < 0.0002) {
+            // Trigger Blood Moon!
+            G.bloodMoon = true;
+            G.bloodMoonTimer = 15; // 15s event
+            G.bloodMoonWaves = 0;
+            G._bloodMoonSpawnTick = 0;
+            G.floorAnnounce = { text: '🌑 BLOOD MOON RISES 🌑', timer: 3, color: '#cc0000' };
+            shake(6, 0.4);
+            triggerFlash('#cc0000', 0.4);
+            if (typeof triggerChromatic === 'function') triggerChromatic(3);
         }
     }
 

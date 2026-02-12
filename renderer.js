@@ -293,7 +293,28 @@ function drawEnemies() {
             ctx.fillRect(ex - bw / 2, barY, bw * hpPct, bh);
         }
 
-        // === Phase I: Debuff VFX Overlays ===
+        // N003: Modifier icons above HP bar
+        if (e.modifiers && e.modifiers.length > 0 && typeof ELITE_MODIFIERS !== 'undefined') {
+            const iconY = ey - e.r - 12;
+            const iconStartX = ex - (e.modifiers.length - 1) * 5;
+            for (let mi = 0; mi < e.modifiers.length; mi++) {
+                const modDef = ELITE_MODIFIERS.find(m => m.id === e.modifiers[mi]);
+                if (!modDef) continue;
+                const ix = iconStartX + mi * 10;
+                // Tiny colored dot indicator
+                ctx.globalAlpha = 0.8 + Math.sin(G.time * 5 + mi) * 0.2;
+                ctx.fillStyle = modDef.color;
+                ctx.beginPath();
+                ctx.arc(ix, iconY, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+            // Modifier glow ring
+            const primaryMod = ELITE_MODIFIERS.find(m => m.id === e.modifiers[0]);
+            if (primaryMod) {
+                drawGlow(ex, ey, e.r * 1.2, primaryMod.color, 0.12 + Math.sin(G.time * 3) * 0.06);
+            }
+        }
 
         // Slow debuff — frost tint overlay + ice crystals
         if (e._slowTimer > 0) {
@@ -782,20 +803,26 @@ function drawDmgNums() {
         d.y += d.vy * G.dt; d.vy += 60 * G.dt; d.life -= G.dt * 1.5;
         if (d.life <= 0) { G.dmgNums.splice(i, 1); continue; }
 
-        ctx.globalAlpha = Math.min(d.life, 1);
-        const text = d.val > 0 ? d.val.toString() : 'EFFECTIVE!';
+        ctx.globalAlpha = Math.min(d.life * 1.5, 1); // fade smooth
+        const text = d.label || (d.val > 0 ? d.val.toString() : 'EFFECTIVE!');
+        const baseSz = d.sz || (d.big ? 12 : 8);
 
         if (d.big) {
-            // Big crit/effective numbers - scale up
-            const scale = 1 + (1 - d.life) * 0.3;
+            // N001: Pop-in scale animation — starts big, settles down
+            const age = 1 - d.life;
+            const pop = age < 0.15 ? 1 + (1 - age / 0.15) * 0.6 : 1 + Math.max(0, 0.3 - age * 0.5);
+            const finalSz = Math.floor(baseSz * pop);
             drawText(text, d.x, d.y, {
-                font: `bold ${Math.floor(11 * scale)}px monospace`,
+                font: `bold ${finalSz}px monospace`,
                 fill: d.color, align: 'center',
                 outline: true, outlineColor: '#000', outlineWidth: 3
             });
         } else {
+            // N001: Slight scale by magnitude
+            const scale = 1 + Math.max(0, 0.2 - d.life * 0.3);
+            const finalSz = Math.max(7, Math.floor(baseSz * scale));
             drawText(text, d.x, d.y, {
-                font: 'bold 8px monospace',
+                font: `bold ${finalSz}px monospace`,
                 fill: d.color, align: 'center',
                 outline: true, outlineColor: '#000', outlineWidth: 2
             });

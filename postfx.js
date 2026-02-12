@@ -53,6 +53,15 @@ function applyPostFX() {
         drawSpeedLines(PostFX.speedLines);
     }
 
+    // N004: Blood Moon red tint
+    if (G.bloodMoon) {
+        const bmPulse = 0.08 + Math.sin(G.time * 2) * 0.03;
+        ctx.globalAlpha = bmPulse;
+        ctx.fillStyle = '#cc0000';
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+        ctx.globalAlpha = 1;
+    }
+
     // 5. Screen Flash
     if (PostFX.screenFlash > 0.01) {
         ctx.globalAlpha = PostFX.screenFlash;
