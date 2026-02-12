@@ -348,17 +348,27 @@ function updatePlayer(dt) {
         }
     }
     // Check room clear condition
-    if (G.roomState === 'FIGHTING' && G.roomType === 'COMBAT' || G.roomType === 'ELITE') {
+    if (G.roomState === 'FIGHTING' && (G.roomType === 'COMBAT' || G.roomType === 'ELITE')) {
         if (G.enemiesKilled >= G.enemiesNeeded && !G.roomCleared) {
             G.roomCleared = true;
             G.roomState = 'CLEARED';
-            // Show door choices after short delay
-            setTimeout(() => {
-                if (G.state === 'PLAYING' && G.roomState === 'CLEARED') {
-                    G.roomState = 'DOOR_CHOICE';
-                    if (typeof generateDoorChoices === 'function') generateDoorChoices();
-                }
-            }, 3000);
+            const remaining = G.roomsPerFloor - G.room;
+            if (remaining <= 1) {
+                // Last room before boss — show door choice (boss vs prepare)
+                setTimeout(() => {
+                    if (G.state === 'PLAYING' && G.roomState === 'CLEARED') {
+                        G.roomState = 'DOOR_CHOICE';
+                        if (typeof generateDoorChoices === 'function') generateDoorChoices();
+                    }
+                }, 2000);
+            } else {
+                // Mid-floor: auto-progress to random next room (no popup!)
+                setTimeout(() => {
+                    if (G.state === 'PLAYING' && G.roomState === 'CLEARED') {
+                        if (typeof autoProgressRoom === 'function') autoProgressRoom();
+                    }
+                }, 1500);
+            }
         }
     }
 

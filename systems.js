@@ -966,9 +966,14 @@ function selectLevelUpChoice(choice) {
         G.state = 'PLAYING';
         G.levelUpChoices = [];
         SFX.levelUp();
-        // K001: After level-up in room, show doors if room is cleared
+        // K001: After level-up in room, auto-progress if room is cleared
         if (G.roomCleared && G.roomState === 'CLEARED') {
-            setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 2000);
+            const remaining = G.roomsPerFloor - G.room;
+            if (remaining <= 1) {
+                setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 2000);
+            } else {
+                setTimeout(() => { if (typeof autoProgressRoom === 'function') autoProgressRoom(); }, 1500);
+            }
         }
         return;
     }
@@ -997,9 +1002,14 @@ function selectLevelUpChoice(choice) {
     G.levelUpChoices = [];
     SFX.menuClick();
 
-    // K001: After level-up in room, show doors if room is cleared
+    // K001: After level-up in room, auto-progress if room is cleared
     if (G.roomCleared && G.roomState === 'CLEARED') {
-        setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 2000);
+        const remaining = G.roomsPerFloor - G.room;
+        if (remaining <= 1) {
+            setTimeout(() => { G.roomState = 'DOOR_CHOICE'; generateDoorChoices(); }, 2000);
+        } else {
+            setTimeout(() => { if (typeof autoProgressRoom === 'function') autoProgressRoom(); }, 1500);
+        }
     }
 }
 
@@ -1313,6 +1323,44 @@ function generateDoorChoices() {
     }
 
     G.doorChoices = choices;
+}
+
+// Auto-progress: skip door choice popup, just move to next room seamlessly
+function autoProgressRoom() {
+    // Weighted random room type
+    const typePool = ['COMBAT', 'COMBAT', 'COMBAT'];
+    if (G.floor >= 2) typePool.push('ELITE');
+    typePool.push('SHOP');
+    typePool.push('REST');
+    typePool.push('TREASURE');
+    typePool.push('BLESSING');
+
+    // Pick random, avoid repeating last room type
+    let roomType;
+    do {
+        roomType = typePool[Math.floor(Math.random() * typePool.length)];
+    } while (roomType === G.roomType && typePool.length > 1);
+
+    G.room++;
+    G.roomType = roomType;
+    G.roomState = 'TRANSITIONING';
+    G.roomTransition = 0.8;
+    G.doorChoices = null;
+    G.roomCleared = false;
+    G.roomHistory.push(roomType);
+
+    // Transition VFX
+    triggerFlash('#000000', 0.4);
+    SFX.menuClick();
+
+    // Brief room announcement (non-blocking)
+    const rt = ROOM_TYPES[roomType] || ROOM_TYPES.COMBAT;
+    G.floorAnnounce = {
+        text: rt.icon + ' ' + rt.name[G.lang || 'vi'] + ' ' + rt.icon,
+        subtitle: (G.lang === 'en' ? 'Room' : 'Phòng') + ' ' + G.room + '/' + G.roomsPerFloor,
+        timer: 1.5,
+        color: rt.color
+    };
 }
 
 function selectDoor(doorIndex) {
