@@ -185,136 +185,198 @@ function spawnFinalBoss() {
 function updateFinalBossAI(boss, dt) {
     if (!boss || boss.dead || !boss.isFinalBoss) return;
 
-    boss.slamCd -= dt;
-    boss.summonCd -= dt;
-    boss.fireCd -= dt;
+    // Cooldown management
+    if (boss.slamCd > 0) boss.slamCd -= dt;
+    if (boss.summonCd > 0) boss.summonCd -= dt;
+    if (boss.fireCd > 0) boss.fireCd -= dt;
+    if (boss.jumpTimer > 0) boss.jumpTimer -= dt;
+    if (boss.rainCd > 0) boss.rainCd -= dt;
 
     const hpRatio = boss.hp / boss.maxHp;
+    const dist = Math.hypot(P.x - boss.x, P.y - boss.y);
 
-    // Phase transitions
-    if (hpRatio <= 0.5 && boss.phase === 1) {
+    // --- Phase Transitions ---
+    if (hpRatio <= 0.6 && boss.phase === 1) {
         boss.phase = 2;
         boss.enraged = true;
-        boss.speed = 35;
-        boss.phaseTransition = 1.5;
+        boss.speed = 40; // Faster
+        boss.phaseTransition = 2.0;
+
         G.floorAnnounce = {
-            text: '💀 ĐỔNG TRÁC CUỒNG NỘ! 💀',
-            sub: 'Phase 2: Enraged!',
+            text: '🔥 CHẤN ĐỘNG CÀN KHÔN 🔥',
+            sub: 'EARTHQUAKE MODE',
             timer: 2,
             color: '#ff4400'
         };
-        shake(6, 0.5);
-        triggerFlash('#ff4400', 0.4);
-        spawnParticles(boss.x, boss.y, '#ff4400', 30, 80);
+        shake(10, 0.8);
+        triggerFlash('#ff4400', 0.5);
+        // Push player away
+        const ang = Math.atan2(P.y - boss.y, P.x - boss.x);
+        P.vx += Math.cos(ang) * 800;
+        P.vy += Math.sin(ang) * 800;
     }
-    if (hpRatio <= 0.25 && boss.phase === 2) {
+
+    if (hpRatio <= 0.3 && boss.phase === 2) {
         boss.phase = 3;
         boss.desperation = true;
-        boss.speed = 45;
-        boss.phaseTransition = 1.5;
+        boss.speed = 55; // Very fast
+        boss.phaseTransition = 2.0;
+
         G.floorAnnounce = {
-            text: '🔥 TUYỆT VỌNG! 🔥',
-            sub: 'Phase 3: Desperation!',
+            text: '☠ THIÊN HẠ ĐẠI LOẠN ☠',
+            sub: 'TOTAL CHAOS',
             timer: 2,
             color: '#ff0000'
         };
-        shake(8, 0.6);
-        triggerFlash('#ff0000', 0.5);
-        triggerChromatic(4);
-        // Spawn Lu Bu clone ally
+        triggerChromatic(10); // Heavy distortion
+        shake(15, 1.0);
+
+        // Spawn "Lu Bu" Shadow Clone
         if (!boss.cloneSpawned) {
             boss.cloneSpawned = true;
-            const clone = {
-                x: boss.x + rng(-60, 60), y: boss.y + rng(-60, 60),
-                vx: 0, vy: 0,
-                hp: 800, maxHp: 800,
-                speed: 40, dmg: 20,
-                r: 12, el: 'METAL', color: '#aaaaff', lightColor: '#ddddff',
-                type: 'officer', flash: 0, knockX: 0, knockY: 0, dead: false,
-                attackCd: 0, spawnAnim: 0.8,
-                generalName: 'Lữ Bố (Bóng)', generalTitle: 'Phân Thân',
-                isClone: true
-            };
-            G.enemies.push(clone);
-            spawnParticles(clone.x, clone.y, '#aaaaff', 20, 60);
-            G.floorAnnounce = {
-                text: '👤 LỮ BỐ PHÂN THÂN! 👤',
-                sub: 'A shadow of the God of War appears!',
-                timer: 2,
-                color: '#aaaaff'
-            };
+            spawnEnemy(boss.x + 50, boss.y, 'boss'); // Reuse generic boss as Lu Bu holder
+            const clone = G.enemies[G.enemies.length - 1];
+            clone.generalName = "Lữ Bố (Bóng)";
+            clone.color = "#8800ff";
+            clone.hp = 1500; clone.maxHp = 1500;
+            spawnParticles(clone.x, clone.y, '#8800ff', 50, 60);
         }
     }
 
-    // Phase transition freeze
+    // Phase Transition Freeze
     if (boss.phaseTransition > 0) {
         boss.phaseTransition -= dt;
-        return; // boss paused during transition
+        spawnParticles(boss.x, boss.y, boss.color, 2, 10);
+        return;
     }
 
-    // --- Abilities ---
+    // --- State Machine ---
 
-    // Phase 1: summon officer waves
-    if (boss.phase >= 1 && boss.summonCd <= 0) {
-        boss.summonCd = boss.phase >= 3 ? 6 : 10;
-        const count = boss.phase >= 3 ? 4 : 2;
-        for (let i = 0; i < count; i++) {
-            const angle = (Math.PI * 2 * i) / count;
-            const sx = boss.x + Math.cos(angle) * 80;
-            const sy = boss.y + Math.sin(angle) * 80;
-            spawnEnemy(sx, sy, 'grunt');
-            spawnParticles(sx, sy, '#ff4400', 8, 30);
-        }
+    // 1. Tyrant's Jump (Jump Slam) - Phases 2 & 3
+    // Boss disappears, shadow follows player, then lands.
+    if (boss.phase >= 2 && boss.jumpTimer <= 0 && Math.random() < 0.05) {
+        boss.isJumping = true;
+        boss.jumpTimer = boss.phase === 3 ? 4 : 7; // Cooldown
+        boss.airTime = 1.5; // Time in air
+        boss.landX = P.x;
+        boss.landY = P.y;
+        boss.hidden = true; // Hide sprite logic in renderer (need to handle)
+        // Instead of 'hidden' prop which renderer might not check, we can move him offscreen or sets visible flag
+        // Let's use specific property 'isAirborne'
+        boss.isAirborne = true;
+        spawnParticles(boss.x, boss.y, '#555', 20, 50); // Smoke bomb effect
     }
 
-    // Fire Slam (AOE ground pound)
-    if (boss.slamCd <= 0) {
-        boss.slamCd = boss.enraged ? 3 : 5;
-        const radius = boss.enraged ? 100 : 70;
+    if (boss.isAirborne) {
+        boss.airTime -= dt;
+        // Tracking player (Tracking Shadow)
+        const lerp = 5 * dt;
+        boss.landX += (P.x - boss.landX) * lerp;
+        boss.landY += (P.y - boss.landY) * lerp;
 
-        // AOE damage to player
-        const dist = Math.hypot(P.x - boss.x, P.y - boss.y);
-        if (dist < radius) {
-            P.hp -= boss.dmg * 0.6;
-            P.invincible = 0.3;
-            shake(4, 0.2);
-            spawnDmgNum(P.x, P.y - 15, Math.ceil(boss.dmg * 0.6), '#ff4400', false);
-        }
-
-        // VFX
+        // Draw Shadow Indicator (handled in renderer or here via effect)
+        // Since we can't easily modify renderer in this Step without another tool call, 
+        // we'll spawn a "shadow" particle/effect every frame that stays for 1 frame
         G.skillEffects.push({
-            type: 'shockwave', x: boss.x, y: boss.y,
-            radius: 5, maxRadius: radius, speed: 200,
-            color: '#ff4400', alpha: 0.5, lineWidth: 3, timer: 0.3
+            type: 'impact_radius_warn', // New type or reuse 'shockwave' with 0 expansion
+            x: boss.landX, y: boss.landY,
+            radius: 60, color: 'rgba(0,0,0,0.5)', timer: 0.1
         });
-        spawnParticles(boss.x, boss.y, '#ff4400', 15, 50);
-    }
 
-    // Phase 2+: Fire projectiles
-    if (boss.phase >= 2 && boss.fireCd <= 0) {
-        boss.fireCd = boss.desperation ? 1.5 : 2.5;
-        const count = boss.desperation ? 8 : 5;
-        for (let i = 0; i < count; i++) {
-            const angle = (Math.PI * 2 * i) / count;
+        if (boss.airTime <= 0) {
+            // LAND!
+            boss.isAirborne = false;
+            boss.x = boss.landX;
+            boss.y = boss.landY;
+
+            // Damage
+            const landDist = Math.hypot(P.x - boss.x, P.y - boss.y);
+            if (landDist < 80) {
+                P.hp -= boss.dmg * 2; // Massive damage
+                P.invincible = 0.5;
+                spawnDmgNum(P.x, P.y, Math.floor(boss.dmg * 2), '#ff0000', true);
+                shake(10, 0.4);
+            }
+
+            // Visuals
+            spawnParticles(boss.x, boss.y, '#ff4400', 50, 100); // Explosion
             G.skillEffects.push({
-                type: 'projectile_fire',
-                x: boss.x, y: boss.y,
-                vx: Math.cos(angle) * 120,
-                vy: Math.sin(angle) * 120,
-                dmg: boss.dmg * 0.3,
-                color: '#ff4400',
-                r: 5,
-                timer: 2.0
+                type: 'shockwave', x: boss.x, y: boss.y,
+                radius: 10, maxRadius: 150, speed: 400,
+                color: '#ff4400', alpha: 0.8, lineWidth: 5, timer: 0.5
             });
         }
-        spawnParticles(boss.x, boss.y, '#ff8800', 10, 40);
+        return; // Don't do other updates while in air
     }
 
-    // Enraged: faster, glow effect
-    if (boss.enraged) {
-        // Continuously emit fire particles
-        if (Math.random() < 0.3) {
-            spawnParticles(boss.x + rng(-15, 15), boss.y + rng(-15, 15), '#ff4400', 1, 20);
+    // 2. Chain Flail (Orbiting Fireballs) - Phase 1 & 2
+    if (!boss.orbitals && boss.phase <= 2) {
+        boss.orbitals = [];
+        for (let i = 0; i < 3; i++) {
+            boss.orbitals.push({ angle: (Math.PI * 2 / 3) * i, r: 80 });
+        }
+    }
+    if (boss.orbitals) {
+        // Update orbitals
+        const rotSpeed = boss.enraged ? 3 : 1.5;
+        for (let orb of boss.orbitals) {
+            orb.angle += rotSpeed * dt;
+            const ox = boss.x + Math.cos(orb.angle) * orb.r;
+            const oy = boss.y + Math.sin(orb.angle) * orb.r;
+
+            // Damage player if touched
+            if (Math.hypot(P.x - ox, P.y - oy) < 20) {
+                if (P.invincible <= 0) {
+                    P.hp -= boss.dmg * 0.5;
+                    P.invincible = 0.2;
+                    spawnDmgNum(P.x, P.y, Math.floor(boss.dmg * 0.5), '#ff8800');
+                }
+            }
+
+            // Visuals (Particle ball)
+            spawnParticles(ox, oy, '#ff8800', 2, 10);
+        }
+    }
+
+    // 3. Rain of Fire (Desperation) - Phase 3
+    if (boss.phase === 3) {
+        if (boss.rainCd <= 0) {
+            boss.rainCd = 0.2; // Very frequent
+            const rx = rng(30, G.arenaW - 30);
+            const ry = rng(30, G.arenaH - 30);
+
+            // Warning first? Setup warning effect
+            G.skillEffects.push({
+                type: 'hazard_warn', x: rx, y: ry,
+                r: 40, timer: 1.0, color: '#ff0000',
+                onExpire: () => {
+                    // Explosion logic
+                    spawnParticles(rx, ry, '#ff0000', 10, 30);
+                    if (Math.hypot(P.x - rx, P.y - ry) < 40) {
+                        P.hp -= boss.dmg;
+                        P.invincible = 0.2;
+                    }
+                }
+            });
+        }
+    }
+
+    // Basic Movement (Chase)
+    if (dist > 60) {
+        const angle = Math.atan2(P.y - boss.y, P.x - boss.x);
+        boss.x += Math.cos(angle) * boss.speed * dt;
+        boss.y += Math.sin(angle) * boss.speed * dt;
+    }
+
+    // Basic Attack (Melee)
+    if (dist < 70 && boss.attackCd <= 0) {
+        boss.attackCd = 1.0;
+        // Swing logic
+        spawnParticles(boss.x + (P.x - boss.x) * 0.5, boss.y + (P.y - boss.y) * 0.5, '#fff', 5, 20);
+        if (dist < 50) {
+            P.hp -= boss.dmg;
+            P.invincible = 0.5;
+            shake(2, 0.1);
         }
     }
 }
@@ -382,14 +444,22 @@ function updateEnemies(dt) {
         // Save original speed for stun recovery
         if (!e._origSpeed) e._origSpeed = e.speed;
 
-        // Phase H: Slow debuff tick-down
-        if (e._slowTimer > 0) {
-            e._slowTimer -= dt;
-            e.speed = e._origSpeed * (1 - (e._slowPct || 0.3));
-            if (e._slowTimer <= 0) {
-                e.speed = e._origSpeed;
-            }
+        // Unified Speed Calculation (Status + Hazard)
+        let speedMult = 1.0;
+
+        // Hazard Slow (P001)
+        if (e._inHazardSlow > 0) {
+            speedMult *= (1 - e._inHazardSlow);
         }
+
+        // Phase H: Slow debuff tick-down
+        if (e.slowTimer > 0 || e._slowTimer > 0) { // Support both legacy and new prop names if any
+            if (e.slowTimer) e.slowTimer -= dt;
+            if (e._slowTimer) e._slowTimer -= dt;
+            speedMult *= (1 - (e._slowPct || 0.3));
+        }
+
+        e.speed = e._origSpeed * speedMult;
 
         // Phase H: Burn DOT
         if (e._burnTimer > 0) {
@@ -851,8 +921,18 @@ function updateEnemies(dt) {
                     continue;
                 }
                 // Apply bonding damage reduction
-                const dr = getBondDmgReduction();
-                let dmg = e.dmg * (1 - dr);
+                const bondDr = getBondDmgReduction(); // Base bonding DR
+
+                // K002: Blessing Stats (Defensive)
+                const bStats = (window.getBlessingStats) ? window.getBlessingStats() : {};
+                const blessDr = bStats.dmgReduction || 0;
+
+                let dmg = e.dmg * (1 - bondDr);
+                dmg *= (1 - blessDr); // Apply blessing DR
+
+                // Cursed: increased damage taken
+                if (bStats.enemyDmgMult) dmg *= bStats.enemyDmgMult;
+
                 // Vanguard passive: -20% damage taken
                 const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
                 if (hero && hero.passive.stat === 'tankAura') dmg *= 0.80;
@@ -865,6 +945,17 @@ function updateEnemies(dt) {
                 if (eqArmor && eqArmor.reflect && e.hp > 0) {
                     damageEnemy(e, dmg * eqArmor.reflect, P.element);
                 }
+
+                // Blessing Thorns
+                if (bStats.hasThorns && e.hp > 0) {
+                    damageEnemy(e, e.dmg * bStats.thornsValue, 'WOOD'); // Thorns usually Wood/Nature
+                }
+                // Blessing Ice Armor (Freeze attacker)
+                if (bStats.hasIceArmor) {
+                    e.frozen = (e.frozen || 0) + bStats.iceArmorFreeze;
+                    spawnDmgNum(e.x, e.y - 20, 'FROZEN!', '#88ccff', true);
+                }
+
                 P.hp -= dmg;
                 P.damageFlash = 0.15;
                 P.invincible = 0.3;
@@ -928,8 +1019,9 @@ function generateLevelUpChoices() {
     const choices = [];
 
     // Check for evolution opportunity first
-    if (typeof getEvolutionChoice === 'function') {
-        const evoChoice = getEvolutionChoice();
+    // Check for evolution opportunity first
+    if (typeof window.getEvolutionChoice === 'function') {
+        const evoChoice = window.getEvolutionChoice();
         if (evoChoice) {
             choices.push(evoChoice);
         }
@@ -1049,7 +1141,7 @@ function selectLevelUpChoice(choice) {
 
     // Handle evolution
     if (choice.isEvolution && def.isEvolution) {
-        applyEvolution(def);
+        window.applyEvolution(def);
         G.state = 'PLAYING';
         G.levelUpChoices = [];
         return;
@@ -1152,7 +1244,30 @@ function updatePortal(dt) {
     }
 }
 
+// --- Stage Clear Blessing System (N006) ---
 function nextFloor() {
+    // Stage Clear!
+    // Instead of immediate next floor, we go to Blessing Select
+    G.state = 'BLESSING_SELECT';
+    G.blessingChoices = (typeof generateBlessingChoices === 'function')
+        ? generateBlessingChoices(3) : [];
+
+    // Fanfare
+    SFX.levelUp();
+    spawnParticles(P.x, P.y, '#ffd700', 50, 100);
+    triggerFlash('#ffffff', 0.5);
+    G.floorAnnounce = {
+        text: 'STAGE CLEARED!',
+        subtitle: 'Choose your Blessing',
+        timer: 100, // Stay until chosen
+        color: '#ffd700'
+    };
+
+    // Auto-save at stage clear
+    if (typeof saveRunState === 'function') saveRunState();
+}
+
+function startNextFloor() {
     G.floor++;
     G.enemies = [];
     G.bullets = [];
@@ -1202,6 +1317,51 @@ function nextFloor() {
 
     // Re-init ambient particles for new biome
     if (typeof initAmbientParticles === 'function') initAmbientParticles();
+
+    // K001: Generate new room layout for the floor
+    if (typeof generateRoomsForFloor === 'function') generateRoomsForFloor();
+    // Start in first room (room 1)
+    G.room = 1;
+    G.roomType = 'COMBAT'; // First room always combat
+    G.roomState = 'FIGHTING';
+    if (typeof setupRoom === 'function') setupRoom();
+
+    // Auto-save at floor start
+    if (typeof saveRunState === 'function') saveRunState();
+}
+
+function selectStageClearBlessing(blessing) {
+    if (typeof addBlessing === 'function') addBlessing(blessing);
+
+    // VFX
+    const deity = WU_XING_DEITIES[blessing.deity];
+    spawnParticles(P.x, P.y, deity.color, 40, 80);
+    spawnParticles(P.x, P.y, deity.light, 20, 60);
+    triggerFlash(deity.color, 0.4);
+    shake(4, 0.3);
+    SFX.levelUp();
+
+    // Proceed to next floor
+    G.state = 'PLAYING';
+    G.blessingChoices = null;
+    startNextFloor();
+}
+
+function handleBlessingSelectClick(mx, my) {
+    if (G.state !== 'BLESSING_SELECT' || !G.blessingChoices) return;
+    const choices = G.blessingChoices;
+    const boxW = 130, boxH = 90, gap = 12;
+    const totalW = choices.length * boxW + (choices.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 + 10;
+
+    for (let i = 0; i < choices.length; i++) {
+        const bx = startX + i * (boxW + gap);
+        if (mx >= bx && mx <= bx + boxW && my >= startY && my <= startY + boxH) {
+            selectStageClearBlessing(choices[i]);
+            return;
+        }
+    }
 }
 
 // --- Treasure Room Update ---

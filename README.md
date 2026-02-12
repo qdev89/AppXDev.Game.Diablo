@@ -117,6 +117,22 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 | Sima Yi | Tư Mã Ý — Ẩn Long | Dark Ritual |
 | + 6 more... | | |
 
+## 🌋 Physics Hazard System (New!)
+
+**Inspired by Mewgenics (binding of isaac developer)** — A robust environmental hazard engine that adds "chemistry" to the combat:
+
+- **Interactive Zones** — Weapons now spawn persistent hazard zones:
+    - 🔥 **Scorched Earth** — Burns enemies over time (Fire attacks)
+    - 💧 **Puddles** — Slows movement and wets entities (Water attacks)
+    - 🌿 **Overgrowth** — Heals player, slows enemies (Wood attacks)
+    - 🧱 **Mud** — Heavy slow, sticky movement (Earth attacks)
+    - ⚡ **Electrified** — Stuns enemies in range (Metal/Lightning attacks)
+
+- **Elemental Chemistry** — Hazards interact dynamically:
+    - **Fire + Water = Steam** ☁️ (Blinds enemies, deals AoE steam damage)
+    - **Water + Lightning = Electrified Puddle** ⚡ (Massive stun area)
+    - **Mud + Fire = Baked Earth** 🌋 (Traps enemies in hardened clay)
+
 ## 📁 File Structure
 
 ```
@@ -127,6 +143,7 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 ├── lang.js             # Bilingual localization (VI/EN)
 ├── engine.js           # Core engine, constants, state, input
 ├── game.js             # Game loop, player update, state machine
+├── physics.js          # Environmental Hazards & Elemental Chemistry (New!)
 ├── heroes.js           # 6 hero classes, equipment, companions
 ├── weapons.js          # Weapon system, damage, musou
 ├── systems.js          # Enemy AI, spawning, level-up, rooms, shops
@@ -155,6 +172,7 @@ Dynasty Bruhhh Dungeon is a **Diablo × Dynasty Warriors** hybrid roguelike dung
 
 | Version | Phase | Highlights |
 |---------|-------|------------|
+| **v1.2.0** | Phase P: "Mewgenics Physics" | 🌋 Environmental Hazards, Elemental Chemistry, Weapon interactions |
 | **v1.1.0** | Phase M: "The Infinite" | 🏆 Achievements, 📅 Daily Challenges, 📱 PWA + GitHub Pages |
 | v1.0.0 | Phase L: "The Living World" | Minimap, Wu Xing combos, Đổng Trác final boss, Victory screen |
 | v0.9.0 | Phases A-K | Core gameplay, 6 heroes, blessings, rooms, bonding, weapons |

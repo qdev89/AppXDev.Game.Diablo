@@ -3,38 +3,44 @@
 // ============================================================
 
 // --- Weapon Definitions ---
-const WEAPON_DEFS = [
+window.WEAPON_DEFS = [
     // ===== HERO SIGNATURE WEAPONS (unique starting weapons) =====
     {
         id: 'fire_halberd', name: '🔴 Sky Piercer', el: 'FIRE', type: 'melee',
         desc: 'Lu Bu\'s legendary halberd — wide devastating sweep',
-        dmg: 15, cd: 0.9, range: 48, arc: 120, tier: 1, heroOnly: 'berserker'
+        dmg: 15, cd: 0.9, range: 48, arc: 120, tier: 1, heroOnly: 'berserker',
+        evolvesTo: 'fire_halberd_evo', evolutionReq: { passive: 'atk_speed', level: 5 }
     },
     {
         id: 'wood_fan', name: '🟢 Feather Fan', el: 'WOOD', type: 'projectile',
         desc: 'Zhuge Liang\'s fan — fires 3 wind blades in spread',
-        dmg: 10, cd: 1.0, range: 140, speed: 180, spread: 3, spreadAngle: 25, tier: 1, heroOnly: 'strategist'
+        dmg: 10, cd: 1.0, range: 140, speed: 180, spread: 3, spreadAngle: 25, tier: 1, heroOnly: 'strategist',
+        evolvesTo: 'wood_fan_evo', evolutionReq: { passive: 'xp_gain', level: 5 }
     },
     {
         id: 'metal_twin', name: '🪙 Twin Blades', el: 'METAL', type: 'orbital',
         desc: 'Zhou Yu\'s dual swords — fast spinning orbit',
-        dmg: 6, cd: 0.3, range: 40, count: 2, tier: 1, heroOnly: 'assassin'
+        dmg: 6, cd: 0.3, range: 40, count: 2, tier: 1, heroOnly: 'assassin',
+        evolvesTo: 'metal_twin_evo', evolutionReq: { passive: 'move_spd', level: 5 }
     },
     {
         id: 'earth_spear', name: '🟤 Dragon Spear', el: 'EARTH', type: 'melee',
         desc: 'Zhao Yun\'s spear — long reach forward thrust',
-        dmg: 16, cd: 0.7, range: 55, arc: 45, tier: 1, heroOnly: 'vanguard'
+        dmg: 16, cd: 0.7, range: 55, arc: 45, tier: 1, heroOnly: 'vanguard',
+        evolvesTo: 'earth_spear_evo', evolutionReq: { passive: 'max_hp', level: 5 }
     },
     {
         id: 'water_scepter', name: '🔵 Dark Scepter', el: 'WATER', type: 'projectile',
         desc: 'Sima Yi\'s scepter — homing frost bolts',
-        dmg: 15, cd: 1.0, range: 160, speed: 150, homing: true, tier: 1, heroOnly: 'mystic'
+        dmg: 15, cd: 1.0, range: 160, speed: 150, homing: true, tier: 1, heroOnly: 'mystic',
+        evolvesTo: 'water_scepter_evo', evolutionReq: { passive: 'pickup_range', level: 5 }
     },
     {
         id: 'wood_shuriken', name: '🌟 Wind Shuriken', el: 'WOOD', type: 'thrown',
         desc: 'Huang Zhong\'s shuriken — 3-fan spread + pierce',
         dmg: 10, cd: 0.7, range: 170, speed: 220, spread: 3, spreadAngle: 30,
-        pierce: 1, tier: 1, heroOnly: 'ranger'
+        pierce: 1, tier: 1, heroOnly: 'ranger',
+        evolvesTo: 'wood_shuriken_evo', evolutionReq: { passive: 'atk_speed', level: 5 }
     },
 
     // ===== GENERIC WEAPONS (loot/level-up pool) =====
@@ -89,6 +95,39 @@ const WEAPON_DEFS = [
         dmg: 9, cd: 0.3, range: 140, speed: 300, spread: 2, spreadAngle: 12,
         pierce: 1, tier: 2
     },
+
+    // ===== EVOLVED WEAPONS (Tier 3) =====
+    {
+        id: 'fire_halberd_evo', name: '🔥 Inferno Dragon', el: 'FIRE', type: 'melee',
+        desc: 'Lu Bu\'s ultimate halberd — leaves a trail of fire',
+        dmg: 45, cd: 0.8, range: 70, arc: 160, tier: 3
+    },
+    {
+        id: 'wood_fan_evo', name: '🌪️ Storm Lord\'s Call', el: 'WOOD', type: 'projectile',
+        desc: 'Summons giant tornadoes',
+        dmg: 35, cd: 0.9, range: 180, speed: 100, count: 5, spreadAngle: 60, tier: 3
+    },
+    {
+        id: 'metal_twin_evo', name: '⚔️ Blade Master\'s Flow', el: 'METAL', type: 'orbital',
+        desc: 'Massive web of blades',
+        dmg: 25, cd: 0.2, range: 80, count: 8, tier: 3
+    },
+    {
+        id: 'earth_spear_evo', name: '🏔️ Mountain Crusher', el: 'EARTH', type: 'melee',
+        desc: 'Shockwaves on every hit',
+        dmg: 50, cd: 0.6, range: 90, arc: 80, tier: 3
+    },
+    {
+        id: 'water_scepter_evo', name: '❄️ Frost Archon\'s Gaze', el: 'WATER', type: 'projectile',
+        desc: 'Blizzard storm',
+        dmg: 40, cd: 1.2, range: 200, speed: 120, homing: true, tier: 3
+    },
+    {
+        id: 'wood_shuriken_evo', name: '🍃 Wind Shadow', el: 'WOOD', type: 'thrown',
+        desc: '8-way shuriken burst',
+        dmg: 28, cd: 0.5, range: 250, spread: 8, spreadAngle: 360, pierce: 5, tier: 3
+    },
+
     // Passives
     { id: 'atk_speed', name: '⚡ Swift Strikes', type: 'passive', desc: '+20% attack speed', stat: 'atkSpd', val: 0.2 },
     { id: 'max_hp', name: '❤️ Vitality', type: 'passive', desc: '+25 max HP', stat: 'maxHp', val: 25 },
@@ -98,27 +137,94 @@ const WEAPON_DEFS = [
 ];
 
 // Active weapon instances on player
-function createWeapon(def) {
+window.createWeapon = function (def) {
     return {
         ...def, timer: 0, level: 1, angle: 0,
-        orbitAngle: Math.random() * Math.PI * 2
+        orbitAngle: Math.random() * Math.PI * 2,
+        comboStep: 0, comboReset: 0
     };
 }
 
-// --- Passive Stats ---
-const passives = { atkSpd: 0, maxHp: 0, moveSpd: 0, pickupRange: 0, xpGain: 0 };
+// Check if weapon can evolve
+window.checkEvolution = function () {
+    for (const w of G.weapons) {
+        if (w.level >= 5 && w.evolvesTo) {
+            const req = w.evolutionReq;
+            // Simplified check: require passive to be somewhat leveled (e.g. > 0)
+            if (req && window.passives[req.passive] >= 0.2) {
+                return { weapon: w, evolutionId: w.evolvesTo };
+            }
+        }
+    }
+    return null;
+}
 
-function applyPassive(def) {
-    passives[def.stat] = (passives[def.stat] || 0) + def.val;
+window.getEvolutionChoice = function () {
+    const evo = window.checkEvolution();
+    if (evo) {
+        const evoDef = window.WEAPON_DEFS.find(d => d.id === evo.evolutionId);
+        if (evoDef) {
+            return {
+                def: evoDef,
+                isUpgrade: true,
+                isEvolution: true,
+                oldWeapon: evo.weapon,
+                level: 1
+            };
+        }
+    }
+    return null;
+}
+
+window.applyEvolution = function (def) {
+    // Find the base weapon to remove
+    const baseId = def.id.replace('_evo', ''); // Naive check, or use logic
+    // Better: find the weapon that evolved to this
+    const oldWIndex = G.weapons.findIndex(w => w.evolvesTo === def.id);
+
+    if (oldWIndex >= 0) {
+        const oldW = G.weapons[oldWIndex];
+        // Remove old weapon
+        G.weapons.splice(oldWIndex, 1);
+
+        // Add new evolved weapon
+        const newW = window.createWeapon(def);
+        newW.level = 1; // Evolved weapons start at level 1 (but are powerful)
+        G.weapons.push(newW);
+
+        // VFX
+        if (typeof spawnParticles === 'function') spawnParticles(P.x, P.y, '#ff00ff', 50, 100);
+        if (typeof SHAKE_SCREEN === 'function') SHAKE_SCREEN(10); // visual flair
+        if (typeof SFX !== 'undefined') SFX.levelUp(); // reusable sfx
+
+        // Announcement
+        G.floorAnnounce = {
+            text: '✨ EVOLUTION! ✨',
+            subtitle: def.name,
+            timer: 3.0,
+            color: '#ff00ff'
+        };
+    }
+}
+
+// --- Passive Stats ---
+// --- Passive Stats ---
+window.passives = { atkSpd: 0, maxHp: 0, moveSpd: 0, pickupRange: 0, xpGain: 0 };
+
+window.applyPassive = function (def) {
+    window.passives[def.stat] = (window.passives[def.stat] || 0) + def.val;
     if (def.stat === 'maxHp') { P.maxHp += def.val; P.hp = Math.min(P.hp + def.val, P.maxHp); }
 }
 
 // --- Weapon Update ---
 function updateWeapons(dt) {
     const auraAtkSpd = (G.allyAura && G.allyAura.atkSpd) ? G.allyAura.atkSpd : 0;
-    const spdMult = 1 + passives.atkSpd + auraAtkSpd;
+    const spdMult = 1 + window.passives.atkSpd + auraAtkSpd;
     for (const w of G.weapons) {
         w.timer -= dt * spdMult;
+        if (w.comboReset > 0) w.comboReset -= dt;
+        if (w.comboReset <= 0) w.comboStep = 0; // Reset combo if idle too long
+
         if (w.type === 'orbital') {
             w.orbitAngle += dt * 3;
         }
@@ -143,30 +249,98 @@ function fireWeapon(w) {
 }
 
 function fireMelee(w, el) {
-    const arcRad = (w.arc || 90) * Math.PI / 180;
-    const baseAngle = P.facing > 0 ? 0 : Math.PI;
-    const range = w.range + w.level * 5;
-    const dmg = w.dmg * (1 + w.level * 0.3);
+    // 1. Determine Aim Angle
+    let aimAngle = 0;
+    if (G.mouse && G.mouse.moved) {
+        aimAngle = Math.atan2(G.mouse.y + G.camY - P.y, G.mouse.x + G.camX - P.x);
+        // Update P.facing based on aim for consistency
+        if (Math.abs(Math.cos(aimAngle)) > 0.1) P.facing = Math.cos(aimAngle) > 0 ? 1 : -1;
+    } else {
+        // Fallback to movement or facing
+        if (Math.abs(P.vx) > 10 || Math.abs(P.vy) > 10) {
+            aimAngle = Math.atan2(P.vy, P.vx);
+        } else {
+            aimAngle = P.facing > 0 ? 0 : Math.PI;
+        }
+    }
+
+    // 2. Combo Logic
+    const step = w.comboStep || 0;
+    let dmgMult = 1;
+    let rangeMult = 1;
+    let arcMult = 1;
+    let vfxType = 'slash'; // slash, backslash, thrust
+
+    // Combo Steps: 1 (Slash) -> 2 (Backslash) -> 3 (Finisher)
+    if (step === 0) {
+        // Normal slash
+    } else if (step === 1) {
+        vfxType = 'backslash';
+        dmgMult = 1.2;
+    } else if (step === 2) {
+        vfxType = 'thrust';
+        dmgMult = 2.0; rangeMult = 1.3; arcMult = 1.5;
+        shake(4, 0.15); // Big impact
+    }
+
+    w.comboStep = (step + 1) % 3;
+    w.comboReset = 1.5; // 1.5s to continue combo
+
+    const arcRad = (w.arc || 90) * arcMult * Math.PI / 180;
+    const range = (w.range + w.level * 5) * rangeMult;
+    const finalDmg = w.dmg * (1 + w.level * 0.3) * dmgMult;
+
+    // 3. Hit Detection
+    let hitCount = 0;
     for (const e of G.enemies) {
         const dx = e.x - P.x, dy = e.y - P.y;
         const d = Math.hypot(dx, dy);
         if (d > range) continue;
         const angle = Math.atan2(dy, dx);
-        let diff = angle - baseAngle;
+        let diff = angle - aimAngle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
+
         if (Math.abs(diff) < arcRad / 2) {
-            damageEnemy(e, dmg, w.el);
+            damageEnemy(e, finalDmg, w.el);
+            hitCount++;
+
+            // Impact VFX on hit
+            spawnParticles(e.x, e.y, el.light, 3, 40);
+            // Pushback
+            const push = 100 * (step === 2 ? 3 : 1);
+            e.vx += Math.cos(angle) * push;
+            e.vy += Math.sin(angle) * push;
         }
     }
-    // Visual slash
+
+    // P001: Hazards on Melee Finishers or Evolved Weapons
+    if (window.Physics) {
+        // Fire Halberd Evo / Finisher -> Scorched Earth
+        if (w.id === 'fire_halberd_evo' || (w.el === 'FIRE' && step === 2)) {
+            window.Physics.spawnHazard(P.x + Math.cos(aimAngle) * range * 0.5, P.y + Math.sin(aimAngle) * range * 0.5, 'SCORCHED', range * 0.6);
+        }
+        // Earth Spear Evo -> Mud
+        if (w.id === 'earth_spear_evo') {
+            window.Physics.spawnHazard(P.x + Math.cos(aimAngle) * range * 0.5, P.y + Math.sin(aimAngle) * range * 0.5, 'MUD', range * 0.5);
+        }
+    }
+
+    // 4. VFX Spawn
     G.bullets.push({
-        x: P.x + P.facing * 15, y: P.y, type: 'slash',
-        angle: baseAngle, arc: arcRad, range, color: el.light,
-        el: w.el, life: 0.25, maxLife: 0.25, weaponId: w.id
+        x: P.x, y: P.y, type: vfxType, // Use centralized player pos, handle offset in renderer
+        angle: aimAngle, arc: arcRad, range, color: el.light,
+        el: w.el, life: 0.2, maxLife: 0.2, weaponId: w.id,
+        comboStep: step
     });
-    shake(2, 0.06);
-    triggerChromatic(0.8);
+
+    // Audio & Juice
+    if (hitCount > 0) {
+        shake(2 + step, 0.1);
+        // Play hit sound (future)
+        triggerFlash(el.light, 0.05);
+    }
+    triggerChromatic(step === 2 ? 3 : 1);
 
     // ===== HERO-SPECIFIC MELEE VFX =====
     if (w.id === 'fire_halberd') {
@@ -182,7 +356,7 @@ function fireMelee(w, el) {
         });
         // Ember shower (12 particles rising)
         for (let i = 0; i < 12; i++) {
-            const a = baseAngle + (Math.random() - 0.5) * arcRad;
+            const a = (aimAngle || 0) + (Math.random() - 0.5) * arcRad;
             const spd = 40 + Math.random() * 80;
             G.skillEffects.push({
                 type: 'ember',
@@ -203,31 +377,51 @@ function fireMelee(w, el) {
         });
         spawnParticles(P.x + P.facing * 20, P.y, '#ff4400', 10, 60);
         spawnParticles(P.x + P.facing * 20, P.y, '#ffd700', 6, 40);
+
+        // P001: Ensure Physics Hazard for base halberd too if high level
+        if (w.level >= 3 && window.Physics) {
+            window.Physics.spawnHazard(P.x + Math.cos(aimAngle) * range * 0.5, P.y + Math.sin(aimAngle) * range * 0.5, 'SCORCHED', range * 0.4);
+        }
+
     } else if (w.id === 'earth_spear') {
         // Dragon Spear — Linear thrust trail + ground crack
         shake(3, 0.08);
         // Thrust line effect
         G.skillEffects.push({
             type: 'speed_line', x: P.x, y: P.y,
-            angle: baseAngle, length: 0, maxLength: range * 0.8,
+            angle: aimAngle || 0, length: 0, maxLength: range * 0.8,
             speed: 300, color: '#ddaa44', alpha: 0.7, timer: 0.25
         });
         // Impact crack at tip
         G.skillEffects.push({
-            type: 'crack', x: P.x + P.facing * range * 0.7, y: P.y,
-            angle: baseAngle + (Math.random() - 0.5) * 0.5,
+            type: 'crack', x: P.x + Math.cos(aimAngle) * range * 0.7, y: P.y + Math.sin(aimAngle) * range * 0.7,
+            angle: (aimAngle || 0) + (Math.random() - 0.5) * 0.5,
             length: 0, maxLength: 20, speed: 100,
             color: '#ddaa44', alpha: 0.6, timer: 0.3
         });
         G.skillEffects.push({
-            type: 'impact_flash', x: P.x + P.facing * range * 0.6, y: P.y,
+            type: 'impact_flash', x: P.x + Math.cos(aimAngle) * range * 0.6, y: P.y + Math.sin(aimAngle) * range * 0.6,
             radius: 8, color: '#ffcc44', alpha: 0.5, timer: 0.12
         });
-        spawnParticles(P.x + P.facing * range * 0.5, P.y, '#ddaa44', 6, 35);
+        spawnParticles(P.x + Math.cos(aimAngle) * range * 0.5, P.y + Math.sin(aimAngle) * range * 0.5, '#ddaa44', 6, 35);
     } else {
         // Generic melee — standard particles
-        spawnElementParticles(P.x + P.facing * 20, P.y, w.el, 6, 45);
+        spawnElementParticles(P.x + Math.cos(aimAngle) * 20, P.y + Math.sin(aimAngle) * 20, w.el, 6, 45);
     }
+}
+
+// Hero Element Mapping for Resonance
+const HERO_ELEMENTS = {
+    'berserker': 'FIRE',
+    'strategist': 'WOOD',
+    'assassin': 'METAL',
+    'vanguard': 'EARTH',
+    'mystic': 'WATER',
+    'ranger': 'WOOD' // Huang Zhong associated with wind/wood here
+};
+
+function getHeroElement() {
+    return HERO_ELEMENTS[P.heroId] || 'METAL'; // Default generic
 }
 
 function fireProjectile(w, el) {
@@ -237,9 +431,14 @@ function fireProjectile(w, el) {
         if (d < nearDist) { nearDist = d; nearest = e; }
     }
     if (!nearest) return;
+
     const baseA = Math.atan2(nearest.y - P.y, nearest.x - P.x);
     const spd = w.speed || 200;
     const dmg = w.dmg * (1 + w.level * 0.3);
+
+    // M005: Elemental Resonance Tint
+    const heroEl = getHeroElement();
+    const resonanceColor = ELEMENTS[heroEl].light; // Tint with hero element
 
     // Spread shot (e.g., Feather Fan fires 3 projectiles in a fan)
     const count = w.spread || 1;
@@ -251,11 +450,22 @@ function fireProjectile(w, el) {
         }
         G.bullets.push({
             x: P.x, y: P.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
-            dmg: dmg, el: w.el, color: el.light,
+            dmg: dmg, el: w.el,
+            color: w.el === heroEl ? w.color : resonanceColor,
             life: 2, type: 'bullet', r: 3 + w.level, pierce: w.level >= 3 ? 2 : 0,
             homing: w.homing || false, homingTarget: w.homing ? nearest : null,
             weaponId: w.id
         });
+    }
+
+    // P001: Projectile Hazards (Puddles / Steam)
+    if (window.Physics) {
+        if (w.id === 'water_scepter_evo') {
+            window.Physics.spawnHazard(nearest.x, nearest.y, 'PUDDLE', 60);
+        } else if (w.id === 'fire_pillar' || w.el === 'FIRE') {
+            // 10% chance to leave scorched earth at target
+            if (Math.random() < 0.15) window.Physics.spawnHazard(nearest.x, nearest.y, 'SCORCHED', 20);
+        }
     }
 
     // ===== HERO-SPECIFIC PROJECTILE VFX =====
@@ -345,6 +555,12 @@ function fireThrown(w, el) {
         });
     }
 
+    // P001: Hazards for Thrown
+    if (window.Physics && w.el === 'FIRE' && Math.random() < 0.2) {
+        window.Physics.spawnHazard(nearest.x, nearest.y, 'SCORCHED', 25);
+    }
+
+
     // === VFX per weapon ===
     if (w.id === 'wood_shuriken') {
         // Shuriken — Green wind trail + leaf burst
@@ -401,6 +617,13 @@ function fireOrbital(w, el) {
         const a = w.orbitAngle + (Math.PI * 2 / orbCount) * i;
         const ox = P.x + Math.cos(a) * range;
         const oy = P.y + Math.sin(a) * range;
+
+        // P001: Orbital Hazards (Metal Storm = sparks)
+        // Check occasionally to not spam
+        if (window.Physics && w.id === 'metal_twin_evo' && Math.random() < 0.05) {
+            window.Physics.spawnHazard(ox, oy, 'ELECTRIFIED', 20);
+        }
+
         for (const e of G.enemies) {
             if (dist({ x: ox, y: oy }, e) < 15) {
                 damageEnemy(e, dmg, w.el);
@@ -425,6 +648,8 @@ function fireOrbital(w, el) {
     }
 }
 
+// --- Weapon Implementation ---
+
 function fireAoE(w, el) {
     const range = w.range + w.level * 10;
     const dmg = w.dmg * (1 + w.level * 0.3);
@@ -433,6 +658,18 @@ function fireAoE(w, el) {
             damageEnemy(e, dmg, w.el);
         }
     }
+
+    // P001: AOE Hazards
+    if (window.Physics) {
+        if (w.id === 'wood_vine') { // Root Zone
+            window.Physics.spawnHazard(P.x, P.y, 'OVERGROWN', range);
+        } else if (w.id === 'earth_quake') { // Earthquake -> Mud
+            window.Physics.spawnHazard(P.x, P.y, 'MUD', range);
+        } else if (w.el === 'FIRE') {
+            window.Physics.spawnHazard(P.x, P.y, 'SCORCHED', range * 0.8);
+        }
+    }
+
     G.bullets.push({
         x: P.x, y: P.y, type: 'aoe_ring', r: range, color: el.light,
         el: w.el, life: 0.4, maxLife: 0.4
@@ -462,6 +699,11 @@ function fireHeal(w) {
 
 // --- Damage Enemy ---
 function damageEnemy(e, dmg, el) {
+    if (e.dead) return;
+
+    // Get Blessing Stats (K002)
+    const bStats = (window.getBlessingStats) ? window.getBlessingStats() : {};
+
     // Element bonus
     let mult = 1;
     if (GENERATING[el] === e.el) mult = 0.8;
@@ -470,6 +712,35 @@ function damageEnemy(e, dmg, el) {
 
     // Phase E: Hero passive multipliers
     const hero = typeof getHeroDef === 'function' ? getHeroDef(P.heroId) : null;
+    const heroEl = getHeroElement(); // M005: Get hero element for resonance
+
+    // M005: Elemental Resonance Effects
+    // 1. FIRE Resonance: 10% chance to burn
+    if (heroEl === 'FIRE' && Math.random() < 0.1) {
+        e.burn = (e.burn || 0) + 2;
+        spawnDmgNum(e.x, e.y - 30, 'BURN', '#ff4400', false);
+    }
+    // 2. WATER Resonance: 10% chance to slow (chill)
+    if (heroEl === 'WATER' && Math.random() < 0.1) {
+        e.slow = (e.slow || 0) + 1.5;
+        spawnDmgNum(e.x, e.y - 30, 'CHILL', '#44aaff', false);
+    }
+    // 3. WOOD Resonance: 2% chance to life leech
+    if (heroEl === 'WOOD' && Math.random() < 0.02) {
+        const healAmt = Math.ceil(P.maxHp * 0.01) || 1;
+        P.hp = Math.min(P.hp + healAmt, P.maxHp);
+        spawnDmgNum(P.x, P.y - 10, `+${healAmt}`, '#44ff44', false);
+        spawnParticles(P.x, P.y, '#44ff44', 5, 20);
+    }
+    // 4. METAL Resonance: Crit Chance (stacking with Assassin)
+    const baseCrit = (hero && hero.passive.stat === 'critChance') ? 0.20 : 0;
+    const metalCrit = (heroEl === 'METAL') ? 0.15 : 0;
+    const auraCrit = (G.allyAura && G.allyAura.critBonus) ? G.allyAura.critBonus : 0;
+    const blessCrit = bStats.critChance || 0; // Blessing crit
+
+    // 5. EARTH Resonance: Extra knockback
+    let knockBonus = (heroEl === 'EARTH') ? 1.5 : 1.0;
+    knockBonus *= (1 + (bStats.knockbackMult || 0)); // Blessing knockback
 
     // Phase H: Ranger Eagle Eye — DMG scales with distance
     if (hero && hero.passive.stat === 'eagleEye') {
@@ -485,12 +756,13 @@ function damageEnemy(e, dmg, el) {
         mult *= 1 + Math.min(G.combo * 0.02, 0.5);
     }
 
-    // Assassin: Crit chance (20% for 3x)
+    // Blessing Damage Multiplier (includes Cursed/Archetype bonuses)
+    if (bStats.dmgMult) mult *= (1 + bStats.dmgMult);
+
+    // Assassin / Blessing Crit chance calculation
     let isCrit = false;
-    const baseCrit = (hero && hero.passive.stat === 'critChance') ? 0.20 : 0;
-    const auraCrit = (G.allyAura && G.allyAura.critBonus) ? G.allyAura.critBonus : 0;
-    if (Math.random() < baseCrit + auraCrit) {
-        mult *= 3;
+    if (Math.random() < baseCrit + metalCrit + auraCrit + blessCrit) {
+        mult *= 3; // Standard 300% crit dmg? Or 200%? Let's keep 3x for impact.
         isCrit = true;
     }
 
@@ -500,16 +772,15 @@ function damageEnemy(e, dmg, el) {
     else if (morale >= 60) mult *= 1.10;
     else if (morale >= 30) mult *= 1.05;
 
-    // K002: Wu Xing Blessing damage modifier
-    if (typeof getBlessingDamageMult === 'function') {
-        mult *= getBlessingDamageMult();
-    }
-
     // L001: Armor Break bonus (from SHATTER combo)
     if (e._armorBroken > 0) mult *= 2;
 
     // L001: Forge Strike buff (from FORGE STRIKE combo — +50% dmg)
     if (G._forgeBuff > 0) mult *= 1.5;
+    // Duo: Frozen Bonus Dmg
+    if (bStats.hasFrozenBonus && (e.slow > 0 || e.frozen > 0)) {
+        mult *= (1 + bStats.frozenBonusVal);
+    }
 
     const finalDmg = dmg * mult;
 
@@ -524,37 +795,74 @@ function damageEnemy(e, dmg, el) {
             spawnParticles(e.x, e.y, '#4488ff', 12, 50);
         }
     }
+
     e.hp -= reducedDmg;
     e.flash = 0.1;
-    e.knockX = (e.x - P.x) * 0.3;
-    e.knockY = (e.y - P.y) * 0.3;
+    // Apply Knockback
+    const kx = (e.x - P.x) * 0.3 * knockBonus;
+    const ky = (e.y - P.y) * 0.3 * knockBonus;
+    e.knockX = isNaN(kx) ? 0 : kx;
+    e.knockY = isNaN(ky) ? 0 : ky;
+
+    // --- On-Hit Effects (Blessings) ---
+    if (bStats.hasPoison) { e.poison = (e.poison || 0) + bStats.poisonDuration; e.poisonDps = Math.max(e.poisonDps || 0, bStats.poisonDps); }
+    if (bStats.hasBurn) { e.burn = (e.burn || 0) + bStats.burnDuration; e.burnDps = Math.max(e.burnDps || 0, bStats.burnDps); }
+    if (bStats.hasBleed) { e.bleed = (e.bleed || 0) + bStats.bleedDuration; e.bleedDps = Math.max(e.bleedDps || 0, bStats.bleedDps); }
+    if (bStats.hasSlow) { e.slow = (e.slow || 0) + 2; } // Generic slow
+    if (bStats.lifesteal > 0) {
+        const heal = Math.ceil(reducedDmg * bStats.lifesteal) || 1;
+        P.hp = Math.min(P.hp + heal, P.maxHp);
+        spawnDmgNum(P.x, P.y - 12, '+' + heal, '#ff4444', false);
+    }
+    if (bStats.hasStun && Math.random() < bStats.stunChance) {
+        e.stun = (e.stun || 0) + bStats.stunDuration;
+        spawnDmgNum(e.x, e.y - 20, 'STUN!', '#ffff00', true);
+    }
+    if (bStats.hasFreeze && Math.random() < bStats.freezeChance) {
+        e.frozen = (e.frozen || 0) + bStats.freezeDuration;
+        spawnDmgNum(e.x, e.y - 20, 'FROZEN!', '#88ccff', true);
+    }
+    // Duo: Burn Stun
+    if (bStats.hasBurnStun && (e.burn > 0) && Math.random() < bStats.burnStunChance) {
+        e.stun = (e.stun || 0) + 1.0;
+        spawnDmgNum(e.x, e.y - 20, 'STUN!', '#ffff00', true);
+    }
+    // Execute
+    if (bStats.executeThreshold > 0 && e.type !== 'boss' && e.hp < e.maxHp * bStats.executeThreshold) {
+        e.hp = 0;
+        spawnDmgNum(e.x, e.y - 30, 'EXECUTE!', '#ff0000', true);
+        shake(5, 0.2);
+    }
 
     const elDef = ELEMENTS[el] || ELEMENTS.METAL;
     const dmgColor = isCrit ? '#ff4400' : mult > 1.2 ? '#ffff00' : elDef.light;
-    spawnDmgNum(e.x + rng(-5, 5), e.y - 8, finalDmg, dmgColor, isCrit || mult > 1.2);
+    spawnDmgNum(e.x + rng(-5, 5), e.y - 8, Math.ceil(reducedDmg), dmgColor, isCrit || mult > 1.2);
     spawnElementParticles(e.x, e.y, el, 3, 35);
     SFX.hit();
 
     if (isCrit) {
         spawnDmgNum(e.x, e.y - 20, 'CRIT!', '#ff4400', true);
         shake(3, 0.08);
-        triggerChromatic(1.5);
-    } else if (mult > 1.2) {
-        spawnDmgNum(e.x, e.y - 20, 'EFFECTIVE!', '#ffff00', true);
-        shake(3, 0.08);
-        triggerChromatic(1.0);
+        SFX.hitHeavy();
     }
+}
+    } triggerChromatic(1.5);
+} else if (mult > 1.2) {
+    spawnDmgNum(e.x, e.y - 20, 'EFFECTIVE!', '#ffff00', true);
+    shake(3, 0.08);
+    triggerChromatic(1.0);
+}
 
-    // Yin-Yang: attacks = +Yang
-    G.yinYang.yang = clamp(G.yinYang.yang + 0.5, 0, 100);
+// Yin-Yang: attacks = +Yang
+G.yinYang.yang = clamp(G.yinYang.yang + 0.5, 0, 100);
 
-    // K002: Apply blessing on-hit effects (slow, poison, burn, bleed, lifesteal, execute)
-    if (typeof applyBlessingOnHit === 'function') applyBlessingOnHit(e, finalDmg);
+// K002: Apply blessing on-hit effects (slow, poison, burn, bleed, lifesteal, execute)
+if (typeof applyBlessingOnHit === 'function') applyBlessingOnHit(e, finalDmg);
 
-    // L001: Check for Wu Xing elemental combos (two debuffs → synergy)
-    if (typeof checkElementalCombo === 'function') checkElementalCombo(e);
+// L001: Check for Wu Xing elemental combos (two debuffs → synergy)
+if (typeof checkElementalCombo === 'function') checkElementalCombo(e);
 
-    if (e.hp <= 0) killEnemy(e);
+if (e.hp <= 0) killEnemy(e);
 }
 
 function killEnemy(e) {

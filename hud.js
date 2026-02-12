@@ -800,14 +800,50 @@ function drawMenuScreen() {
     });
     ctx.globalAlpha = 1;
 
-    // --- Breathing "Click to Start" ---
+    // --- Continue / New Game Buttons ---
+    const hasSave = (typeof hasSavedRun === 'function' && hasSavedRun());
     const breathe = 0.5 + 0.5 * Math.sin(G.time * 2.5);
-    ctx.globalAlpha = 0.3 + breathe * 0.7;
-    ctx.shadowColor = 'rgba(255,255,255,' + (breathe * 0.3) + ')';
-    ctx.shadowBlur = breathe * 8;
-    drawText('[ CLICK / TAP TO START ]', GAME_W / 2, GAME_H / 2 + 50, { font: 'bold 13px monospace', fill: '#ffffff', align: 'center', outlineWidth: 4 });
-    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-    ctx.globalAlpha = 1;
+
+    if (hasSave) {
+        // Continue Button
+        const contAlpha = 0.8 + 0.2 * Math.sin(G.time * 3);
+        const cy1 = GAME_H / 2 + 40;
+        const cy2 = GAME_H / 2 + 80;
+
+        // Draw Continue
+        ctx.save();
+        ctx.globalAlpha = contAlpha;
+        ctx.fillStyle = 'rgba(68, 255, 68, 0.15)';
+        ctx.strokeStyle = '#44ff44';
+        ctx.lineWidth = 2;
+        ctx.fillRect(GAME_W / 2 - 80, cy1 - 15, 160, 30);
+        ctx.strokeRect(GAME_W / 2 - 80, cy1 - 15, 160, 30);
+        drawText('CONTINUE RUN', GAME_W / 2, cy1 + 5, { font: 'bold 12px monospace', fill: '#44ff44', align: 'center', outlineWidth: 3 });
+
+        // Draw New Game
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = 'rgba(255, 68, 68, 0.15)';
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(GAME_W / 2 - 70, cy2 - 12, 140, 25);
+        ctx.strokeRect(GAME_W / 2 - 70, cy2 - 12, 140, 25);
+        drawText('NEW GAME', GAME_W / 2, cy2 + 4, { font: 'bold 10px monospace', fill: '#ff4444', align: 'center', outlineWidth: 3 });
+        ctx.restore();
+
+        // Update button hitboxes for engine.js
+        G.menuButtons = {
+            continue: { x: GAME_W / 2 - 80, y: cy1 - 15, w: 160, h: 30 },
+            newGame: { x: GAME_W / 2 - 70, y: cy2 - 12, w: 140, h: 25 }
+        };
+    } else {
+        G.menuButtons = null;
+        ctx.globalAlpha = 0.3 + breathe * 0.7;
+        ctx.shadowColor = 'rgba(255,255,255,' + (breathe * 0.3) + ')';
+        ctx.shadowBlur = breathe * 8;
+        drawText('[ CLICK / TAP TO START ]', GAME_W / 2, GAME_H / 2 + 50, { font: 'bold 13px monospace', fill: '#ffffff', align: 'center', outlineWidth: 4 });
+        ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+        ctx.globalAlpha = 1;
+    }
 
     // Controls hint
     drawText('WASD/Arrows: Move \u2022 Auto-attack \u2022 Space: Dodge Roll', GAME_W / 2, GAME_H / 2 + 75, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
@@ -3300,6 +3336,75 @@ function drawBlessingChoiceScreen() {
         // Blessing desc (truncated)
         const bDesc = typeof b.desc === 'object' ? b.desc[G.lang || 'vi'] : b.desc;
         const shortDesc = bDesc.length > 25 ? bDesc.substring(0, 24) + '…' : bDesc;
+        drawText(shortDesc, x + boxW / 2, startY + 62, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
+
+        // Rarity tag
+        const rarityLabels = { common: 'Thường', rare: 'Hiếm', epic: 'Sử Thi' };
+        const rarityLabelsEn = { common: 'Common', rare: 'Rare', epic: 'Epic' };
+        const rLabel = G.lang === 'en' ? (rarityLabelsEn[b.rarity] || 'Common') : (rarityLabels[b.rarity] || 'Thường');
+        drawText('[' + rLabel + ']', x + boxW / 2, startY + 78, { font: 'bold 7px monospace', fill: rarityColors[b.rarity] || '#aaa', align: 'center', outlineWidth: 2 });
+    }
+}
+
+// N006: Stage Clear Blessing Screen
+function drawBlessingSelectScreen() {
+    if (G.state !== 'BLESSING_SELECT' || !G.blessingChoices) return;
+    const choices = G.blessingChoices;
+
+    // Darken background more for emphasis
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    // Dynamic Title
+    const titleScale = 1 + Math.sin(G.time * 4) * 0.05;
+    const titleColor = '#ffd700';
+
+    const titleEn = 'STAGE CLEARED!';
+    const titleVi = 'HOÀN THÀNH TẦNG!';
+    drawText('🏆 ' + (G.lang === 'en' ? titleEn : titleVi) + ' 🏆',
+        GAME_W / 2, GAME_H / 2 - 85, { font: `bold ${Math.floor(20 * titleScale)}px monospace`, fill: titleColor, align: 'center', outlineWidth: 4 });
+
+    drawText(G.lang === 'en' ? 'The Heavens Grant You a Blessing' : 'Trời Ban Cho Bạn Phước Lành',
+        GAME_W / 2, GAME_H / 2 - 62, { font: 'bold 10px monospace', fill: '#ccaa66', align: 'center', outlineWidth: 2 });
+
+    const boxW = 130, boxH = 90, gap = 12;
+    const totalW = choices.length * boxW + (choices.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 + 10;
+
+    for (let i = 0; i < choices.length; i++) {
+        const b = choices[i];
+        const deity = WU_XING_DEITIES[b.deity];
+        const x = startX + i * (boxW + gap);
+
+        // Card background with element gradient
+        const grad = ctx.createLinearGradient(x, startY, x, startY + boxH);
+        grad.addColorStop(0, deity.color + '44');
+        grad.addColorStop(0.6, '#111111');
+        grad.addColorStop(1, deity.color + '22');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, startY, boxW, boxH);
+
+        // Rarity border color
+        const rarityColors = { common: '#aaaaaa', rare: '#4488ff', epic: '#cc44ff' };
+        ctx.strokeStyle = rarityColors[b.rarity] || '#aaaaaa';
+        ctx.lineWidth = b.rarity === 'epic' ? 2.5 : b.rarity === 'rare' ? 2 : 1.5;
+        ctx.strokeRect(x, startY, boxW, boxH);
+
+        // Deity icon
+        drawText(deity.icon, x + boxW / 2, startY + 18, { font: '16px serif', fill: deity.light, align: 'center' });
+
+        // Deity name
+        drawText(deity.name[G.lang || 'vi'], x + boxW / 2, startY + 34, { font: 'bold 7px monospace', fill: deity.color, align: 'center', outlineWidth: 2 });
+
+        // Blessing name
+        const bName = typeof b.name === 'object' ? b.name[G.lang || 'vi'] : b.name;
+        drawText(bName, x + boxW / 2, startY + 48, { font: 'bold 8px monospace', fill: '#ffffff', align: 'center', outlineWidth: 2 });
+
+        // Blessing desc (truncated)
+        const bDesc = (b.desc && typeof b.desc === 'object') ? b.desc[G.lang || 'vi'] : (b.desc || '');
+        const descStr = String(bDesc);
+        const shortDesc = descStr.length > 25 ? descStr.substring(0, 24) + '…' : descStr;
         drawText(shortDesc, x + boxW / 2, startY + 62, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
 
         // Rarity tag

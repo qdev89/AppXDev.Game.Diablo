@@ -119,6 +119,145 @@ function updatePersistentStats() {
     saveGameSettings();
 }
 
+// --- Run Persistence (Suspend & Resume) ---
+const RUN_SAVE_KEY = 'dbd_run_save_v1';
+
+function hasSavedRun() {
+    return !!localStorage.getItem(RUN_SAVE_KEY);
+}
+
+function clearRunState() {
+    localStorage.removeItem(RUN_SAVE_KEY);
+}
+
+function saveRunState() {
+    // Only save in valid states
+    if (G.state !== 'PLAYING' && G.state !== 'PAUSED' && G.state !== 'BLESSING_SELECT' && G.state !== 'SHOP' && G.state !== 'BLESSING_CHOICE') return;
+
+    try {
+        const runData = {
+            floor: G.floor,
+            score: G.score,
+            time: G.time,
+            totalKills: G.totalKills,
+            combo: G.combo,
+            maxCombo: G.maxCombo,
+            killStreak: G.killStreak,
+            difficulty: G.difficulty,
+
+            heroId: P.heroId,
+            hp: P.hp,
+            maxHp: P.maxHp,
+            xp: P.xp,
+            level: P.level,
+            mp: P.mp,
+
+            weapons: G.weapons.map(w => ({ id: w.id, level: w.level })),
+            equipment: G.equipment,
+
+            blessingState: BlessingState,
+            blessingChoices: G.blessingChoices, // Save choices if in selection screen
+
+            // Minimal ally data implies they respawn from Bonding logic or are ephemeral
+            // For now, relies on initBondingForRun() on load
+
+            state: G.state,
+            room: G.room,
+            roomState: G.roomState,
+
+            timestamp: Date.now()
+        };
+        localStorage.setItem(RUN_SAVE_KEY, JSON.stringify(runData));
+        console.log("Run saved.");
+    } catch (e) { console.error("Save failed", e); }
+}
+
+function loadRunState() {
+    const raw = localStorage.getItem(RUN_SAVE_KEY);
+    if (!raw) return false;
+
+    try {
+        const data = JSON.parse(raw);
+        console.log("Loading run:", data);
+
+        // Restore Stats
+        G.floor = data.floor;
+        G.score = data.score;
+        G.time = data.time;
+        G.totalKills = data.totalKills;
+        G.combo = data.combo;
+        G.maxCombo = data.maxCombo;
+        G.killStreak = data.killStreak;
+        G.difficulty = data.difficulty;
+        G.room = data.room || 1;
+        G.roomState = data.roomState || 'FIGHTING';
+
+        // Init Player (base)
+        const hero = getHeroDef(data.heroId);
+        P.heroId = data.heroId;
+        P.x = G.arenaW / 2; P.y = G.arenaH / 2;
+        P.speed = hero.speed;
+        P.element = hero.element;
+
+        // Override Player Stats
+        P.hp = data.hp;
+        P.maxHp = data.maxHp;
+        P.xp = data.xp;
+        P.level = data.level;
+        P.mp = data.mp;
+        P.mpMax = hero.mp;
+
+        // Re-create Weapons & Restore Passives
+        G.weapons = [];
+        // Reset passives
+        if (typeof window.passives !== 'undefined') {
+            window.passives.atkSpd = 0; window.passives.maxHp = 0; window.passives.moveSpd = 0;
+            window.passives.pickupRange = 0; window.passives.xpGain = 0;
+        }
+
+        for (const wData of data.weapons) {
+            const def = (window.WEAPON_DEFS || []).find(d => d.id === wData.id);
+            if (def) {
+                if (def.type === 'passive' && typeof window.passives !== 'undefined') {
+                    // Update passive stats without re-buffing P.maxHp (since P.maxHp is already loaded)
+                    window.passives[def.stat] = (window.passives[def.stat] || 0) + def.val * wData.level;
+                } else {
+                    const newW = (window.createWeapon) ? window.createWeapon(def) : null;
+                    if (newW) {
+                        newW.level = wData.level;
+                        G.weapons.push(newW);
+                    }
+                }
+            }
+        }
+
+        // Restore Blessings
+        // Restore Blessings
+        if (data.blessingState && window.BlessingState) {
+            Object.assign(window.BlessingState, data.blessingState);
+        }
+
+        // Equipment
+        G.equipment = data.equipment || { armor: null, talisman: null, mount: null };
+
+        // Allies
+        G.allies = [];
+        initBondingForRun();
+
+        // State
+        G.state = data.state;
+        if (G.state === 'BLESSING_SELECT') {
+            G.blessingChoices = data.blessingChoices || ((typeof generateBlessingChoices === 'function') ? generateBlessingChoices(3) : []);
+        } else {
+            G.state = 'PLAYING'; // Fallback to playing if saved in transition
+        }
+
+        G.blessingOfferTimer = 0;
+
+        return true;
+    } catch (e) { console.error("Load failed", e); return false; }
+}
+
 // Load settings on boot
 loadGameSettings();
 
@@ -282,8 +421,25 @@ function updatePlayer(dt) {
     if (morale >= 80) spdMult *= 1.10;
     else if (morale >= 60) spdMult *= 1.05;
 
+    // P001: Physics Hazard Slow
+    if (P._inHazardSlow > 0) {
+        spdMult *= (1 - P._inHazardSlow);
+    }
+    // Physics Slide handling? (Not fully implemented yet, but flag exists)
+    // if (P._inHazardSlide) { ... override control ... }
+
     P.vx = dx * spd * spdMult;
     P.vy = dy * spd * spdMult;
+
+    // P001: Slide momentum override
+    /*
+    if (P._inHazardSlide) {
+        // Simple slide: preserve previous velocity with slight decay, ignore input
+        P.vx = (P.vx || 0) * 0.98 + (dx * 10); // small steering
+        P.vy = (P.vy || 0) * 0.98 + (dy * 10);
+    } 
+    */
+
     P.x += P.vx * dt;
     P.y += P.vy * dt;
 
@@ -455,6 +611,7 @@ function update(dt) {
 
     updatePlayer(dt);
     updateWeapons(dt);
+    if (window.Physics) window.Physics.update(dt);
     updateEnemies(dt);
     if (typeof updateArcherProjectiles === 'function') updateArcherProjectiles(dt);
 
@@ -689,6 +846,10 @@ function draw() {
         // K002: Blessing choice room
         drawGame();
         if (typeof drawBlessingChoiceScreen === 'function') drawBlessingChoiceScreen();
+    } else if (G.state === 'BLESSING_SELECT') {
+        // N006: Stage Clear Blessing selection
+        drawGame();
+        if (typeof drawBlessingSelectScreen === 'function') drawBlessingSelectScreen();
     } else if (G.state === 'GAME_OVER') {
         drawGame();
         drawGameOverScreen();

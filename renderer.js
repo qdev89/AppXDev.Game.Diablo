@@ -4,17 +4,38 @@
 
 function drawGame() {
     ctx.save();
-    ctx.translate(-G.camX + G.shakeX, -G.camY + G.shakeY);
+    // Camera Transform (with Shake)
+    // Shake is applied to camera position, translate context opposite to camera
+    let shakeX = 0, shakeY = 0;
+    if (G.shake > 0) {
+        shakeX = (Math.random() - 0.5) * G.shake;
+        shakeY = (Math.random() - 0.5) * G.shake;
+    }
+    // Update global shake vars for other systems if needed (though usually G.shakeX/Y are used)
+    // Actually, G.shakeX/Y are updated in updateCamera/shake function usually.
+    // Let's assume G.shakeX/Y are valid.
+    // Wait, original diff had: ctx.translate(-G.camX + G.shakeX, -G.camY + G.shakeY);
+
+    ctx.translate(Math.round(-G.camX + (G.shakeX || 0)), Math.round(-G.camY + (G.shakeY || 0)));
 
     // --- World layers ---
-    drawFloorTiles();          // Biome-aware tiled floor (from postfx.js)
-    drawAmbientParticles();    // Floating dust/embers (from postfx.js)
+    if (typeof drawFloorTiles === 'function') drawFloorTiles();          // Biome-aware tiled floor
+    // Hazards (Mewgenics Integration)
+    if (window.Physics && window.Physics.render) window.Physics.render(ctx, G.camX, G.camY);
+
+    if (typeof drawAmbientParticles === 'function') drawAmbientParticles();    // Floating dust/embers
+
     drawPickups();
     drawPortal();
     drawEnemies();
     drawBullets();
+
+    // Y-Sorting for Player/Enemies? Usually handled by specialized function or simple order
+    // Here we just draw player on top of enemies/bullets for clarity in this genre
     drawPlayer();
-    drawSkillEffects();
+
+    // Visual Effects
+    if (typeof drawSkillEffects === 'function') drawSkillEffects();
     drawParticlesWorld();
     drawDmgNums();
 
@@ -24,7 +45,7 @@ function drawGame() {
     drawHUD();
     if (typeof drawMinimap === 'function') drawMinimap();
     // --- Post-processing (screen-space) ---
-    applyPostFX();
+    if (typeof applyPostFX === 'function') applyPostFX();
 }
 
 // --- Player ---
@@ -231,7 +252,7 @@ function drawPlayer() {
 // --- Enemies ---
 function drawEnemies() {
     for (const e of G.enemies) {
-        if (e.dead) continue;
+        if (e.dead || e.hidden || e.isAirborne) continue;
         const ex = Math.round(e.x), ey = Math.round(e.y);
         // Cull
         if (ex < G.camX - 30 || ex > G.camX + GAME_W + 30 || ey < G.camY - 30 || ey > G.camY + GAME_H + 30) continue;
@@ -382,11 +403,14 @@ function drawBullets() {
         b.life -= G.dt;
         if (b.life <= 0) { G.bullets.splice(i, 1); continue; }
 
-        if (b.type === 'slash') {
+        if (b.type === 'slash' || b.type === 'backslash') {
             const alpha = b.life / b.maxLife;
             const el = b.el ? ELEMENTS[b.el] : null;
             const color = el ? el.light : b.color;
             const isFire = b.el === 'FIRE';
+
+            // Backslash: Flip the visual arc direction (subtle feel change)
+            // Just reusing the arc logic as it already centers on b.angle
 
             // Fire slashes get extra glowing gradient fill inside the arc
             if (isFire) {
@@ -446,6 +470,51 @@ function drawBullets() {
                 });
             }
 
+            ctx.globalAlpha = 1;
+
+        } else if (b.type === 'thrust') {
+            // New Finisher VFX: Piercing Beam/Thrust
+            const alpha = b.life / b.maxLife;
+            const el = b.el ? ELEMENTS[b.el] : null;
+            const color = el ? el.light : b.color;
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(b.angle);
+
+            // Core Thrust Beam
+            const grd = ctx.createLinearGradient(0, 0, b.range, 0);
+            grd.addColorStop(0, 'rgba(255,255,255,0.8)');
+            grd.addColorStop(0.5, color);
+            grd.addColorStop(1, 'rgba(255,255,255,0)');
+
+            ctx.fillStyle = grd;
+            ctx.globalAlpha = alpha;
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.lineTo(b.range * 1.1, 0); // Extended tip
+            ctx.lineTo(0, 5);
+            ctx.fill();
+
+            // Side energy waves
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2 * alpha;
+            ctx.beginPath();
+            ctx.moveTo(10, -10);
+            ctx.lineTo(b.range * 0.8, -15);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(10, 10);
+            ctx.lineTo(b.range * 0.8, 15);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Thrust impact particles at tip
+            if (b.life > b.maxLife * 0.8) {
+                const tipX = b.x + Math.cos(b.angle) * b.range;
+                const tipY = b.y + Math.sin(b.angle) * b.range;
+                spawnParticles(tipX, tipY, color, 2, 60);
+            }
             ctx.globalAlpha = 1;
 
         } else if (b.type === 'bullet') {
@@ -958,6 +1027,38 @@ function drawSkillEffects() {
         ctx.globalAlpha = fx.alpha;
 
         switch (fx.type) {
+            case 'impact_radius_warn': {
+                ctx.fillStyle = fx.color;
+                ctx.globalAlpha = 0.3;
+                ctx.beginPath();
+                ctx.arc(fx.x, fx.y, fx.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = fx.color;
+                ctx.globalAlpha = 0.8;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                // Inner static guide
+                ctx.beginPath();
+                ctx.arc(fx.x, fx.y, fx.radius * 0.3, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            }
+            case 'hazard_warn': {
+                // Pulsing warning
+                const pulse = 0.8 + Math.sin(G.time * 20) * 0.2;
+                ctx.strokeStyle = fx.color;
+                ctx.globalAlpha = 0.8;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([5, 5]); // Dashed line for hazard
+                ctx.beginPath();
+                ctx.arc(fx.x, fx.y, fx.r * pulse, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = fx.color;
+                ctx.globalAlpha = 0.2 * pulse;
+                ctx.fill();
+                break;
+            }
             case 'shockwave': {
                 ctx.strokeStyle = fx.color;
                 ctx.lineWidth = fx.lineWidth || 2;

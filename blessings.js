@@ -205,6 +205,28 @@ const BLESSINGS = [
     }
 ];
 
+// --- Cursed Blessings (High Risk / High Reward) ---
+const CURSED_BLESSINGS = [
+    {
+        id: 'cursed_blood_oath', deity: 'METAL', rarity: 'cursed',
+        name: { vi: 'Huyết Thệ', en: 'Blood Oath' },
+        desc: { vi: '+100% Sát thương, -50% HP tối đa', en: '+100% Damage, -50% Max HP' },
+        icon: '🩸', effect: { type: 'dmg_mult', value: 1.0, hpMult: 0.5 }
+    },
+    {
+        id: 'cursed_glass_cannon', deity: 'FIRE', rarity: 'cursed',
+        name: { vi: 'Pháo Thủy Tinh', en: 'Glass Cannon' },
+        desc: { vi: '+200% Sát thương, HP tối đa còn 1', en: '+200% Damage, Max HP reduced to 1' },
+        icon: '💎', effect: { type: 'dmg_mult', value: 2.0, forceHp: 1 }
+    },
+    {
+        id: 'cursed_greed', deity: 'EARTH', rarity: 'cursed',
+        name: { vi: 'Lòng Tham', en: 'Forbidden Greed' },
+        desc: { vi: '+50% Vàng, Kẻ thù gây x2 sát thương', en: '+50% Gold, Enemies deal 2x Damage' },
+        icon: '💰', effect: { type: 'gold_gain', value: 0.5, enemyDmgMult: 2.0 }
+    }
+];
+
 // --- Duo Blessings (combining 2 elements) ---
 const DUO_BLESSINGS = [
     {
@@ -227,6 +249,20 @@ const DUO_BLESSINGS = [
         desc: { vi: 'Tạo vùng dung nham khi né, gây 10 sát thương/giây', en: 'Leave magma trail on dodge, 10 DPS' },
         icon: '⛰️🔥', effect: { type: 'magma_trail', dps: 10, duration: 3 },
         requires: ['EARTH', 'FIRE']
+    },
+    {
+        id: 'duo_metal_wood', elements: ['METAL', 'WOOD'], rarity: 'epic',
+        name: { vi: 'Thu Hoạch', en: 'Harvest' },
+        desc: { vi: 'Hạ gục kẻ thù rơi ra HP orb (10%)', en: 'Killing enemies drops HP orbs (10%)' },
+        icon: '⚔️🌿', effect: { type: 'hp_on_kill_chance', chance: 0.1 },
+        requires: ['METAL', 'WOOD']
+    },
+    {
+        id: 'duo_water_fire', elements: ['WATER', 'FIRE'], rarity: 'epic',
+        name: { vi: 'Hơi Nước', en: 'Steam' },
+        desc: { vi: 'Gây choáng kẻ thù khi bị cháy (50%)', en: 'Stun enemies that are burning (50%)' },
+        icon: '🌊🔥', effect: { type: 'burn_stun', chance: 0.5 },
+        requires: ['WATER', 'FIRE']
     }
 ];
 
@@ -239,12 +275,35 @@ const ELEMENT_SET_BONUSES = {
     WATER: { name: { vi: 'Thuỷ Triều', en: 'Tidal Force' }, desc: { vi: '+15% hút máu, chậm thêm 15%', en: '+15% lifesteal, +15% slow' }, effect: { lifesteal: 0.15, slow: 0.15 } }
 };
 
+// --- Build Archetypes (Multi-Element Synergies) ---
+const ARCHETYPES = {
+    'SOLDIER': {
+        name: { en: 'Untamed Soldier', vi: 'Chiến Binh Hoang Dã' },
+        req: { EARTH: 2, METAL: 1 },
+        bonus: { dmgRed: 0.2, knockback: 0.5 },
+        desc: { en: 'Tanky and heavy hitting', vi: 'Trâu bò và đánh nặng' }
+    },
+    'TACTICIAN': {
+        name: { en: 'Imperial Tactician', vi: 'Quân Sư Đại Tài' },
+        req: { WOOD: 2, WATER: 1 },
+        bonus: { xpGain: 0.3, manaRegen: 1.0 },
+        desc: { en: 'Fast scaling and skill focus', vi: 'Tăng cấp nhanh và hồi mana' }
+    },
+    'SHADOW': {
+        name: { en: 'Silent Shadow', vi: 'Sát Thủ Bóng Đêm' },
+        req: { METAL: 2, FIRE: 1 },
+        bonus: { critChance: 0.2, moveSpd: 0.2 },
+        desc: { en: 'Critical hits and speed', vi: 'Chí mạng và tốc độ' }
+    }
+};
+
 // --- Blessing State Manager ---
-const BlessingState = {
+window.BlessingState = {
     active: [],          // Active blessings for this run [{id, deity, rarity, effect, ...}]
     affinity: { WOOD: 0, FIRE: 0, EARTH: 0, METAL: 0, WATER: 0 }, // Count per element
     setBonuses: [],      // Active set bonus element names
     duoBlessings: [],    // Active duo blessing ids
+    archetypes: [],      // Active archetype names
     regenTimer: 0,       // For regen blessing
     shieldTimer: 0,      // For shield blessing
     shieldActive: false,
@@ -253,24 +312,25 @@ const BlessingState = {
 };
 
 function resetBlessings() {
-    BlessingState.active = [];
-    BlessingState.affinity = { WOOD: 0, FIRE: 0, EARTH: 0, METAL: 0, WATER: 0 };
-    BlessingState.setBonuses = [];
-    BlessingState.duoBlessings = [];
-    BlessingState.regenTimer = 0;
-    BlessingState.shieldTimer = 0;
-    BlessingState.shieldActive = false;
-    BlessingState.waveTimer = 0;
-    BlessingState.auraTimer = 0;
+    window.BlessingState.active = [];
+    window.BlessingState.affinity = { WOOD: 0, FIRE: 0, EARTH: 0, METAL: 0, WATER: 0 };
+    window.BlessingState.setBonuses = [];
+    window.BlessingState.duoBlessings = [];
+    window.BlessingState.archetypes = [];
+    window.BlessingState.regenTimer = 0;
+    window.BlessingState.shieldTimer = 0;
+    window.BlessingState.shieldActive = false;
+    window.BlessingState.waveTimer = 0;
+    window.BlessingState.auraTimer = 0;
 }
 
 // --- Add Blessing ---
 function addBlessing(blessingDef) {
     // Don't add duplicates
-    if (BlessingState.active.find(b => b.id === blessingDef.id)) return false;
+    if (window.BlessingState.active.find(b => b.id === blessingDef.id)) return false;
 
-    BlessingState.active.push(blessingDef);
-    BlessingState.affinity[blessingDef.deity]++;
+    window.BlessingState.active.push(blessingDef);
+    window.BlessingState.affinity[blessingDef.deity]++;
 
     // Apply immediate effects
     const eff = blessingDef.effect;
@@ -287,27 +347,52 @@ function addBlessing(blessingDef) {
             P.maxHp += eff.hpBoost;
             P.hp = Math.min(P.hp + eff.hpBoost, P.maxHp);
             break;
+        // K003: Cursed item effects (immediate)
+        case 'dmg_mult':
+            if (eff.hpMult) {
+                // Blood Oath: -50% HP
+                const oldMax = P.maxHp;
+                P.maxHp = Math.floor(P.maxHp * eff.hpMult);
+                P.hp = Math.min(P.hp, P.maxHp);
+                spawnDmgNum(P.x, P.y - 40, '-' + (oldMax - P.maxHp) + ' Max HP', '#aa0000', true);
+            }
+            if (eff.forceHp) {
+                // Glass Cannon: HP = 1
+                P.maxHp = eff.forceHp;
+                P.hp = eff.forceHp;
+                spawnDmgNum(P.x, P.y - 40, 'MAX HP = 1', '#aa0000', true);
+            }
+            break;
+        case 'gold_gain':
+            // Forbidden Greed: instant gold? No, it's a passive multiplier mostly.
+            // But we can give some gold immediately too if we want.
+            break;
     }
 
     // Check set bonuses
     checkSetBonuses();
     // Check duo blessings
     checkDuoBlessings();
+    // Check archetypes
+    checkArchetypes();
 
     return true;
 }
 
 // --- Check Set Bonuses ---
 function checkSetBonuses() {
-    BlessingState.setBonuses = [];
+    // window.BlessingState.setBonuses should maintain state
     for (const el of ['WOOD', 'FIRE', 'EARTH', 'METAL', 'WATER']) {
-        if (BlessingState.affinity[el] >= 3 && !BlessingState.setBonuses.includes(el)) {
-            BlessingState.setBonuses.push(el);
-            // Apply set bonus immediate effects
+        if (window.BlessingState.affinity[el] >= 3 && !window.BlessingState.setBonuses.includes(el)) {
+            window.BlessingState.setBonuses.push(el);
+            // Apply set bonus immediate effects (only once)
             const bonus = ELEMENT_SET_BONUSES[el];
-            if (bonus.effect.hpBoost) {
+            if (bonus && bonus.effect && bonus.effect.hpBoost) {
                 P.maxHp += bonus.effect.hpBoost;
                 P.hp = Math.min(P.hp + bonus.effect.hpBoost, P.maxHp);
+                if (typeof ELEMENTS !== 'undefined') {
+                    spawnDmgNum(P.x, P.y - 30, 'SET BONUS!', ELEMENTS[el].color, true);
+                }
             }
         }
     }
@@ -316,14 +401,14 @@ function checkSetBonuses() {
 // --- Check Duo Blessings ---
 function checkDuoBlessings() {
     for (const duo of DUO_BLESSINGS) {
-        if (BlessingState.duoBlessings.includes(duo.id)) continue;
-        const hasAll = duo.requires.every(el => BlessingState.affinity[el] >= 1);
+        if (window.BlessingState.duoBlessings.includes(duo.id)) continue;
+        const hasAll = duo.requires.every(el => window.BlessingState.affinity[el] >= 1);
         if (hasAll) {
-            BlessingState.duoBlessings.push(duo.id);
+            window.BlessingState.duoBlessings.push(duo.id);
             // Could announce duo blessing unlock
             if (typeof G !== 'undefined') {
                 G.floorAnnounce = {
-                    text: '✨ DUO BLESSING ✨',
+                    text: '✨ DUO BLESSING UNLOCKED ✨',
                     subtitle: duo.name[G.lang || 'vi'],
                     timer: 2.5,
                     color: '#ffd700'
@@ -333,12 +418,50 @@ function checkDuoBlessings() {
     }
 }
 
+// --- Check Archetypes (Build Synergies) ---
+function checkArchetypes() {
+    for (const [key, arch] of Object.entries(ARCHETYPES)) {
+        if (window.BlessingState.archetypes.includes(key)) continue;
+
+        let met = true;
+        for (const [el, count] of Object.entries(arch.req)) {
+            if (window.BlessingState.affinity[el] < count) {
+                met = false;
+                break;
+            }
+        }
+
+        if (met) {
+            window.BlessingState.archetypes.push(key);
+            // Announce Archetype
+            if (typeof G !== 'undefined') {
+                setTimeout(() => {
+                    G.floorAnnounce = {
+                        text: '🛡️ ARCHETYPE: ' + arch.name[G.lang || 'vi'],
+                        subtitle: arch.desc[G.lang || 'vi'],
+                        timer: 3.0,
+                        color: '#00ffff'
+                    };
+                    if (typeof SFX !== 'undefined') SFX.levelUp(); // use level up sound
+                }, 1500); // Delay slightly so it doesn't overlap with blessing pickup
+            }
+        }
+    }
+}
+
+// --- Get Aggregate Blessing Stats ---
 // --- Get Aggregate Blessing Stats ---
 function getBlessingStats() {
     const stats = {
         dmgMult: 0, dmgReduction: 0, critChance: 0, attackSpeed: 0,
         lifesteal: 0, healOnKill: 0, slowAmount: 0, pierce: 0,
         knockbackMult: 0, executeThreshold: 0,
+        xpGain: 0, // Archetype bonus
+        manaRegen: 0, // Archetype bonus
+        moveSpd: 0, // Archetype bonus
+        goldGain: 0, // Cursed bonus
+        enemyDmgMult: 1, // Cursed malus
+
         hasThorns: false, thornsValue: 0,
         hasRegen: false, regenValue: 0, regenInterval: 3,
         hasPoison: false, poisonDps: 0, poisonDuration: 0,
@@ -351,9 +474,15 @@ function getBlessingStats() {
         hasFireAura: false, fireAuraDps: 0, fireAuraRadius: 0,
         hasTidalWave: false, waveInterval: 15, waveDmg: 0, waveRadius: 0,
         hasIceArmor: false, iceArmorFreeze: 0,
+        // Duo effects
+        hasMagmaTrail: false, magmaDps: 0,
+        hasSpreadingBurn: false,
+        hasFrozenBonus: false, frozenBonusVal: 0,
+        hasHpOnKill: false, hpOnKillChance: 0,
+        hasBurnStun: false, burnStunChance: 0,
     };
 
-    for (const b of BlessingState.active) {
+    for (const b of window.BlessingState.active) {
         const e = b.effect;
         switch (e.type) {
             case 'dmg_mult': stats.dmgMult += e.value; break;
@@ -379,11 +508,13 @@ function getBlessingStats() {
             case 'tidal_wave': stats.hasTidalWave = true; stats.waveInterval = Math.min(stats.waveInterval, e.interval); stats.waveDmg += e.dmg; stats.waveRadius = Math.max(stats.waveRadius, e.radius); break;
             case 'ice_armor': stats.hasIceArmor = true; stats.iceArmorFreeze = Math.max(stats.iceArmorFreeze, e.freezeDuration); stats.dmgReduction += e.dmgReduction; break;
             case 'fortress': stats.dmgReduction += e.dmgReduction; break;
+            // Cursed
+            case 'gold_gain': stats.goldGain += e.value; if (e.enemyDmgMult) stats.enemyDmgMult *= e.enemyDmgMult; break;
         }
     }
 
     // Apply set bonuses
-    for (const el of BlessingState.setBonuses) {
+    for (const el of window.BlessingState.setBonuses) {
         const bonus = ELEMENT_SET_BONUSES[el].effect;
         if (bonus.healMult) stats.healOnKill *= (1 + bonus.healMult);
         if (bonus.dotMult) { stats.poisonDps *= (1 + bonus.dotMult); stats.burnDps *= (1 + bonus.dotMult); stats.bleedDps *= (1 + bonus.dotMult); }
@@ -392,6 +523,33 @@ function getBlessingStats() {
         if (bonus.crit) stats.critChance += bonus.crit;
         if (bonus.lifesteal) stats.lifesteal += bonus.lifesteal;
         if (bonus.slow) stats.slowAmount += bonus.slow;
+    }
+
+    // Apply Duo Blessings
+    for (const duoId of window.BlessingState.duoBlessings) {
+        const duo = DUO_BLESSINGS.find(d => d.id === duoId);
+        if (!duo) continue;
+        const e = duo.effect;
+        switch (e.type) {
+            case 'spreading_burn': stats.hasSpreadingBurn = true; break;
+            case 'frozen_bonus_dmg': stats.hasFrozenBonus = true; stats.frozenBonusVal += e.value; break;
+            case 'magma_trail': stats.hasMagmaTrail = true; stats.magmaDps += e.dps; break;
+            case 'hp_on_kill_chance': stats.hasHpOnKill = true; stats.hpOnKillChance += e.chance; break;
+            case 'burn_stun': stats.hasBurnStun = true; stats.burnStunChance += e.chance; break;
+        }
+    }
+
+    // Apply Archetypes
+    for (const archName of window.BlessingState.archetypes) {
+        const arch = ARCHETYPES[archName];
+        if (!arch) continue;
+        const b = arch.bonus;
+        if (b.dmgRed) stats.dmgReduction += b.dmgRed;
+        if (b.knockback) stats.knockbackMult += b.knockback;
+        if (b.xpGain) stats.xpGain += b.xpGain;
+        if (b.manaRegen) stats.manaRegen += b.manaRegen;
+        if (b.critChance) stats.critChance += b.critChance;
+        if (b.moveSpd) stats.moveSpd += b.moveSpd;
     }
 
     return stats;
@@ -403,9 +561,9 @@ function updateBlessings(dt) {
 
     // Regen
     if (stats.hasRegen) {
-        BlessingState.regenTimer += dt;
-        if (BlessingState.regenTimer >= stats.regenInterval) {
-            BlessingState.regenTimer -= stats.regenInterval;
+        window.BlessingState.regenTimer += dt;
+        if (window.BlessingState.regenTimer >= stats.regenInterval) {
+            window.BlessingState.regenTimer -= stats.regenInterval;
             P.hp = Math.min(P.hp + stats.regenValue, P.maxHp);
             spawnParticles(P.x, P.y, '#44dd44', 3, 20);
         }
@@ -413,19 +571,19 @@ function updateBlessings(dt) {
 
     // Shield refresh
     if (stats.hasShield) {
-        BlessingState.shieldTimer += dt;
-        if (BlessingState.shieldTimer >= stats.shieldInterval) {
-            BlessingState.shieldTimer -= stats.shieldInterval;
-            BlessingState.shieldActive = true;
+        window.BlessingState.shieldTimer += dt;
+        if (window.BlessingState.shieldTimer >= stats.shieldInterval) {
+            window.BlessingState.shieldTimer -= stats.shieldInterval;
+            window.BlessingState.shieldActive = true;
             spawnParticles(P.x, P.y, '#cc8833', 8, 30);
         }
     }
 
     // Fire aura
     if (stats.hasFireAura) {
-        BlessingState.auraTimer += dt;
-        if (BlessingState.auraTimer >= 0.5) { // tick every 0.5s
-            BlessingState.auraTimer -= 0.5;
+        window.BlessingState.auraTimer += dt;
+        if (window.BlessingState.auraTimer >= 0.5) { // tick every 0.5s
+            window.BlessingState.auraTimer -= 0.5;
             for (const e of G.enemies) {
                 if (e.dead) continue;
                 const dist = Math.hypot(e.x - P.x, e.y - P.y);

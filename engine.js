@@ -71,6 +71,8 @@ const G = {
     bloodMoonCooldown: 0,       // Cooldown before next Blood Moon can trigger
     bloodMoonWaves: 0,          // Extra enemy waves spawned
     bloodMoonRewardMult: 1.5,   // XP/gold bonus during Blood Moon
+    // P001: Physics Hazards
+    hazards: [],
 };
 
 // --- Difficulty Tiers (K004) ---
@@ -172,6 +174,14 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('touchend', e => { e.preventDefault(); touch.active = false; touch.dx = 0; touch.dy = 0; }, { passive: false });
 
+// Mouse Move Tracking
+canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    G.mouse.x = (e.clientX - r.left) / r.width * GAME_W;
+    G.mouse.y = (e.clientY - r.top) / r.height * GAME_H;
+    G.mouse.moved = true;
+}, { passive: false });
+
 canvas.addEventListener('click', e => {
     const r = canvas.getBoundingClientRect();
     const mx = (e.clientX - r.left) / r.width * GAME_W;
@@ -187,6 +197,29 @@ canvas.addEventListener('click', e => {
                 return;
             }
         }
+
+        // --- Persistence Menu Clicks ---
+        if (G.menuButtons && typeof G.menuButtons === 'object') {
+            const bCont = G.menuButtons.continue;
+            const bNew = G.menuButtons.newGame;
+            // Continue
+            if (bCont && mx >= bCont.x && mx <= bCont.x + bCont.w && my >= bCont.y && my <= bCont.y + bCont.h) {
+                if (typeof loadRunState === 'function') {
+                    SFX.menuClick();
+                    if (loadRunState()) return; // Success load
+                }
+            }
+            // New Game
+            if (bNew && mx >= bNew.x && mx <= bNew.x + bNew.w && my >= bNew.y && my <= bNew.y + bNew.h) {
+                if (typeof clearRunState === 'function') clearRunState();
+                transitionTo('HERO_SELECT');
+                if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction();
+                return;
+            }
+            // If viewing continue menu, block default start
+            return;
+        }
+
         transitionTo('HERO_SELECT');
         if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction();
     }
@@ -199,6 +232,8 @@ canvas.addEventListener('click', e => {
     else if (G.state === 'PLAYING' && G.roomState === 'DOOR_CHOICE') { if (typeof handleDoorChoiceClick === 'function') handleDoorChoiceClick(mx, my); }
     // K002: Blessing choice clicks
     else if (G.state === 'BLESSING_CHOICE') { if (typeof handleBlessingChoiceClick === 'function') handleBlessingChoiceClick(mx, my); }
+    // N006: Stage Clear Blessing clicks
+    else if (G.state === 'BLESSING_SELECT') { if (typeof handleBlessingSelectClick === 'function') handleBlessingSelectClick(mx, my); }
 });
 
 // --- Dodge Roll (Space key) ---
@@ -298,16 +333,26 @@ window.addEventListener('keydown', e => {
     if (G.state === 'VICTORY') {
         if (e.code === 'Space') {
             e.preventDefault();
-            // Continue in endless mode
-            G.state = 'PLAYING';
-            G.finalBoss = null; // Clear so victory doesn't retrigger
-            G.floorAnnounce = { text: '♾ ENDLESS MODE ♾', sub: 'The fight continues...', timer: 2, color: '#ffd700' };
+            // Continue in endless mode -> Go to next floor (Blessing Select)
+            G.finalBoss = null;
+            if (typeof nextFloor === 'function') nextFloor();
             SFX.menuClick();
         }
         if (e.code === 'Escape') {
             e.preventDefault();
             G.state = 'MENU';
             SFX.menuClick();
+        }
+    }
+
+    // --- Quick Select: Stage Clear Blessings (1/2/3 keys) ---
+    if (G.state === 'BLESSING_SELECT' && G.blessingChoices && G.blessingChoices.length > 0) {
+        const keyNum = parseInt(e.key);
+        if (keyNum >= 1 && keyNum <= G.blessingChoices.length) {
+            e.preventDefault();
+            if (typeof selectStageClearBlessing === 'function') {
+                selectStageClearBlessing(G.blessingChoices[keyNum - 1]);
+            }
         }
     }
 
