@@ -307,7 +307,7 @@ function drawEnemies() {
         // HP bar (only if damaged)
         if (e.hp < e.maxHp) {
             const bw = Math.max(e.r * 2, 12), bh = 2;
-            const hpPct = e.hp / e.maxHp;
+            const hpPct = Math.max(0, Math.min(1, e.hp / e.maxHp));
             const barY = ey - e.r - 6;
             ctx.fillStyle = '#111'; ctx.fillRect(ex - bw / 2 - 1, barY - 1, bw + 2, bh + 2);
             ctx.fillStyle = hpPct > 0.5 ? '#22cc22' : hpPct > 0.25 ? '#ccaa22' : '#cc2222';
