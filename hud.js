@@ -808,7 +808,7 @@ function drawMenuScreen() {
     if (typeof DailyState !== 'undefined') DailyState.drawMenuButton(ctx, GAME_W, GAME_H);
 
     // Version
-    drawText('v1.1.0 \u2014 The Infinite', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
+    drawText('v1.1.1 \u2014 The Infinite', GAME_W / 2, GAME_H - 18, { font: '8px monospace', fill: '#444', align: 'center', outline: false });
 }
 
 // --- High Score System ---
