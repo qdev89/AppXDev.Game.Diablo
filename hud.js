@@ -664,8 +664,9 @@ function drawLevelUpScreen() {
         drawText(lvlText, bx + boxW / 2, startY + 24, { font: 'bold 9px monospace', fill: lvlColor, align: 'center' });
 
         // Description (word wrap)
-        const rawDesc = c.def.desc || '';
-        const desc = typeof rawDesc === 'object' ? (rawDesc[G.lang || 'vi'] || rawDesc.vi || rawDesc.en || '') : String(rawDesc);
+        const rawDesc = (c.def && c.def.desc) || '';
+        let descVal = typeof rawDesc === 'object' ? (rawDesc[G.lang || 'vi'] || rawDesc.vi || rawDesc.en || '') : rawDesc;
+        const desc = String(descVal || '');
         drawText(desc.substring(0, 22), bx + boxW / 2, startY + 42, { font: '8px monospace', fill: '#bbb', align: 'center', outline: false });
         if (desc.length > 22) drawText(desc.substring(22), bx + boxW / 2, startY + 54, { font: '8px monospace', fill: '#bbb', align: 'center', outline: false });
 
