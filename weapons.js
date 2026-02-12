@@ -435,9 +435,23 @@ function fireProjectile(w, el) {
         const d = dist(P, e);
         if (d < nearDist) { nearDist = d; nearest = e; }
     }
-    if (!nearest) return;
 
-    const baseA = Math.atan2(nearest.y - P.y, nearest.x - P.x);
+    // AIMING: Mouse > Movement > Facing (Matches fireMelee)
+    let baseA = 0;
+    if (G.mouse && G.mouse.moved) {
+        baseA = Math.atan2(G.mouse.y + G.camY - P.y, G.mouse.x + G.camX - P.x);
+    } else if (Math.abs(P.vx) > 10 || Math.abs(P.vy) > 10) {
+        baseA = Math.atan2(P.vy, P.vx);
+    } else if (nearest) {
+        // Fallback to auto-aim if idle and enemy exists? 
+        // User said "must be by direction of player move", strictly.
+        // But if idle, facing or auto-aim? fireMelee uses Facing.
+        // Let's use Facing to be consistent, but maybe auto-aim is helpful if idle?
+        // Let's stick to P.facing for consistency with user request "direction of move".
+        baseA = P.facing > 0 ? 0 : Math.PI;
+    } else {
+        baseA = P.facing > 0 ? 0 : Math.PI;
+    }
     const spd = w.speed || 200;
     const dmg = w.dmg * (1 + w.level * 0.3);
 
@@ -466,10 +480,16 @@ function fireProjectile(w, el) {
     // P001: Projectile Hazards (Puddles / Steam)
     if (window.Physics) {
         if (w.id === 'water_scepter_evo') {
-            window.Physics.spawnHazard(nearest.x, nearest.y, 'PUDDLE', 60);
+            const hx = nearest ? nearest.x : P.x + Math.cos(baseA) * 150;
+            const hy = nearest ? nearest.y : P.y + Math.sin(baseA) * 150;
+            window.Physics.spawnHazard(hx, hy, 'PUDDLE', 60);
         } else if (w.id === 'fire_pillar' || w.el === 'FIRE') {
-            // 10% chance to leave scorched earth at target
-            if (Math.random() < 0.15) window.Physics.spawnHazard(nearest.x, nearest.y, 'SCORCHED', 20);
+            // 10% chance to leave scorched earth at target or aiming point
+            if (Math.random() < 0.15) {
+                const hx = nearest ? nearest.x : P.x + Math.cos(baseA) * 100;
+                const hy = nearest ? nearest.y : P.y + Math.sin(baseA) * 100;
+                window.Physics.spawnHazard(hx, hy, 'SCORCHED', 20);
+            }
         }
     }
 
@@ -531,8 +551,16 @@ function fireThrown(w, el) {
         const d = dist(P, e);
         if (d < nearDist) { nearDist = d; nearest = e; }
     }
-    if (!nearest) return;
-    const baseA = Math.atan2(nearest.y - P.y, nearest.x - P.x);
+
+    // AIMING: Mouse > Movement > Facing
+    let baseA = 0;
+    if (G.mouse && G.mouse.moved) {
+        baseA = Math.atan2(G.mouse.y + G.camY - P.y, G.mouse.x + G.camX - P.x);
+    } else if (Math.abs(P.vx) > 10 || Math.abs(P.vy) > 10) {
+        baseA = Math.atan2(P.vy, P.vx);
+    } else {
+        baseA = P.facing > 0 ? 0 : Math.PI;
+    }
     const spd = w.speed || 220;
     const dmg = w.dmg * (1 + w.level * 0.3);
 
@@ -562,7 +590,9 @@ function fireThrown(w, el) {
 
     // P001: Hazards for Thrown
     if (window.Physics && w.el === 'FIRE' && Math.random() < 0.2) {
-        window.Physics.spawnHazard(nearest.x, nearest.y, 'SCORCHED', 25);
+        const hx = nearest ? nearest.x : P.x + Math.cos(baseA) * 150;
+        const hy = nearest ? nearest.y : P.y + Math.sin(baseA) * 150;
+        window.Physics.spawnHazard(hx, hy, 'SCORCHED', 25);
     }
 
 
@@ -846,6 +876,10 @@ function damageEnemy(e, dmg, el) {
     spawnDmgNum(e.x + rng(-5, 5), e.y - 8, Math.ceil(reducedDmg), dmgColor, isCrit || mult > 1.2);
     spawnElementParticles(e.x, e.y, el, 3, 35);
     SFX.hit();
+
+    if (e.hp <= 0 && !e.dead) {
+        killEnemy(e);
+    }
 
     if (isCrit) {
         spawnDmgNum(e.x, e.y - 20, 'CRIT!', '#ff4400', true);
