@@ -17,7 +17,8 @@ const HEROES = [
         },
         ultimate: {
             id: 'rage_mode', name: 'Dynasty Fury', icon: '🔥',
-            desc: '2x damage + 1.5x speed for 6s', duration: 6
+            desc: '2x damage + 1.5x speed for 6s', duration: 6,
+            dmgMultiplier: 2, speedMultiplier: 1.5, atkSpdMultiplier: 1.5
         },
         dodgeTrail: '#ff4400'
     },
@@ -49,7 +50,7 @@ const HEROES = [
         },
         ultimate: {
             id: 'blade_storm', name: 'Blade Storm', icon: '🗡️',
-            desc: 'Dash through all nearby enemies', dmg: 35, hits: 10, range: 120
+            desc: 'Dash through all nearby enemies', dmg: 35, hits: 10, range: 120, duration: 1.8
         },
         dodgeTrail: '#ccccff'
     },
@@ -65,7 +66,7 @@ const HEROES = [
         },
         ultimate: {
             id: 'changban_charge', name: 'Changban Charge', icon: '🐴',
-            desc: 'Invincible charge + AoE explosion', dmg: 60, chargeSpeed: 400, range: 100
+            desc: 'Invincible charge + AoE explosion', dmg: 60, chargeSpeed: 400, range: 100, duration: 2.5
         },
         dodgeTrail: '#ddaa44'
     },

@@ -219,7 +219,12 @@ window.applyPassive = function (def) {
 // --- Weapon Update ---
 function updateWeapons(dt) {
     const auraAtkSpd = (G.allyAura && G.allyAura.atkSpd) ? G.allyAura.atkSpd : 0;
-    const spdMult = 1 + (window.passives ? window.passives.atkSpd : 0) + auraAtkSpd;
+    let spdMult = 1 + (window.passives ? window.passives.atkSpd : 0) + auraAtkSpd;
+    // Berserker: Rage mode = 1.5x attack speed
+    if (P.rageModeTimer > 0) {
+        const hero = getHeroDef(P.heroId);
+        spdMult *= (hero.ultimate.atkSpdMultiplier || 1.5);
+    }
     for (const w of G.weapons) {
         w.timer -= dt * spdMult;
         if (w.comboReset > 0) w.comboReset -= dt;
@@ -748,8 +753,10 @@ function damageEnemy(e, dmg, el) {
         mult *= 1 + Math.min(d * 0.002, 0.3); // Max +30%
     }
 
-    // Berserker: Rage mode = 2x damage
-    if (P.rageModeTimer > 0) mult *= 2;
+    // Berserker: Rage mode = data-driven damage multiplier
+    if (P.rageModeTimer > 0) {
+        mult *= (hero && hero.ultimate ? hero.ultimate.dmgMultiplier : 2) || 2;
+    }
 
     // Berserker: Combo rage passive (+2% per combo, max 50%)
     if (hero && hero.passive.stat === 'comboRage') {

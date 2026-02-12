@@ -452,6 +452,11 @@ function updatePlayer(dt) {
     if (P._inHazardSlow > 0) {
         spdMult *= (1 - P._inHazardSlow);
     }
+    // Berserker: Rage mode = 1.5x move speed
+    if (P.rageModeTimer > 0) {
+        const hero = getHeroDef(P.heroId);
+        spdMult *= (hero.ultimate.speedMultiplier || 1.5);
+    }
     // Physics Slide handling? (Not fully implemented yet, but flag exists)
     // if (P._inHazardSlide) { ... override control ... }
 
