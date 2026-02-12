@@ -1198,7 +1198,7 @@ function updateYinYang(dt) {
 
 // --- Pickups ---
 function updatePickups(dt) {
-    const pickupR = 40 * (1 + passives.pickupRange);
+    const pickupR = 40 * (1 + (window.passives ? window.passives.pickupRange : 0));
     for (let i = G.pickups.length - 1; i >= 0; i--) {
         const p = G.pickups[i];
         p.life -= dt;
@@ -1218,7 +1218,7 @@ function updatePickups(dt) {
                 // N002: Kill streak XP multiplier + N004: Blood Moon bonus
                 const streakMult = G.killStreakXpMult || 1;
                 const moonMult = G.bloodMoon ? (G.bloodMoonRewardMult || 1.5) : 1;
-                P.xp += p.val * (1 + passives.xpGain) * streakMult * moonMult;
+                P.xp += p.val * (1 + (window.passives ? window.passives.xpGain : 0)) * streakMult * moonMult;
                 SFX.xpPickup();
             } else if (p.type === 'gold') {
                 // N004: Blood Moon gold bonus

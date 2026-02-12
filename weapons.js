@@ -846,24 +846,6 @@ function damageEnemy(e, dmg, el) {
         SFX.hitHeavy();
     }
 }
-    } triggerChromatic(1.5);
-} else if (mult > 1.2) {
-    spawnDmgNum(e.x, e.y - 20, 'EFFECTIVE!', '#ffff00', true);
-    shake(3, 0.08);
-    triggerChromatic(1.0);
-}
-
-// Yin-Yang: attacks = +Yang
-G.yinYang.yang = clamp(G.yinYang.yang + 0.5, 0, 100);
-
-// K002: Apply blessing on-hit effects (slow, poison, burn, bleed, lifesteal, execute)
-if (typeof applyBlessingOnHit === 'function') applyBlessingOnHit(e, finalDmg);
-
-// L001: Check for Wu Xing elemental combos (two debuffs → synergy)
-if (typeof checkElementalCombo === 'function') checkElementalCombo(e);
-
-if (e.hp <= 0) killEnemy(e);
-}
 
 function killEnemy(e) {
     e.dead = true;

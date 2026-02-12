@@ -200,7 +200,7 @@ function initBondingForRun() {
             if (card.stat === 'maxHp') {
                 P.maxHp += card.val; P.hp += card.val;
             } else if (card.stat === 'moveSpd') {
-                passives.moveSpd += card.val;
+                if (window.passives) window.passives.moveSpd += card.val;
             } else if (card.stat === 'baseDmg') {
                 // Applied in damage calculation
             }

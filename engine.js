@@ -73,6 +73,8 @@ const G = {
     bloodMoonRewardMult: 1.5,   // XP/gold bonus during Blood Moon
     // P001: Physics Hazards
     hazards: [],
+    // Mouse tracking
+    mouse: { x: 0, y: 0, moved: false },
 };
 
 // --- Difficulty Tiers (K004) ---

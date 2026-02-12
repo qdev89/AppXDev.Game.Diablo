@@ -354,8 +354,10 @@ function startGame() {
     P.shieldWall = 0; P.rageModeTimer = 0;
 
     // Reset passives
-    passives.atkSpd = 0; passives.maxHp = 0; passives.moveSpd = 0;
-    passives.pickupRange = 0; passives.xpGain = 0;
+    if (window.passives) {
+        window.passives.atkSpd = 0; window.passives.maxHp = 0; window.passives.moveSpd = 0;
+        window.passives.pickupRange = 0; window.passives.xpGain = 0;
+    }
 
     // Initialize bonding system for this run
     initBondingForRun();
@@ -435,7 +437,7 @@ function updatePlayer(dt) {
     }
 
     // Apply speed
-    const spd = P.speed * (1 + passives.moveSpd);
+    const spd = P.speed * (1 + (window.passives ? window.passives.moveSpd : 0));
     // Yin-Yang state bonuses
     let spdMult = 1;
     if (G.yinYang.state === 'CHAOS') spdMult = 1.3;
