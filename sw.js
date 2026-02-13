@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dbd-v1.2.5';
+const CACHE_NAME = 'dbd-v1.4.0';
 const ASSETS = [
     './',
     './index.html',

@@ -1073,32 +1073,42 @@ function drawBondingScreen() {
     // --- Darkness counter (top-right) ---
     drawText(`◆ ${BondingState.darkness}`, GAME_W - 15, 8, { font: 'bold 11px monospace', fill: '#bb77ff', align: 'right' });
 
-    // --- Tabs ---
-    const tabY = 26, tabH = 18, tabW = 130;
-    const tab0X = GAME_W / 2 - tabW - 5;
-    const tab1X = GAME_W / 2 + 5;
+    // --- Tabs (5 total: Bonds, Arcana, Workshop, Lineage, Mandate) ---
+    const tabY = 26, tabH = 16, tabGap = 3;
+    const tabNames = [
+        { label: '⚔ BONDS', color: '#ffd700', bgActive: 'rgba(80,60,20,0.9)' },
+        { label: '🔮 ARCANA', color: '#aa88ff', bgActive: 'rgba(60,40,100,0.9)' },
+        { label: '🔨 FORGE', color: '#ff8844', bgActive: 'rgba(80,40,10,0.9)' },
+        { label: '👻 LINEAGE', color: '#aaccff', bgActive: 'rgba(30,40,80,0.9)' },
+        { label: '⚖ MANDATE', color: '#ff4444', bgActive: 'rgba(80,20,20,0.9)' }
+    ];
+    const tabW = Math.floor((GAME_W - tabGap * (tabNames.length + 1)) / tabNames.length);
+    const tabTotalW = tabNames.length * (tabW + tabGap) - tabGap;
+    const tabStartX = Math.floor(GAME_W / 2 - tabTotalW / 2);
 
-    // Tab 0: BONDS
-    ctx.fillStyle = G.bondingTab === 0 ? 'rgba(80,60,20,0.9)' : 'rgba(15,12,25,0.7)';
-    ctx.fillRect(tab0X, tabY, tabW, tabH);
-    ctx.strokeStyle = G.bondingTab === 0 ? '#ffd700' : '#444';
-    ctx.lineWidth = G.bondingTab === 0 ? 2 : 1;
-    ctx.strokeRect(tab0X, tabY, tabW, tabH);
-    drawText('⚔ BONDS', tab0X + tabW / 2, tabY + 2, { font: 'bold 11px monospace', fill: G.bondingTab === 0 ? '#ffd700' : '#666', align: 'center', outlineWidth: 2 });
-
-    // Tab 1: ARCANA
-    ctx.fillStyle = G.bondingTab === 1 ? 'rgba(60,40,100,0.9)' : 'rgba(15,12,25,0.7)';
-    ctx.fillRect(tab1X, tabY, tabW, tabH);
-    ctx.strokeStyle = G.bondingTab === 1 ? '#aa88ff' : '#444';
-    ctx.lineWidth = G.bondingTab === 1 ? 2 : 1;
-    ctx.strokeRect(tab1X, tabY, tabW, tabH);
-    drawText('🔮 ARCANA', tab1X + tabW / 2, tabY + 2, { font: 'bold 11px monospace', fill: G.bondingTab === 1 ? '#aa88ff' : '#666', align: 'center', outlineWidth: 2 });
+    for (let ti = 0; ti < tabNames.length; ti++) {
+        const tx = tabStartX + ti * (tabW + tabGap);
+        const isActive = G.bondingTab === ti;
+        const tab = tabNames[ti];
+        ctx.fillStyle = isActive ? tab.bgActive : 'rgba(15,12,25,0.7)';
+        ctx.fillRect(tx, tabY, tabW, tabH);
+        ctx.strokeStyle = isActive ? tab.color : '#333';
+        ctx.lineWidth = isActive ? 2 : 1;
+        ctx.strokeRect(tx, tabY, tabW, tabH);
+        drawText(tab.label, tx + tabW / 2, tabY + 2, { font: 'bold 7px monospace', fill: isActive ? tab.color : '#555', align: 'center', outlineWidth: 2 });
+    }
 
     // --- Tab Content ---
     if (G.bondingTab === 0) {
         drawBondsTab();
-    } else {
+    } else if (G.bondingTab === 1) {
         drawArcanaTab();
+    } else if (G.bondingTab === 2) {
+        drawWorkshopTab();
+    } else if (G.bondingTab === 3) {
+        drawLineageTab();
+    } else if (G.bondingTab === 4) {
+        drawMandateTab();
     }
 
     // --- Start button (always visible) ---
@@ -1246,13 +1256,21 @@ function handleBondingClick(mx, my) {
         return;
     }
 
-    // Check tab clicks
-    const tabY = 26, tabH = 18, tabW = 130;
-    const tab0X = GAME_W / 2 - tabW - 5;
-    const tab1X = GAME_W / 2 + 5;
+    // Check tab clicks (5 tabs)
+    const tabY = 26, tabH = 16, tabGap = 3;
+    const tabCount = 5;
+    const tabW = Math.floor((GAME_W - tabGap * (tabCount + 1)) / tabCount);
+    const tabTotalW = tabCount * (tabW + tabGap) - tabGap;
+    const tabStartX = Math.floor(GAME_W / 2 - tabTotalW / 2);
     if (my >= tabY && my <= tabY + tabH) {
-        if (mx >= tab0X && mx <= tab0X + tabW) { G.bondingTab = 0; SFX.menuClick(); return; }
-        if (mx >= tab1X && mx <= tab1X + tabW) { G.bondingTab = 1; SFX.menuClick(); return; }
+        for (let ti = 0; ti < tabCount; ti++) {
+            const tx = tabStartX + ti * (tabW + tabGap);
+            if (mx >= tx && mx <= tx + tabW) {
+                G.bondingTab = ti;
+                SFX.menuClick();
+                return;
+            }
+        }
     }
 
     if (G.bondingTab === 0) {
@@ -1284,7 +1302,7 @@ function handleBondingClick(mx, my) {
                 }
             }
         }
-    } else {
+    } else if (G.bondingTab === 1) {
         // Check skill tree cards
         const scH = 42, scGap = 8;
         let scY = 78;
@@ -1316,6 +1334,374 @@ function handleBondingClick(mx, my) {
                 scX += scW + scGap;
             }
             scY += scH + scGap;
+        }
+    } else if (G.bondingTab === 2) {
+        handleWorkshopClick(mx, my);
+    } else if (G.bondingTab === 3) {
+        handleLineageClick(mx, my);
+    } else if (G.bondingTab === 4) {
+        handleMandateClick(mx, my);
+    }
+}
+
+// --- WORKSHOP TAB (T-04) ---
+function drawWorkshopTab() {
+    const lang = G.lang || 'vi';
+    const contentY = 48;
+
+    // Resources bar
+    if (typeof WORKSHOP_RESOURCES !== 'undefined') {
+        let rx = 8;
+        for (const [key, res] of Object.entries(WORKSHOP_RESOURCES)) {
+            const amount = (WorkshopState.resources && WorkshopState.resources[key]) || 0;
+            drawText(`${res.icon} ${amount}`, rx, contentY, { font: '7px monospace', fill: res.color, outline: false });
+            rx += 52;
+        }
+    }
+
+    // Category filter
+    if (typeof G._workshopCat === 'undefined') G._workshopCat = 'all';
+    const cats = ['all', 'weapons', 'beasts', 'aspects', 'rooms', 'meta'];
+    const catLabels = { all: 'All', weapons: '⚔', beasts: '🐲', aspects: '★', rooms: '🏠', meta: '↑' };
+    const catBtnW = 30, catGap = 3;
+    const catStartX = GAME_W / 2 - (cats.length * (catBtnW + catGap) - catGap) / 2;
+    const catY = contentY + 14;
+    for (let ci = 0; ci < cats.length; ci++) {
+        const cx = catStartX + ci * (catBtnW + catGap);
+        const isActive = G._workshopCat === cats[ci];
+        ctx.fillStyle = isActive ? 'rgba(80,60,20,0.9)' : 'rgba(20,15,30,0.8)';
+        ctx.fillRect(cx, catY, catBtnW, 12);
+        ctx.strokeStyle = isActive ? '#ff8844' : '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx, catY, catBtnW, 12);
+        drawText(catLabels[cats[ci]], cx + catBtnW / 2, catY + 1, { font: '7px monospace', fill: isActive ? '#ffd700' : '#666', align: 'center', outline: false });
+    }
+
+    // Recipe list
+    const recipes = typeof WORKSHOP_RECIPES !== 'undefined' ? WORKSHOP_RECIPES : [];
+    const filtered = G._workshopCat === 'all' ? recipes : recipes.filter(r => r.category === G._workshopCat);
+    const recipeH = 38, recipeGap = 4;
+    const recipeStartY = catY + 18;
+    const scrollOffset = G._workshopScroll || 0;
+    const maxVisible = Math.floor((GAME_H - recipeStartY - 50) / (recipeH + recipeGap));
+
+    for (let ri = 0; ri < Math.min(filtered.length, maxVisible); ri++) {
+        const recipe = filtered[ri + scrollOffset];
+        if (!recipe) continue;
+        const ry = recipeStartY + ri * (recipeH + recipeGap);
+        const isCrafted = WorkshopState.crafted && WorkshopState.crafted.includes(recipe.id);
+        const affordable = typeof canCraft === 'function' ? canCraft(recipe.id) : false;
+
+        // Card bg
+        ctx.fillStyle = isCrafted ? 'rgba(30,50,30,0.9)' : affordable ? 'rgba(40,30,15,0.9)' : 'rgba(15,12,20,0.9)';
+        ctx.fillRect(8, ry, GAME_W - 16, recipeH);
+        ctx.strokeStyle = isCrafted ? '#44aa44' : affordable ? '#ff8844' : '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(8, ry, GAME_W - 16, recipeH);
+
+        // Icon + Name
+        drawText(`${recipe.icon} ${recipe.name[lang] || recipe.name.en}`, 14, ry + 3, { font: 'bold 8px monospace', fill: isCrafted ? '#44aa44' : '#eee', outlineWidth: 2 });
+
+        // Description
+        drawText(recipe.desc[lang] || recipe.desc.en, 14, ry + 15, { font: '6px monospace', fill: '#888', outline: false });
+
+        // Cost
+        let cx = 14;
+        for (const [resId, amount] of Object.entries(recipe.cost)) {
+            const res = WORKSHOP_RESOURCES ? WORKSHOP_RESOURCES[resId] : null;
+            const have = (WorkshopState.resources && WorkshopState.resources[resId]) || 0;
+            const costColor = have >= amount ? '#44dd44' : '#ff4444';
+            drawText(`${res ? res.icon : '?'}${amount}`, cx, ry + 27, { font: '6px monospace', fill: costColor, outline: false });
+            cx += 40;
+        }
+
+        // Status
+        if (isCrafted) {
+            drawText('✓ DONE', GAME_W - 40, ry + 12, { font: 'bold 8px monospace', fill: '#44aa44', align: 'center' });
+        } else if (affordable) {
+            ctx.fillStyle = 'rgba(120,80,20,0.9)';
+            ctx.fillRect(GAME_W - 58, ry + 6, 44, 16);
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1;
+            ctx.strokeRect(GAME_W - 58, ry + 6, 44, 16);
+            drawText('CRAFT', GAME_W - 36, ry + 8, { font: 'bold 7px monospace', fill: '#ffd700', align: 'center' });
+        } else {
+            drawText('🔒', GAME_W - 36, ry + 10, { font: '10px monospace', fill: '#444', align: 'center', outline: false });
+        }
+    }
+
+    // Scroll indicators
+    if (scrollOffset > 0) drawText('▲', GAME_W / 2, recipeStartY - 5, { font: '8px monospace', fill: '#888', align: 'center', outline: false });
+    if (scrollOffset + maxVisible < filtered.length) drawText('▼', GAME_W / 2, GAME_H - 50, { font: '8px monospace', fill: '#888', align: 'center', outline: false });
+}
+
+function handleWorkshopClick(mx, my) {
+    const contentY = 48;
+    const catY = contentY + 14;
+    const cats = ['all', 'weapons', 'beasts', 'aspects', 'rooms', 'meta'];
+    const catBtnW = 30, catGap = 3;
+    const catStartX = GAME_W / 2 - (cats.length * (catBtnW + catGap) - catGap) / 2;
+
+    // Category filter clicks
+    if (my >= catY && my <= catY + 12) {
+        for (let ci = 0; ci < cats.length; ci++) {
+            const cx = catStartX + ci * (catBtnW + catGap);
+            if (mx >= cx && mx <= cx + catBtnW) {
+                G._workshopCat = cats[ci];
+                G._workshopScroll = 0;
+                SFX.menuClick();
+                return;
+            }
+        }
+    }
+
+    // Recipe clicks (CRAFT button)
+    const recipes = typeof WORKSHOP_RECIPES !== 'undefined' ? WORKSHOP_RECIPES : [];
+    const filtered = (G._workshopCat || 'all') === 'all' ? recipes : recipes.filter(r => r.category === G._workshopCat);
+    const recipeH = 38, recipeGap = 4;
+    const recipeStartY = catY + 18;
+    const scrollOffset = G._workshopScroll || 0;
+    const maxVisible = Math.floor((GAME_H - recipeStartY - 50) / (recipeH + recipeGap));
+
+    for (let ri = 0; ri < Math.min(filtered.length, maxVisible); ri++) {
+        const recipe = filtered[ri + scrollOffset];
+        if (!recipe) continue;
+        const ry = recipeStartY + ri * (recipeH + recipeGap);
+        const isCrafted = WorkshopState.crafted && WorkshopState.crafted.includes(recipe.id);
+        const affordable = typeof canCraft === 'function' ? canCraft(recipe.id) : false;
+
+        // Check CRAFT button area
+        if (!isCrafted && affordable && mx >= GAME_W - 58 && mx <= GAME_W - 14 && my >= ry + 6 && my <= ry + 22) {
+            if (typeof craftRecipe === 'function') {
+                craftRecipe(recipe.id);
+                SFX.goldPickup();
+            }
+            return;
+        }
+    }
+}
+
+// --- LINEAGE TAB (T-05) ---
+function drawLineageTab() {
+    const lang = G.lang || 'vi';
+    const contentY = 48;
+
+    drawText(lang === 'vi' ? 'Di Sản Triều Đại' : 'Dynasty Lineage', GAME_W / 2, contentY, { font: 'bold 10px monospace', fill: '#aaccff', align: 'center', outlineWidth: 2 });
+    drawText(lang === 'vi' ? 'Kế thừa sức mạnh từ anh hùng đã ngã' : 'Inherit power from fallen heroes', GAME_W / 2, contentY + 14, { font: '7px monospace', fill: '#667', align: 'center', outline: false });
+
+    const ghosts = typeof getLineageDisplay === 'function' ? getLineageDisplay() : [];
+
+    if (ghosts.length === 0) {
+        drawText(lang === 'vi' ? 'Chưa có di sản. Hãy chiến đấu!' : 'No ghosts yet. Go fight!', GAME_W / 2, GAME_H / 2 - 10, { font: '9px monospace', fill: '#555', align: 'center', outline: false });
+        drawText('👻', GAME_W / 2, GAME_H / 2 + 10, { font: '20px monospace', fill: '#333', align: 'center', outline: false });
+        return;
+    }
+
+    const cardW = 210, cardH = 36, gapX = 10, gapY = 6;
+    const ghostStartY = contentY + 28;
+    const maxPerRow = 2;
+    const gridStartX = GAME_W / 2 - cardW - gapX / 2;
+
+    for (let gi = 0; gi < ghosts.length && gi < 8; gi++) {
+        const ghost = ghosts[gi];
+        const col = gi % maxPerRow;
+        const row = Math.floor(gi / maxPerRow);
+        const gx = gridStartX + col * (cardW + gapX);
+        const gy = ghostStartY + row * (cardH + gapY);
+        const isSelected = LineageState.selectedGhost &&
+            LineageState.ghosts[gi] === LineageState.selectedGhost;
+
+        // Card bg
+        ctx.fillStyle = isSelected ? 'rgba(40,50,80,0.95)' : 'rgba(15,15,25,0.9)';
+        ctx.fillRect(gx, gy, cardW, cardH);
+        ctx.strokeStyle = isSelected ? '#aaccff' : '#334';
+        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.strokeRect(gx, gy, cardW, cardH);
+
+        if (isSelected) {
+            ctx.fillStyle = '#aaccff'; ctx.globalAlpha = 0.08;
+            ctx.fillRect(gx + 1, gy + 1, cardW - 2, cardH - 2);
+            ctx.globalAlpha = 1;
+        }
+
+        // Ghost info
+        drawText(`${ghost.blessingIcon} ${ghost.heroName}`, gx + 6, gy + 3, { font: 'bold 8px monospace', fill: isSelected ? '#ccddff' : '#ccc', outlineWidth: 2 });
+        const bName = typeof ghost.blessingName === 'object' ? (ghost.blessingName[lang] || ghost.blessingName.en) : ghost.blessingName;
+        drawText(bName, gx + 6, gy + 15, { font: '6px monospace', fill: '#888', outline: false });
+        drawText(`Fl.${ghost.floor} · ${ghost.strength}%`, gx + cardW - 8, gy + 3, { font: '7px monospace', fill: '#aaccff', align: 'right', outline: false });
+        drawText(ghost.age, gx + cardW - 8, gy + 15, { font: '6px monospace', fill: '#555', align: 'right', outline: false });
+
+        // Select indicator
+        if (isSelected) {
+            drawText('✓', gx + cardW - 8, gy + 24, { font: 'bold 8px monospace', fill: '#44ff44', align: 'right' });
+        }
+    }
+
+    // Clear selection button
+    if (LineageState.selectedGhost) {
+        const clearX = GAME_W / 2 - 40, clearY = GAME_H - 56;
+        ctx.fillStyle = 'rgba(60,20,20,0.9)';
+        ctx.fillRect(clearX, clearY, 80, 14);
+        ctx.strokeStyle = '#ff6644'; ctx.lineWidth = 1;
+        ctx.strokeRect(clearX, clearY, 80, 14);
+        drawText(lang === 'vi' ? '✕ Bỏ Chọn' : '✕ Clear', GAME_W / 2, clearY + 1, { font: 'bold 7px monospace', fill: '#ff6644', align: 'center' });
+    }
+}
+
+function handleLineageClick(mx, my) {
+    const contentY = 48;
+    const ghosts = typeof getLineageDisplay === 'function' ? getLineageDisplay() : [];
+    const cardW = 210, cardH = 36, gapX = 10, gapY = 6;
+    const ghostStartY = contentY + 28;
+    const maxPerRow = 2;
+    const gridStartX = GAME_W / 2 - cardW - gapX / 2;
+
+    for (let gi = 0; gi < ghosts.length && gi < 8; gi++) {
+        const col = gi % maxPerRow;
+        const row = Math.floor(gi / maxPerRow);
+        const gx = gridStartX + col * (cardW + gapX);
+        const gy = ghostStartY + row * (cardH + gapY);
+
+        if (mx >= gx && mx <= gx + cardW && my >= gy && my <= gy + cardH) {
+            if (typeof selectGhostTrait === 'function') {
+                const isAlreadySelected = LineageState.selectedGhost &&
+                    LineageState.ghosts[gi] === LineageState.selectedGhost;
+                if (isAlreadySelected) {
+                    clearGhostSelection();
+                } else {
+                    selectGhostTrait(gi);
+                }
+                SFX.menuClick();
+            }
+            return;
+        }
+    }
+
+    // Clear selection button
+    if (LineageState.selectedGhost) {
+        const clearX = GAME_W / 2 - 40, clearY = GAME_H - 56;
+        if (mx >= clearX && mx <= clearX + 80 && my >= clearY && my <= clearY + 14) {
+            clearGhostSelection();
+            SFX.menuClick();
+            return;
+        }
+    }
+}
+
+// --- MANDATE TAB (T-03) ---
+function drawMandateTab() {
+    const lang = G.lang || 'vi';
+    const contentY = 48;
+
+    // Title + Total Heat
+    const total = MandateState.totalMandate || 0;
+    const titleObj = MandateState.currentTitle;
+    const titleStr = titleObj ? (titleObj.title[lang] || titleObj.title.en) : '';
+    const titleColor = titleObj ? titleObj.color : '#888';
+
+    drawText(lang === 'vi' ? 'Thiên Mệnh' : 'Mandate of Heaven', GAME_W / 2, contentY, { font: 'bold 10px monospace', fill: '#ff6644', align: 'center', outlineWidth: 2 });
+
+    // Heat + Jade bonus
+    drawText(`🔥 ${total}`, GAME_W / 2 - 60, contentY + 14, { font: 'bold 9px monospace', fill: '#ff4444', outline: false });
+    drawText(`💎 ×${MandateState.jadeMultiplier.toFixed(1)}`, GAME_W / 2 + 20, contentY + 14, { font: 'bold 9px monospace', fill: '#44ffaa', outline: false });
+    if (titleStr) {
+        drawText(titleStr, GAME_W - 15, contentY + 14, { font: 'bold 8px monospace', fill: titleColor, align: 'right' });
+    }
+
+    // Locked check
+    if (!MandateState.unlocked) {
+        drawText(lang === 'vi' ? '🔒 Thắng lần đầu để mở' : '🔒 Win once to unlock', GAME_W / 2, GAME_H / 2 - 5, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
+        return;
+    }
+
+    // Modifier list
+    const mods = typeof MANDATE_MODIFIERS !== 'undefined' ? MANDATE_MODIFIERS : [];
+    const modH = 22, modGap = 3;
+    const modStartY = contentY + 28;
+    const colW = Math.floor((GAME_W - 20) / 2);
+
+    for (let mi = 0; mi < mods.length; mi++) {
+        const mod = mods[mi];
+        const col = mi % 2;
+        const row = Math.floor(mi / 2);
+        const modX = 8 + col * (colW + 4);
+        const modY = modStartY + row * (modH + modGap);
+        const level = MandateState.levels[mod.id] || 0;
+        const isActive = level > 0;
+
+        // Background
+        ctx.fillStyle = isActive ? 'rgba(60,20,20,0.9)' : 'rgba(15,12,20,0.9)';
+        ctx.fillRect(modX, modY, colW, modH);
+        ctx.strokeStyle = isActive ? '#ff4444' : '#222';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(modX, modY, colW, modH);
+
+        // Icon + Name
+        drawText(`${mod.icon} ${mod.name[lang] || mod.name.en}`, modX + 4, modY + 2, { font: 'bold 7px monospace', fill: isActive ? '#ff8844' : '#888', outlineWidth: 1 });
+
+        // Level pips
+        let pipStr = '';
+        for (let l = 0; l < mod.maxLevel; l++) pipStr += l < level ? '●' : '○';
+        drawText(pipStr, modX + 4, modY + 12, { font: '7px monospace', fill: isActive ? '#ff6644' : '#444', outline: false });
+
+        // +/- buttons
+        const btnSize = 10;
+        // Minus
+        const minX = modX + colW - btnSize * 2 - 6;
+        ctx.fillStyle = level > 0 ? 'rgba(100,30,30,0.9)' : 'rgba(30,20,20,0.5)';
+        ctx.fillRect(minX, modY + 5, btnSize, btnSize);
+        ctx.strokeStyle = level > 0 ? '#ff4444' : '#333'; ctx.lineWidth = 1;
+        ctx.strokeRect(minX, modY + 5, btnSize, btnSize);
+        drawText('-', minX + btnSize / 2, modY + 5, { font: 'bold 8px monospace', fill: level > 0 ? '#ff6644' : '#444', align: 'center', outline: false });
+
+        // Plus
+        const plusX = minX + btnSize + 3;
+        ctx.fillStyle = level < mod.maxLevel ? 'rgba(30,80,30,0.9)' : 'rgba(20,30,20,0.5)';
+        ctx.fillRect(plusX, modY + 5, btnSize, btnSize);
+        ctx.strokeStyle = level < mod.maxLevel ? '#44ff44' : '#333'; ctx.lineWidth = 1;
+        ctx.strokeRect(plusX, modY + 5, btnSize, btnSize);
+        drawText('+', plusX + btnSize / 2, modY + 5, { font: 'bold 8px monospace', fill: level < mod.maxLevel ? '#66ff66' : '#444', align: 'center', outline: false });
+
+        // Jade bonus
+        drawText(`+${Math.round(mod.jadeBonus * 100 * level)}%💎`, modX + colW - 3, modY + 2, { font: '6px monospace', fill: '#44aa44', align: 'right', outline: false });
+    }
+}
+
+function handleMandateClick(mx, my) {
+    if (!MandateState.unlocked) return;
+
+    const contentY = 48;
+    const mods = typeof MANDATE_MODIFIERS !== 'undefined' ? MANDATE_MODIFIERS : [];
+    const modH = 22, modGap = 3;
+    const modStartY = contentY + 28;
+    const colW = Math.floor((GAME_W - 20) / 2);
+
+    for (let mi = 0; mi < mods.length; mi++) {
+        const mod = mods[mi];
+        const col = mi % 2;
+        const row = Math.floor(mi / 2);
+        const modX = 8 + col * (colW + 4);
+        const modY = modStartY + row * (modH + modGap);
+        const level = MandateState.levels[mod.id] || 0;
+        const btnSize = 10;
+
+        // Minus button
+        const minX = modX + colW - btnSize * 2 - 6;
+        if (mx >= minX && mx <= minX + btnSize && my >= modY + 5 && my <= modY + 5 + btnSize) {
+            if (level > 0 && typeof setMandateLevel === 'function') {
+                setMandateLevel(mod.id, level - 1);
+                SFX.menuClick();
+            }
+            return;
+        }
+
+        // Plus button
+        const plusX = minX + btnSize + 3;
+        if (mx >= plusX && mx <= plusX + btnSize && my >= modY + 5 && my <= modY + 5 + btnSize) {
+            if (level < mod.maxLevel && typeof setMandateLevel === 'function') {
+                setMandateLevel(mod.id, level + 1);
+                SFX.menuClick();
+            }
+            return;
         }
     }
 }
@@ -1655,7 +2041,7 @@ function drawHeroSelectScreen() {
     // Hero cards — 6 cards (fit within screen)
     const gap = 4;
     const cardW = Math.floor((GAME_W - gap * (HEROES.length + 1)) / HEROES.length);
-    const cardH = 240;
+    const cardH = 195;
     const totalW = HEROES.length * (cardW + gap) - gap;
     const startX = Math.max(gap, GAME_W / 2 - totalW / 2);
     const startY = 30;
@@ -1750,12 +2136,51 @@ function drawHeroSelectScreen() {
         });
     }
 
+    // --- Aspect Selector Row (S001-UI) ---
+    if (typeof HERO_ASPECTS !== 'undefined') {
+        const aspY = startY + cardH + 4;
+        const aspBtnW = Math.floor(cardW / 3);
+        const aspH = 18;
+        const lang = G.lang || 'vi';
+
+        for (let i = 0; i < HEROES.length; i++) {
+            const h = HEROES[i];
+            const cx = startX + i * (cardW + gap);
+            const aspects = HERO_ASPECTS[h.id] || [];
+            const selectedId = (AspectState.selectedAspect && AspectState.selectedAspect[h.id]) || '';
+
+            for (let ai = 0; ai < aspects.length; ai++) {
+                const aspect = aspects[ai];
+                const ax = cx + ai * aspBtnW;
+                const isSelected = aspect.id === selectedId;
+                const isUnlocked = AspectState.unlockedAspects[h.id] &&
+                    AspectState.unlockedAspects[h.id].includes(aspect.id);
+
+                // Button bg
+                ctx.fillStyle = isSelected ? 'rgba(50,40,10,0.95)' : 'rgba(10,8,18,0.85)';
+                ctx.fillRect(ax, aspY, aspBtnW - 1, aspH);
+                ctx.strokeStyle = isSelected ? '#ffd700' : isUnlocked ? aspect.color : '#333';
+                ctx.lineWidth = isSelected ? 2 : 1;
+                ctx.strokeRect(ax, aspY, aspBtnW - 1, aspH);
+
+                if (isUnlocked) {
+                    // Show icon + short name
+                    drawText(aspect.icon, ax + aspBtnW / 2, aspY + 1, { font: '8px monospace', fill: isSelected ? '#ffd700' : aspect.color, align: 'center', outline: false });
+                    const shortName = (aspect.name[lang] || aspect.name.en).substring(0, 4);
+                    drawText(shortName, ax + aspBtnW / 2, aspY + 10, { font: '5px monospace', fill: isSelected ? '#fff' : '#888', align: 'center', outline: false });
+                } else {
+                    drawText('🔒', ax + aspBtnW / 2, aspY + 3, { font: '7px monospace', fill: '#333', align: 'center', outline: false });
+                }
+            }
+        }
+    }
+
     // Instructions
     drawText('Click a hero to begin', GAME_W / 2, GAME_H - 18, { font: '9px monospace', fill: '#666', align: 'center', outline: false });
 
     // --- Difficulty Tier Selector (K004) ---
     if (typeof DIFFICULTY_TIERS !== 'undefined') {
-        const dtY = GAME_H - 42;
+        const dtY = GAME_H - 36;
         const dtBtnW = 50, dtGap = 4;
         const dtTotalW = DIFFICULTY_TIERS.length * (dtBtnW + dtGap) - dtGap;
         const dtStartX = GAME_W / 2 - dtTotalW / 2;
@@ -1788,9 +2213,45 @@ function drawHeroSelectScreen() {
 
 // --- Handle Hero Select Click ---
 function handleHeroSelectClick(mx, my) {
+    // --- S001-UI: Aspect Click ---
+    if (typeof HERO_ASPECTS !== 'undefined') {
+        const gap = 4;
+        const cardW = Math.floor((GAME_W - gap * (HEROES.length + 1)) / HEROES.length);
+        const cardH = 195;
+        const totalW = HEROES.length * (cardW + gap) - gap;
+        const startX = Math.max(gap, GAME_W / 2 - totalW / 2);
+        const startY = 30;
+        const aspY = startY + cardH + 4;
+        const aspBtnW = Math.floor(cardW / 3);
+        const aspH = 18;
+
+        for (let i = 0; i < HEROES.length; i++) {
+            const h = HEROES[i];
+            const cx = startX + i * (cardW + gap);
+            const aspects = HERO_ASPECTS[h.id] || [];
+
+            for (let ai = 0; ai < aspects.length; ai++) {
+                const aspect = aspects[ai];
+                const ax = cx + ai * aspBtnW;
+
+                if (mx >= ax && mx <= ax + aspBtnW && my >= aspY && my <= aspY + aspH) {
+                    const isUnlocked = AspectState.unlockedAspects[h.id] &&
+                        AspectState.unlockedAspects[h.id].includes(aspect.id);
+                    if (isUnlocked) {
+                        selectAspect(h.id, aspect.id);
+                        SFX.menuClick();
+                    } else {
+                        triggerFlash('#ff0000', 0.15);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
     // --- K004: Difficulty Tier Click ---
     if (typeof DIFFICULTY_TIERS !== 'undefined') {
-        const dtY = GAME_H - 42;
+        const dtY = GAME_H - 36;
         const dtBtnW = 50, dtGap = 4;
         const dtTotalW = DIFFICULTY_TIERS.length * (dtBtnW + dtGap) - dtGap;
         const dtStartX = GAME_W / 2 - dtTotalW / 2;
@@ -1810,7 +2271,7 @@ function handleHeroSelectClick(mx, my) {
     }
 
     // --- Hero Card Click ---
-    const cardW = 88, cardH = 240, gap = 4;
+    const cardW = 88, cardH = 195, gap = 4;
     const totalW = HEROES.length * (cardW + gap) - gap;
     const startX = GAME_W / 2 - totalW / 2;
     const startY = 30;

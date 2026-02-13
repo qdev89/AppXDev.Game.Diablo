@@ -220,6 +220,8 @@ window.applyPassive = function (def) {
 function updateWeapons(dt) {
     const auraAtkSpd = (G.allyAura && G.allyAura.atkSpd) ? G.allyAura.atkSpd : 0;
     let spdMult = 1 + (window.passives ? window.passives.atkSpd : 0) + auraAtkSpd;
+    // S001: Aspect attack speed multiplier (Shadow 3x, Eternity 0.6x, Siege 0.5x)
+    if (P.aspectAtkSpdMult && P.aspectAtkSpdMult !== 1.0) spdMult *= P.aspectAtkSpdMult;
     // Berserker: Rage mode = 1.5x attack speed
     if (P.rageModeTimer > 0) {
         const hero = getHeroDef(P.heroId);
@@ -793,6 +795,32 @@ function damageEnemy(e, dmg, el) {
         mult *= 1 + Math.min(G.combo * 0.02, 0.5);
     }
 
+    // S001: Aspect Damage Multiplier (e.g., Demon 2x, Shadow 0.4x, Siege 2x)
+    if (P.aspectDmgMult && P.aspectDmgMult !== 1.0) mult *= P.aspectDmgMult;
+
+    // S001: Red Cliffs — combo damage scaling (+0.5% per combo hit)
+    if (P.comboDmgScaling > 0 && G.combo > 0) {
+        mult *= 1 + (G.combo * P.comboDmgScaling);
+    }
+
+    // S001: Stars — marked targets take bonus damage
+    if (P.markDmgBonus > 0 && e._marked) {
+        mult *= (1 + P.markDmgBonus);
+    }
+
+    // S001: Prophecy — cursed targets take bonus damage
+    if (P.curseDmgTaken > 0 && e._cursed > 0) {
+        mult *= (1 + P.curseDmgTaken);
+    }
+
+    // S001: Siege — siege shot bonus (standing still charges x5 dmg)
+    if (P.siegeMode && P.siegeChargeTimer >= 1.0) {
+        mult *= P.siegeDmgMult;
+        P.siegeChargeTimer = 0; // Reset after firing
+        spawnDmgNum(P.x, P.y - 30, 'SIEGE!', '#ff6600', true);
+        shake(4, 0.2);
+    }
+
     // Blessing Damage Multiplier (includes Cursed/Archetype bonuses)
     if (bStats.dmgMult) mult *= (1 + bStats.dmgMult);
 
@@ -818,8 +846,11 @@ function damageEnemy(e, dmg, el) {
     if (bStats.hasFrozenBonus && (e.slow > 0 || e.frozen > 0)) {
         mult *= (1 + bStats.frozenBonusVal);
     }
-
     const finalDmg = dmg * mult;
+
+    // T001: Mandate — enemy damage reduction (Unbreakable modifier)
+    const mandateEffects = typeof getMandateEffects === 'function' ? getMandateEffects() : {};
+    let mandateDR = mandateEffects.enemyDmgReduction || 0;
 
     // N003: Shielded modifier — 50% DR for first 3 hits
     let reducedDmg = finalDmg;
@@ -831,6 +862,11 @@ function damageEnemy(e, dmg, el) {
             spawnDmgNum(e.x, e.y - 25, 'SHIELD BREAK!', '#ff4400', true);
             spawnParticles(e.x, e.y, '#4488ff', 12, 50);
         }
+    }
+
+    // T001: Apply Mandate damage reduction
+    if (mandateDR > 0) {
+        reducedDmg *= (1 - mandateDR);
     }
 
     e.hp -= reducedDmg;
@@ -871,6 +907,37 @@ function damageEnemy(e, dmg, el) {
         shake(5, 0.2);
     }
 
+    // S001: Demon Aspect — drain MP per attack
+    if (P.aspectMpDrain > 0) {
+        P.mp = Math.max(0, P.mp - P.aspectMpDrain);
+    }
+
+    // S001: Shadow Aspect — teleport behind enemy every Nth hit
+    if (P.teleportEvery > 0) {
+        P.teleportHitCounter = (P.teleportHitCounter || 0) + 1;
+        if (P.teleportHitCounter >= P.teleportEvery) {
+            P.teleportHitCounter = 0;
+            // Teleport behind the enemy
+            const angle = Math.atan2(e.y - P.y, e.x - P.x);
+            P.x = e.x + Math.cos(angle) * (e.r + 15);
+            P.y = e.y + Math.sin(angle) * (e.r + 15);
+            spawnParticles(P.x, P.y, '#222244', 8, 30);
+            spawnDmgNum(P.x, P.y - 20, 'BLINK!', '#aaaaff', false);
+        }
+    }
+
+    // S001: Stars Aspect — mark target for bonus damage
+    if (P.markDmgBonus > 0 && !e._marked) {
+        e._marked = true;
+        spawnDmgNum(e.x, e.y - 25, '⭐ MARK', '#ffd700', false);
+    }
+
+    // S001: Prophecy Aspect — curse target on hit
+    if (P.curseOnHit && !e._cursed) {
+        e._cursed = (P.aspectMods && P.aspectMods.curseDuration) || 5;
+        spawnDmgNum(e.x, e.y - 25, '🔮 CURSE', '#cc44ff', false);
+    }
+
     const elDef = ELEMENTS[el] || ELEMENTS.METAL;
     const dmgColor = isCrit ? '#ff4400' : mult > 1.2 ? '#ffff00' : elDef.light;
     spawnDmgNum(e.x + rng(-5, 5), e.y - 8, Math.ceil(reducedDmg), dmgColor, isCrit || mult > 1.2);
@@ -896,6 +963,19 @@ function killEnemy(e) {
     G.combo++;
     G.maxCombo = Math.max(G.maxCombo, G.combo);
     G.enemiesKilled++;
+
+    // S001: Demon Aspect — restore MP on kill
+    if (P.aspectMpOnKill > 0) {
+        P.mp = Math.min(P.mpMax, P.mp + P.aspectMpOnKill);
+        spawnDmgNum(P.x, P.y - 15, '+' + P.aspectMpOnKill + ' MP', '#8844ff', false);
+    }
+
+    // S001: Prophecy Aspect — cursed enemies drop 2x resources
+    if (P.curseOnHit && e._cursed > 0) {
+        // Double XP drop
+        const bonusXp = e.xp || 3;
+        spawnPickup(e.x + rng(-10, 10), e.y + rng(-10, 10), 'xp', bonusXp);
+    }
 
     // N002: Kill Streak System
     G.killStreak++;

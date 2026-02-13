@@ -1,0 +1,25 @@
+{
+  "teamId": "team-2026-02-13-meta-progression-ui",
+  "template": "full-stack-feature",
+  "task": "Implement all remaining meta-progression UIs while keeping working systems stable",
+  "created": "2026-02-13T12:13:11+07:00",
+  "agents": [
+    {
+      "id": "lead",
+      "role": "Conductor / Lead Agent",
+      "trustTier": "T2",
+      "backend": "direct",
+      "skills": ["game-development", "frontend-design"]
+    },
+    {
+      "id": "verifier",
+      "role": "QA Verification",
+      "trustTier": "T1",
+      "backend": "browser_subagent"
+    }
+  ],
+  "constraints": {
+    "sharedFile": "hud.js (154KB) — ALL UI tasks modify this single canvas renderer",
+    "strategy": "Sequential implementation by Lead to avoid merge conflicts, browser verification by subagent"
+  }
+}

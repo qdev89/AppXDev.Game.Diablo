@@ -353,6 +353,60 @@ function startGame() {
     P.tacticalCd = 0; P.ultimateActive = 0;
     P.shieldWall = 0; P.rageModeTimer = 0;
 
+    // S001: Apply Hero Aspect modifications
+    const aspectMods = typeof getAspectMods === 'function' ? getAspectMods(hero.id) : {};
+    P.aspectMods = aspectMods; // Store full mods object for reference
+    // Damage multiplier (e.g., Demon 2x, Siege 2x, Shadow 0.4x)
+    P.aspectDmgMult = aspectMods.dmgMult || 1.0;
+    // Attack speed multiplier (e.g., Shadow 3x, Eternity 0.6x, Siege 0.5x)
+    P.aspectAtkSpdMult = aspectMods.attackSpeedMult || 1.0;
+    // Arc override (e.g., Eternity 360° sweep)
+    P.aspectArcOverride = aspectMods.arcOverride || 0;
+    // MP drain per attack (Demon aspect)
+    P.aspectMpDrain = aspectMods.mpDrain || 0;
+    // MP restore per kill (Demon aspect)
+    P.aspectMpOnKill = aspectMods.mpOnKill || 0;
+    // Stationary damage reduction (Eternity aspect)
+    P.stationaryDR = aspectMods.stationaryDR || 0;
+    P.stationaryTimer = 0; // Track how long player hasn't moved
+    // Homing projectiles (Stars aspect)
+    P.homingProjectiles = !!aspectMods.homing;
+    // Mark damage bonus (Stars aspect)
+    P.markDmgBonus = aspectMods.markDmgBonus || 0;
+    // Teleport mechanic (Shadow aspect)
+    P.teleportEvery = aspectMods.teleportEvery || 0;
+    P.teleportHitCounter = 0;
+    // Fire trail on dash (Red Cliffs aspect)
+    P.fireTrailOnDash = !!aspectMods.fireTrailOnDash;
+    P.fireTrailDps = aspectMods.fireTrailDps || 0;
+    P.fireTrailDuration = aspectMods.fireTrailDuration || 0;
+    // Combo damage scaling (Red Cliffs aspect)
+    P.comboDmgScaling = aspectMods.comboDmgScaling || 0;
+    // Shield primary (Changban aspect)
+    P.shieldPrimary = !!aspectMods.shieldPrimary;
+    P.chargeOnDash = !!aspectMods.chargeOnDash;
+    P.chargeDmg = aspectMods.chargeDmg || 0;
+    // Pierce all (Siege aspect)
+    P.pierceAll = !!aspectMods.pierceAll;
+    P.siegeMode = !!aspectMods.siegeMode;
+    P.siegeChargeTimer = 0;
+    P.siegeDmgMult = aspectMods.siegeDmgMult || 1.0;
+    // Splitting arrows (Storm aspect)
+    P.splitOnHit = aspectMods.splitOnHit || 0;
+    P.splitDmgMult = aspectMods.splitDmgMult || 1.0;
+    // Clone/stealth (Deception aspect)
+    P.cloneOnSkill = !!aspectMods.cloneOnSkill;
+    P.stealthTimer = 0;
+    // Void on hit (Void aspect)
+    P.voidOnHit = !!aspectMods.voidOnHit;
+    P.voidRadius = aspectMods.voidRadius || 0;
+    // Curse on hit (Prophecy aspect)
+    P.curseOnHit = !!aspectMods.curseOnHit;
+    P.curseDmgTaken = aspectMods.curseDmgTaken || 0;
+    // Ally aura (Loyalty aspect)
+    P.allyDmgBonus = aspectMods.allyDmgBonus || 0;
+    P.allySpeedBonus = aspectMods.allySpeedBonus || 0;
+
     // Reset passives
     if (window.passives) {
         window.passives.atkSpd = 0; window.passives.maxHp = 0; window.passives.moveSpd = 0;
@@ -542,6 +596,47 @@ function updatePlayer(dt) {
     if (G.killStreakAnnounce) {
         G.killStreakAnnounce.timer -= dt;
         if (G.killStreakAnnounce.timer <= 0) G.killStreakAnnounce = null;
+    }
+
+    // S001: Stationary timer (for Eternity DR + Siege charge)
+    if (len > 0.1) {
+        P.stationaryTimer = 0; // Moving — reset
+        P.siegeChargeTimer = 0;
+    } else {
+        P.stationaryTimer = (P.stationaryTimer || 0) + dt;
+        // Siege aspect — charge timer
+        if (P.siegeMode) {
+            P.siegeChargeTimer = (P.siegeChargeTimer || 0) + dt;
+        }
+    }
+
+    // S001: Fire Trail on dash (Red Cliffs aspect)
+    if (P.fireTrailOnDash && P.dodgeTimer > 0) {
+        // Spawn fire hazard particles along dash path
+        if (Math.random() < 0.5) {
+            spawnParticles(P.x, P.y, '#ff4400', 2, 20);
+            // Damage nearby enemies with fire trail
+            for (const e of G.enemies) {
+                if (e.dead) continue;
+                const d = Math.hypot(e.x - P.x, e.y - P.y);
+                if (d < 25) {
+                    e.burn = (e.burn || 0) + P.fireTrailDuration;
+                    e.burnDps = Math.max(e.burnDps || 0, P.fireTrailDps);
+                }
+            }
+        }
+    }
+
+    // S001: Stealth timer decay (Deception aspect)
+    if (P.stealthTimer > 0) {
+        P.stealthTimer -= dt;
+    }
+
+    // S001: Curse duration decay on enemies
+    for (const e of G.enemies) {
+        if (e._cursed && e._cursed > 0) {
+            e._cursed -= dt;
+        }
     }
 
     // N004: Blood Moon Event System

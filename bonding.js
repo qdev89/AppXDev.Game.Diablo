@@ -247,8 +247,19 @@ function checkBondRevive() {
 
 // --- Check Bond Damage Reduction ---
 function getBondDmgReduction() {
-    if (!G.bonding || !G.bonding.activeEffects) return 0;
-    return G.bonding.activeEffects.dmgReduction || 0;
+    let dr = 0;
+    if (G.bonding && G.bonding.activeEffects) {
+        dr += G.bonding.activeEffects.dmgReduction || 0;
+    }
+    // S001: Eternity Aspect — stationary damage reduction
+    if (P.stationaryDR > 0 && P.stationaryTimer >= 1.0) {
+        dr += P.stationaryDR;
+    }
+    // Blessing damage reduction
+    if (typeof getBlessingDamageReduction === 'function') {
+        dr += getBlessingDamageReduction();
+    }
+    return Math.min(dr, 0.80); // Cap at 80% DR
 }
 
 // ============================================================

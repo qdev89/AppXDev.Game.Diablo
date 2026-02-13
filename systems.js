@@ -8,6 +8,10 @@ function spawnEnemy(x, y, type) {
     const floorMult = 1 + (G.floor - 1) * 0.20;
     // K004: Difficulty tier multiplier
     const diffTier = (typeof DIFFICULTY_TIERS !== 'undefined' && DIFFICULTY_TIERS[G.difficulty]) ? DIFFICULTY_TIERS[G.difficulty] : { hpMult: 1, spdMult: 1 };
+    // T001: Mandate of Heaven effects (Pact of Punishment)
+    const mandate = typeof getMandateEffects === 'function' ? getMandateEffects() : {};
+    const mandateHpMult = mandate.enemyHpMult || 1.0;
+    const mandateSpdMult = mandate.enemySpeedMult || 1.0;
     const types = {
         fodder: { hp: 5, speed: 25, dmg: 2, r: 4, xp: 1 },
         grunt: { hp: 20, speed: 35, dmg: 5, r: 6, xp: 3 },
@@ -21,8 +25,8 @@ function spawnEnemy(x, y, type) {
     const t = types[type] || types.grunt;
     const enemy = {
         x, y, vx: 0, vy: 0,
-        hp: t.hp * floorMult * diffTier.hpMult, maxHp: t.hp * floorMult * diffTier.hpMult,
-        speed: t.speed * diffTier.spdMult, dmg: t.dmg * floorMult * diffTier.hpMult,
+        hp: t.hp * floorMult * diffTier.hpMult * mandateHpMult, maxHp: t.hp * floorMult * diffTier.hpMult * mandateHpMult,
+        speed: t.speed * diffTier.spdMult * mandateSpdMult, dmg: t.dmg * floorMult * diffTier.hpMult,
         r: t.r, el, color: elDef.color, lightColor: elDef.light,
         type, flash: 0, knockX: 0, knockY: 0, dead: false,
         attackCd: 0, spawnAnim: 0.4,
@@ -30,7 +34,9 @@ function spawnEnemy(x, y, type) {
     };
     // N003: Assign random modifiers to elite/miniboss enemies
     if ((type === 'elite' || type === 'miniboss') && typeof ELITE_MODIFIERS !== 'undefined') {
-        const numMods = G.floor >= 5 ? (Math.random() < 0.4 ? 2 : 1) : (G.floor >= 3 ? 1 : 0);
+        let numMods = G.floor >= 5 ? (Math.random() < 0.4 ? 2 : 1) : (G.floor >= 3 ? 1 : 0);
+        // T001: Mandate — Shadow Army adds extra modifiers to ALL enemies
+        numMods += (mandate.enemyModifiers || 0);
         const pool = [...ELITE_MODIFIERS];
         for (let mi = 0; mi < numMods && pool.length > 0; mi++) {
             const idx = Math.floor(Math.random() * pool.length);
