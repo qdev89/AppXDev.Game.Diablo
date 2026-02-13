@@ -185,7 +185,7 @@ canvas.addEventListener('touchstart', e => {
     }
     if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(sx, sy); return; }
     if (G.state === 'BONDING') { handleBondingClick(sx, sy); return; }
-    if (G.state === 'GAME_OVER') { transitionTo('BONDING'); return; }
+    if (G.state === 'GAME_OVER') { transitionTo('MENU'); return; }
     if (G.state === 'LEVEL_UP') { handleLevelUpClick(sx, sy); return; }
     // K001: Shop touch support
     if (G.state === 'SHOP') { if (typeof handleShopClick === 'function') handleShopClick(sx, sy); return; }
@@ -313,7 +313,7 @@ canvas.addEventListener('click', e => {
     }
     else if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(mx, my); }
     else if (G.state === 'BONDING') handleBondingClick(mx, my);
-    else if (G.state === 'GAME_OVER') transitionTo('BONDING');
+    else if (G.state === 'GAME_OVER') transitionTo('MENU');
     else if (G.state === 'LEVEL_UP') handleLevelUpClick(mx, my);
     // K001: Shop & Door choice clicks
     else if (G.state === 'SHOP') { if (typeof handleShopClick === 'function') handleShopClick(mx, my); }

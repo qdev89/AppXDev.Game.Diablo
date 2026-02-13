@@ -611,6 +611,10 @@ function updateEnemies(dt) {
         }
 
         // ===== NEW ENEMY TYPE BEHAVIORS =====
+        // Distance to player (used by multiple enemy types below)
+        const dx = P.x - e.x, dy = P.y - e.y;
+        const d = Math.hypot(dx, dy);
+
         // Shaman: heals nearby wounded allies every 3s
         if (e.type === 'shaman') {
             e._healCd -= dt;
@@ -675,8 +679,7 @@ function updateEnemies(dt) {
         }
 
         // Chase player (with boss-specific AI)
-        const dx = P.x - e.x, dy = P.y - e.y;
-        const d = Math.hypot(dx, dy);
+        // dx, dy, d already computed above for enemy type behaviors
 
         // L003: Final boss AI
         if (e.type === 'finalboss') {

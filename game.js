@@ -794,6 +794,8 @@ function update(dt) {
             // Save high score
             if (typeof saveHighScore === 'function') saveHighScore();
             if (typeof updatePersistentStats === 'function') updatePersistentStats();
+            // Clear saved run (dead run shouldn't be continuable)
+            if (typeof clearRunState === 'function') clearRunState();
             // P005: Record defeat
             if (window.RunHistory) window.RunHistory.recordRun('defeat');
             spawnDeathExplosion(P.x, P.y, '#ff2222', '#ff6644', 12);
@@ -948,6 +950,8 @@ function update(dt) {
         // Save stats
         if (typeof saveHighScore === 'function') saveHighScore();
         if (typeof updatePersistentStats === 'function') updatePersistentStats();
+        // Clear saved run (completed run shouldn't be continuable)
+        if (typeof clearRunState === 'function') clearRunState();
         // P005: Record victory
         if (window.RunHistory) window.RunHistory.recordRun('victory');
         // Unlock next difficulty

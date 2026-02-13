@@ -1072,7 +1072,7 @@ function drawGameOverScreen() {
 
     // Continue prompt
     if (Math.sin(G.time * 3) > 0) {
-        drawText('[ CLICK TO CONTINUE ]', GAME_W / 2, GAME_H - 35, { font: 'bold 12px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
+        drawText('[ CLICK TO RETURN TO MENU ]', GAME_W / 2, GAME_H - 35, { font: 'bold 12px monospace', fill: '#ffd700', align: 'center', outlineWidth: 4 });
     }
 }
 
