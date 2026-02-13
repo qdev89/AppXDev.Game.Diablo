@@ -118,7 +118,7 @@ const ELITE_MODIFIERS = [
 const P = {
     x: 1000, y: 1000, w: 12, h: 14,
     vx: 0, vy: 0, speed: 100,
-    hp: 100, maxHp: 100, xp: 0, xpNeeded: 20, level: 1,
+    hp: 100, maxHp: 100, xp: 0, xpNeeded: 25, level: 1,
     element: 'METAL', facing: 1,
     invincible: 0, damageFlash: 0,
     dodgeTimer: 0, dodgeCd: 0, dodgeDx: 0, dodgeDy: 0,
@@ -136,7 +136,13 @@ const keys = {};
 const touch = { active: false, sx: 0, sy: 0, cx: 0, cy: 0, dx: 0, dy: 0 };
 
 window.addEventListener('keydown', e => { keys[e.key] = true; keys[e.code] = true; });
-window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.code] = false; });
+window.addEventListener('keyup', e => {
+    keys[e.key] = false; keys[e.code] = false;
+    // P008: Release Omega charge on F key up
+    if ((e.code === 'KeyF' || e.key === 'f' || e.key === 'F') && typeof releaseOmegaAttack === 'function') {
+        releaseOmegaAttack();
+    }
+});
 
 canvas.addEventListener('touchstart', e => {
     e.preventDefault();
@@ -155,13 +161,93 @@ canvas.addEventListener('touchstart', e => {
                 return;
             }
         }
+        // Persistence Menu Clicks (Continue / New Game)
+        if (G.menuButtons && typeof G.menuButtons === 'object') {
+            const bCont = G.menuButtons.continue;
+            const bNew = G.menuButtons.newGame;
+            if (bCont && sx >= bCont.x && sx <= bCont.x + bCont.w && sy >= bCont.y && sy <= bCont.y + bCont.h) {
+                if (typeof loadRunState === 'function') {
+                    SFX.menuClick();
+                    if (loadRunState()) return;
+                }
+            }
+            if (bNew && sx >= bNew.x && sx <= bNew.x + bNew.w && sy >= bNew.y && sy <= bNew.y + bNew.h) {
+                if (typeof clearRunState === 'function') clearRunState();
+                transitionTo('HERO_SELECT');
+                if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction();
+                return;
+            }
+            return;
+        }
         transitionTo('HERO_SELECT');
+        if (typeof initAudioOnInteraction === 'function') initAudioOnInteraction();
         return;
     }
     if (G.state === 'HERO_SELECT') { if (typeof handleHeroSelectClick === 'function') handleHeroSelectClick(sx, sy); return; }
     if (G.state === 'BONDING') { handleBondingClick(sx, sy); return; }
     if (G.state === 'GAME_OVER') { transitionTo('BONDING'); return; }
     if (G.state === 'LEVEL_UP') { handleLevelUpClick(sx, sy); return; }
+    // K001: Shop touch support
+    if (G.state === 'SHOP') { if (typeof handleShopClick === 'function') handleShopClick(sx, sy); return; }
+    // K001: Door choice touch support
+    if (G.state === 'PLAYING' && G.roomState === 'DOOR_CHOICE') { if (typeof handleDoorChoiceClick === 'function') handleDoorChoiceClick(sx, sy); return; }
+    // K002: Blessing choice touch support
+    if (G.state === 'BLESSING_CHOICE') { if (typeof handleBlessingChoiceClick === 'function') handleBlessingChoiceClick(sx, sy); return; }
+    // N006: Stage Clear Blessing touch support
+    if (G.state === 'BLESSING_SELECT') { if (typeof handleBlessingSelectClick === 'function') handleBlessingSelectClick(sx, sy); return; }
+    // S003: Relic choice touch support
+    if (G.state === 'RELIC_CHOICE') { if (typeof handleRelicChoiceClick === 'function') handleRelicChoiceClick(sx, sy); return; }
+    // L003: Victory screen touch support
+    if (G.state === 'VICTORY') {
+        // Top half = continue (endless), bottom half = return to menu
+        if (sy < GAME_H * 0.65) {
+            G.finalBoss = null;
+            if (typeof nextFloor === 'function') nextFloor();
+            SFX.menuClick();
+        } else {
+            G.state = 'MENU';
+            SFX.menuClick();
+        }
+        return;
+    }
+    // Pause menu touch support
+    if (G.state === 'PAUSED') {
+        // Calculate pause menu item positions (must match drawPauseMenu layout)
+        const menuW = 200, menuH = 180;
+        const menuX = GAME_W / 2 - menuW / 2;
+        const menuY = GAME_H / 2 - menuH / 2;
+        const itemH = 28;
+        const startY = menuY + 38;
+        for (let i = 0; i < 4; i++) {
+            const iy = startY + i * itemH;
+            if (sx >= menuX + 8 && sx <= menuX + menuW - 8 && sy >= iy && sy <= iy + itemH - 4) {
+                if (typeof handlePauseMenuSelect === 'function') handlePauseMenuSelect(i);
+                return;
+            }
+        }
+        return;
+    }
+    // M003: Daily Challenge preview touch support
+    if (G.state === 'DAILY_PREVIEW') {
+        if (typeof DailyState !== 'undefined') DailyState.startChallenge();
+        return;
+    }
+    // M002: Achievements touch — tap to close
+    if (G.state === 'ACHIEVEMENTS') {
+        G.state = G._preAchievementState || 'PLAYING';
+        SFX.menuClick();
+        return;
+    }
+    // Mobile pause button detection (during PLAYING state)
+    if (G.state === 'PLAYING' && G._pauseBtnArea) {
+        const pb = G._pauseBtnArea;
+        if (sx >= pb.x && sx <= pb.x + pb.w && sy >= pb.y && sy <= pb.y + pb.h) {
+            G.state = 'PAUSED';
+            G.pauseMenuIdx = 0;
+            SFX.menuClick();
+            return;
+        }
+    }
     touch.active = true; touch.sx = sx; touch.sy = sy; touch.cx = sx; touch.cy = sy;
 }, { passive: false });
 
@@ -236,6 +322,10 @@ canvas.addEventListener('click', e => {
     else if (G.state === 'BLESSING_CHOICE') { if (typeof handleBlessingChoiceClick === 'function') handleBlessingChoiceClick(mx, my); }
     // N006: Stage Clear Blessing clicks
     else if (G.state === 'BLESSING_SELECT') { if (typeof handleBlessingSelectClick === 'function') handleBlessingSelectClick(mx, my); }
+    // S003: Relic choice clicks
+    else if (G.state === 'RELIC_CHOICE') { if (typeof handleRelicChoiceClick === 'function') handleRelicChoiceClick(mx, my); }
+    // P001: Purge Shrine clicks
+    else if (G.state === 'PURGE_SHRINE') { if (typeof handlePurgeShrineClick === 'function') handlePurgeShrineClick(mx, my); }
 });
 
 // --- Dodge Roll (Space key) ---
@@ -243,7 +333,8 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Space' && G.state === 'PLAYING' && P.dodgeCd <= 0 && P.dodgeTimer <= 0) {
         e.preventDefault();
         P.dodgeTimer = 0.25;
-        P.dodgeCd = 1.0;
+        // T-03: Apply mount dodge CD bonus (Shadow Steed: -0.2s)
+        P.dodgeCd = Math.max(0.3, 1.0 + (P.dodgeCdBonus || 0));
         P.invincible = 0.3;
         P.dodgeDx = P.vx !== 0 || P.vy !== 0 ? P.vx : P.facing * 150;
         P.dodgeDy = P.vy || 0;
@@ -266,6 +357,11 @@ window.addEventListener('keydown', e => {
     if ((e.code === 'KeyR' || e.key === 'r' || e.key === 'R') && G.state === 'PLAYING') {
         e.preventDefault();
         if (typeof executeBrotherhoodCombo === 'function') executeBrotherhoodCombo();
+    }
+    // --- P008: Omega Attack Charge (F key — hold to charge) ---
+    if ((e.code === 'KeyF' || e.key === 'f' || e.key === 'F') && G.state === 'PLAYING') {
+        e.preventDefault();
+        if (typeof startOmegaCharge === 'function') startOmegaCharge();
     }
     // --- Pause/Resume (ESC key) ---
     if (e.code === 'Escape') {

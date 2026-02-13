@@ -149,7 +149,7 @@ function drawHUD() {
         });
     }
 
-    // --- Equipment Display ---
+    // --- Equipment Display (using EQUIPMENT_DEFS rarity system) ---
     if (G.equipment) {
         const eqY = yyY + yyH * 2 + 54;
         let eqSlot = 0;
@@ -157,12 +157,38 @@ function drawHUD() {
             const eq = G.equipment[slot];
             if (!eq) continue;
             const cy = eqY + eqSlot * 12;
-            const qualColors = { common: '#88ff88', uncommon: '#44bbff', rare: '#ff88ff' };
-            const qc = qualColors[eq.quality] || '#aaa';
-            drawText(eq.name, 8, cy, { font: '7px monospace', fill: qc, outline: false });
+            const rc = (typeof RARITY_COLORS !== 'undefined' && eq.rarity !== undefined)
+                ? RARITY_COLORS[eq.rarity] : '#aaa';
+            const rn = (typeof RARITY_NAMES !== 'undefined' && eq.rarity !== undefined)
+                ? RARITY_NAMES[eq.rarity] : '';
+            drawText((rn ? rn.charAt(0) + ' ' : '') + eq.name, 8, cy, { font: '7px monospace', fill: rc, outline: false });
             eqSlot++;
         }
     }
+
+    // S003: Active Relic Display on HUD
+    if (window.RelicState && window.RelicState.active) {
+        const relic = window.RelicState.active;
+        const relicY = G.equipment ? (yyY + yyH * 2 + 54 + 36) : (yyY + yyH * 2 + 54);
+        drawText(relic.icon + ' ' + (typeof relic.name === 'object' ? relic.name[G.lang || 'vi'] : relic.name),
+            8, relicY, { font: 'bold 7px monospace', fill: '#ffd700', outline: true, outlineWidth: 2 });
+    }
+
+    // --- Mobile Pause Button (top-right corner) ---
+    // Rendered for touch devices — always visible as a small ⏸ icon
+    const pauseBtnSize = 20;
+    const pauseBtnX = GAME_W - pauseBtnSize - 4;
+    const pauseBtnY = 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(pauseBtnX, pauseBtnY, pauseBtnSize, pauseBtnSize);
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pauseBtnX, pauseBtnY, pauseBtnSize, pauseBtnSize);
+    drawText('⏸', pauseBtnX + pauseBtnSize / 2, pauseBtnY + 2, {
+        font: '12px monospace', fill: '#ccc', align: 'center', outline: false
+    });
+    // Store hit area for touch detection
+    G._pauseBtnArea = { x: pauseBtnX, y: pauseBtnY, w: pauseBtnSize, h: pauseBtnSize };
 
     // --- Combo Counter (Escalating) ---
     if (G.combo > 0) {
@@ -1763,7 +1789,7 @@ function drawPauseMenu() {
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, GAME_W, GAME_H);
 
-    const menuW = 200, menuH = 180;
+    const menuW = 200, menuH = 220;
     const menuX = GAME_W / 2 - menuW / 2;
     const menuY = GAME_H / 2 - menuH / 2;
 
@@ -1783,6 +1809,26 @@ function drawPauseMenu() {
     drawText('⚔ ' + (typeof t === 'function' ? t('paused') : 'PAUSED') + ' ⚔', GAME_W / 2, menuY + 12, {
         font: 'bold 14px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3
     });
+
+    // Equipment summary line
+    if (G.equipment) {
+        const eqY = menuY + 28;
+        const slots = ['armor', 'talisman', 'mount'];
+        let eqText = '';
+        for (const s of slots) {
+            const eq = G.equipment[s];
+            if (eq) {
+                const rc = (typeof RARITY_COLORS !== 'undefined') ? RARITY_COLORS[eq.rarity] : '#aaa';
+                drawText(s.charAt(0).toUpperCase() + ': ' + eq.name, GAME_W / 2, eqY + slots.indexOf(s) * 9, {
+                    font: '6px monospace', fill: rc, align: 'center', outline: false
+                });
+            } else {
+                drawText(s.charAt(0).toUpperCase() + ': (empty)', GAME_W / 2, eqY + slots.indexOf(s) * 9, {
+                    font: '6px monospace', fill: '#444', align: 'center', outline: false
+                });
+            }
+        }
+    }
 
     // Menu items
     const items = [
@@ -3206,7 +3252,7 @@ function drawAllies() {
     });
 }
 
-// --- Sacred Beast Update ---
+// --- Sacred Beast Update (Data-Driven for all 4 beasts) ---
 function updateSacredBeast(dt) {
     const beast = G.sacredBeast;
     if (!beast) return;
@@ -3214,39 +3260,168 @@ function updateSacredBeast(dt) {
     beast.timer -= dt;
     if (beast.timer <= 0) { G.sacredBeast = null; return; }
 
-    // Orbit player
-    beast.angle += 2.5 * dt;
-    beast.x = P.x + Math.cos(beast.angle) * 35;
-    beast.y = P.y + Math.sin(beast.angle) * 35 - 10;
+    // Look up beast definition
+    const def = (typeof SACRED_BEASTS !== 'undefined') ? SACRED_BEASTS[beast.type] : null;
+    const behavior = def ? (def.behavior || 'orbit_shoot') : 'orbit_shoot';
+    const colors = def ? def.colors : { body: '#ff4400', accent: '#ffd700', glow: '#ff8800' };
+    const orbitR = def ? def.orbitRadius : 35;
+    const orbitSpd = def ? def.orbitSpeed : 2.5;
 
-    // Attack nearest enemy
+    // Orbit player (all beasts orbit)
+    beast.angle += orbitSpd * dt;
+    beast.x = P.x + Math.cos(beast.angle) * orbitR;
+    beast.y = P.y + Math.sin(beast.angle) * orbitR - 10;
+
     beast.atkCd -= dt;
-    if (beast.atkCd <= 0) {
-        let nearest = null, minD = 120;
-        G.enemies.forEach(e => {
-            const d = dist(beast, e);
-            if (d < minD) { minD = d; nearest = e; }
-        });
-        if (nearest) {
-            beast.atkCd = 1.8;
-            const dx = nearest.x - beast.x, dy = nearest.y - beast.y;
-            const d = Math.hypot(dx, dy) || 1;
-            G.bullets.push({
-                x: beast.x, y: beast.y,
-                vx: (dx / d) * 130, vy: (dy / d) * 130,
-                dmg: beast.dmg || 12, el: 'FIRE', life: 2, r: 4
-            });
-            spawnParticles(beast.x, beast.y, '#ff4400', 3, 20);
-        }
+
+    switch (behavior) {
+        case 'orbit_shoot': // Phoenix — shoot fire bolts at nearest enemy
+            if (beast.atkCd <= 0) {
+                let nearest = null, minD = def ? def.attackRange : 120;
+                G.enemies.forEach(e => {
+                    if (e.dead) return;
+                    const d = dist(beast, e);
+                    if (d < minD) { minD = d; nearest = e; }
+                });
+                if (nearest) {
+                    beast.atkCd = def ? def.attackRate : 1.8;
+                    const dx = nearest.x - beast.x, dy = nearest.y - beast.y;
+                    const d = Math.hypot(dx, dy) || 1;
+                    G.bullets.push({
+                        x: beast.x, y: beast.y,
+                        vx: (dx / d) * (def ? def.boltSpeed : 130),
+                        vy: (dy / d) * (def ? def.boltSpeed : 130),
+                        dmg: beast.dmg || 12, el: def ? def.element : 'FIRE', life: 2, r: 4
+                    });
+                    spawnParticles(beast.x, beast.y, colors.body, 3, 20);
+                }
+            }
+            break;
+
+        case 'charge': // Azure Dragon — charge through enemies in a line
+            if (beast.atkCd <= 0) {
+                let target = null, minD = def.attackRange;
+                G.enemies.forEach(e => {
+                    if (e.dead) return;
+                    const d = dist(beast, e);
+                    if (d < minD) { minD = d; target = e; }
+                });
+                if (target) {
+                    beast.atkCd = def.attackRate;
+                    // Deal damage to all enemies in a line from beast to target
+                    const dx = target.x - beast.x, dy = target.y - beast.y;
+                    const lineLen = Math.hypot(dx, dy) || 1;
+                    G.enemies.forEach(e => {
+                        if (e.dead) return;
+                        // Point-to-line distance check
+                        const ex = e.x - beast.x, ey = e.y - beast.y;
+                        const proj = Math.max(0, Math.min(lineLen, (ex * dx + ey * dy) / lineLen));
+                        const closestX = (dx / lineLen) * proj, closestY = (dy / lineLen) * proj;
+                        const distToLine = Math.hypot(ex - closestX, ey - closestY);
+                        if (distToLine < (def.chargeWidth || 20)) {
+                            e.hp -= beast.dmg;
+                            e.flash = 0.15;
+                            e.knockX += (dx / lineLen) * 8;
+                            e.knockY += (dy / lineLen) * 8;
+                            if (e.hp <= 0 && !e.dead) { if (typeof killEnemy === 'function') killEnemy(e); }
+                        }
+                    });
+                    // Heal player (heal trail)
+                    const healAmt = def.healTrail || 1;
+                    P.hp = Math.min(P.hp + healAmt, P.maxHp);
+                    if (Math.random() < 0.5) spawnDmgNum(P.x, P.y - 15, '+' + healAmt, '#44ff44', false);
+                    // Charge VFX — line of particles
+                    for (let i = 0; i < 8; i++) {
+                        const t = i / 8;
+                        spawnParticles(
+                            beast.x + dx * t, beast.y + dy * t,
+                            colors.accent, 1, 15
+                        );
+                    }
+                    if (typeof SFX !== 'undefined' && SFX.dodge) SFX.dodge();
+                }
+            }
+            break;
+
+        case 'lunge': // White Tiger — lunge at strongest enemy, execute low HP
+            if (beast.atkCd <= 0) {
+                // Find strongest or nearest elite
+                let target = null, maxHp = 0;
+                G.enemies.forEach(e => {
+                    if (e.dead) return;
+                    const d = dist(beast, e);
+                    if (d < def.attackRange) {
+                        if (e.isElite || e.hp > maxHp) { maxHp = e.hp; target = e; }
+                    }
+                });
+                if (!target) { // Fallback: nearest any
+                    let minD = def.attackRange;
+                    G.enemies.forEach(e => {
+                        if (e.dead) return;
+                        const d = dist(beast, e);
+                        if (d < minD) { minD = d; target = e; }
+                    });
+                }
+                if (target) {
+                    beast.atkCd = def.attackRate;
+                    const dmg = def.lungeDmg || 25;
+                    target.hp -= dmg;
+                    target.flash = 0.2;
+                    // Execute check
+                    const execThresh = def.executeThreshold || 0.10;
+                    if (target.hp > 0 && target.hp <= target.maxHp * execThresh) {
+                        target.hp = 0; // Execute!
+                        spawnDmgNum(target.x, target.y - 10, '💀 EXECUTE', '#ffffff', true);
+                    }
+                    if (target.hp <= 0 && !target.dead) { if (typeof killEnemy === 'function') killEnemy(target); }
+                    // Lunge VFX — tiger dash trail
+                    const dx = target.x - beast.x, dy = target.y - beast.y;
+                    for (let i = 0; i < 5; i++) {
+                        spawnParticles(
+                            beast.x + dx * (i / 5), beast.y + dy * (i / 5),
+                            colors.accent, 2, 15
+                        );
+                    }
+                    spawnParticles(target.x, target.y, colors.body, 5, 25);
+                    if (typeof SFX !== 'undefined' && SFX.hit) SFX.hit();
+                }
+            }
+            break;
+
+        case 'shield': // Black Tortoise — orbits as shield, grants DR
+            // Apply damage reduction (stored on beast, consumed by damage system)
+            beast.shieldDR = def.dmgReduction || 0.15;
+            // Shoot slow ice bolts
+            if (beast.atkCd <= 0) {
+                let nearest = null, minD = def.attackRange;
+                G.enemies.forEach(e => {
+                    if (e.dead) return;
+                    const d = dist(beast, e);
+                    if (d < minD) { minD = d; nearest = e; }
+                });
+                if (nearest) {
+                    beast.atkCd = def.attackRate;
+                    const dx = nearest.x - beast.x, dy = nearest.y - beast.y;
+                    const d = Math.hypot(dx, dy) || 1;
+                    G.bullets.push({
+                        x: beast.x, y: beast.y,
+                        vx: (dx / d) * def.boltSpeed, vy: (dy / d) * def.boltSpeed,
+                        dmg: beast.dmg || 8, el: 'WATER', life: 2.5, r: 3,
+                        slow: 0.3 // Slow on hit
+                    });
+                    spawnParticles(beast.x, beast.y, colors.accent, 2, 15);
+                }
+            }
+            break;
     }
 
-    // Trail particles
+    // Trail particles (all beasts)
     if (Math.random() < 0.3) {
-        spawnParticles(beast.x, beast.y, '#ff8800', 1, 10);
+        spawnParticles(beast.x, beast.y, colors.glow, 1, 10);
     }
 }
 
-// --- Draw Sacred Beast ---
+// --- Draw Sacred Beast (Data-Driven) ---
 function drawSacredBeast() {
     const beast = G.sacredBeast;
     if (!beast) return;
@@ -3255,57 +3430,156 @@ function drawSacredBeast() {
     const sy = beast.y - G.camY + G.shakeY;
     if (sx < -20 || sx > GAME_W + 20 || sy < -20 || sy > GAME_H + 20) return;
 
-    // Outer fire glow (pulsing)
+    const def = (typeof SACRED_BEASTS !== 'undefined') ? SACRED_BEASTS[beast.type] : null;
+    const colors = def ? def.colors : { body: '#ff4400', accent: '#ffd700', glow: '#ff8800' };
+    const beastType = beast.type || 'phoenix';
+
+    // Outer glow (pulsing, per-beast color)
     ctx.globalAlpha = 0.2 + Math.sin(G.time * 5) * 0.1;
-    ctx.fillStyle = '#ff2200';
+    ctx.fillStyle = colors.body;
     ctx.beginPath(); ctx.arc(sx, sy, 16, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 0.35 + Math.sin(G.time * 4) * 0.15;
-    ctx.fillStyle = '#ff6600';
+    ctx.fillStyle = colors.glow;
     ctx.beginPath(); ctx.arc(sx, sy, 11, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
 
-    // Phoenix body (red-gold bird shape)
-    ctx.fillStyle = '#ff4400';
-    ctx.fillRect(sx - 5, sy - 4, 10, 8); // body
-    ctx.fillStyle = '#ffd700';
-    ctx.fillRect(sx - 3, sy - 6, 6, 4); // head
-    // Eye
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(sx + 1, sy - 5, 1, 1);
+    switch (beastType) {
+        case 'phoenix':
+            // Phoenix body (red-gold bird shape)
+            ctx.fillStyle = colors.body;
+            ctx.fillRect(sx - 5, sy - 4, 10, 8);
+            ctx.fillStyle = colors.accent;
+            ctx.fillRect(sx - 3, sy - 6, 6, 4);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(sx + 1, sy - 5, 1, 1);
+            // Wings
+            ctx.fillStyle = colors.glow;
+            const wingFlap = Math.sin(G.time * 10) * 3;
+            ctx.beginPath(); ctx.moveTo(sx - 5, sy); ctx.lineTo(sx - 12, sy - 3 + wingFlap); ctx.lineTo(sx - 8, sy + 2 + wingFlap * 0.5); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(sx + 5, sy); ctx.lineTo(sx + 12, sy - 3 - wingFlap); ctx.lineTo(sx + 8, sy + 2 - wingFlap * 0.5); ctx.fill();
+            ctx.fillStyle = colors.accent;
+            ctx.fillRect(sx - 13, sy - 4 + wingFlap, 3, 2);
+            ctx.fillRect(sx + 10, sy - 4 - wingFlap, 3, 2);
+            // Tail
+            ctx.fillStyle = colors.glow;
+            ctx.fillRect(sx - 2, sy + 4, 4, 4);
+            ctx.fillStyle = colors.accent;
+            ctx.fillRect(sx - 1, sy + 7, 2, 3);
+            break;
 
-    // Animated wings (larger, with gradient feel)
-    ctx.fillStyle = '#ff6600';
-    const wingFlap = Math.sin(G.time * 10) * 3;
-    // Left wing
-    ctx.beginPath();
-    ctx.moveTo(sx - 5, sy);
-    ctx.lineTo(sx - 12, sy - 3 + wingFlap);
-    ctx.lineTo(sx - 8, sy + 2 + wingFlap * 0.5);
-    ctx.fill();
-    // Right wing
-    ctx.beginPath();
-    ctx.moveTo(sx + 5, sy);
-    ctx.lineTo(sx + 12, sy - 3 - wingFlap);
-    ctx.lineTo(sx + 8, sy + 2 - wingFlap * 0.5);
-    ctx.fill();
-    // Wing tips (gold)
-    ctx.fillStyle = '#ffd700';
-    ctx.fillRect(sx - 13, sy - 4 + wingFlap, 3, 2);
-    ctx.fillRect(sx + 10, sy - 4 - wingFlap, 3, 2);
+        case 'azure_dragon':
+            // Dragon — sinuous serpentine body with flowing tail
+            const dragonWave = Math.sin(G.time * 6) * 4;
+            // Body segments (snake-like in an S curve)
+            ctx.fillStyle = colors.body;
+            for (let i = 0; i < 6; i++) {
+                const segOff = Math.sin(G.time * 6 + i * 0.8) * 3;
+                ctx.fillRect(sx - 3 + i * 2 - 6, sy - 2 + segOff, 4, 5);
+            }
+            // Head (larger)
+            ctx.fillStyle = colors.accent;
+            ctx.fillRect(sx + 4, sy - 4 + dragonWave * 0.5, 6, 7);
+            // Horns
+            ctx.fillStyle = colors.body;
+            ctx.fillRect(sx + 5, sy - 7 + dragonWave * 0.5, 2, 3);
+            ctx.fillRect(sx + 8, sy - 7 + dragonWave * 0.5, 2, 3);
+            // Eyes
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sx + 6, sy - 2 + dragonWave * 0.5, 1, 1);
+            ctx.fillRect(sx + 8, sy - 2 + dragonWave * 0.5, 1, 1);
+            // Whiskers
+            ctx.strokeStyle = colors.accent;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(sx + 10, sy + dragonWave * 0.5);
+            ctx.lineTo(sx + 15, sy - 3 + dragonWave * 0.3);
+            ctx.moveTo(sx + 10, sy + 2 + dragonWave * 0.5);
+            ctx.lineTo(sx + 15, sy + 5 + dragonWave * 0.3);
+            ctx.stroke();
+            break;
 
-    // Tail feathers (flame-like)
-    ctx.fillStyle = '#ff8800';
-    ctx.fillRect(sx - 2, sy + 4, 4, 4);
-    ctx.fillStyle = '#ffaa22';
-    ctx.fillRect(sx - 1, sy + 7, 2, 3);
+        case 'white_tiger':
+            // Tiger — prowling cat silhouette with animated legs
+            const prowl = Math.sin(G.time * 8) * 2;
+            // Body
+            ctx.fillStyle = colors.body;
+            ctx.fillRect(sx - 6, sy - 3, 12, 7);
+            // Head
+            ctx.fillStyle = colors.accent;
+            ctx.fillRect(sx + 5, sy - 5, 6, 6);
+            // Ears
+            ctx.fillRect(sx + 5, sy - 7, 2, 3);
+            ctx.fillRect(sx + 9, sy - 7, 2, 3);
+            // Eyes (fierce red)
+            ctx.fillStyle = '#ff4444';
+            ctx.fillRect(sx + 7, sy - 4, 1, 1);
+            ctx.fillRect(sx + 9, sy - 4, 1, 1);
+            // Stripes (3 dark stripes on body)
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(sx - 3, sy - 2, 1, 5);
+            ctx.fillRect(sx, sy - 2, 1, 5);
+            ctx.fillRect(sx + 3, sy - 2, 1, 5);
+            // Legs (animated)
+            ctx.fillStyle = colors.body;
+            ctx.fillRect(sx - 5, sy + 4, 2, 3 + prowl);
+            ctx.fillRect(sx - 1, sy + 4, 2, 3 - prowl);
+            ctx.fillRect(sx + 3, sy + 4, 2, 3 + prowl);
+            // Tail
+            ctx.fillRect(sx - 7, sy - 2, 3, 2);
+            ctx.fillRect(sx - 9, sy - 4, 2, 3);
+            break;
 
-    // Fire trail from wings
+        case 'black_tortoise':
+            // Tortoise — hexagonal shell with water ripple
+            const shellPulse = Math.sin(G.time * 3) * 0.5;
+            // Shell (hexagon-ish)
+            ctx.fillStyle = colors.body;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const a = (Math.PI / 3) * i - Math.PI / 6;
+                const r = 8 + shellPulse;
+                const px = sx + Math.cos(a) * r;
+                const py = sy + Math.sin(a) * r;
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath(); ctx.fill();
+            // Shell line pattern
+            ctx.strokeStyle = colors.accent;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(sx - 4, sy - 2); ctx.lineTo(sx + 4, sy - 2);
+            ctx.moveTo(sx - 5, sy + 2); ctx.lineTo(sx + 5, sy + 2);
+            ctx.moveTo(sx, sy - 8 - shellPulse); ctx.lineTo(sx, sy + 8 + shellPulse);
+            ctx.stroke();
+            // Head (poking out right)
+            ctx.fillStyle = colors.accent;
+            ctx.fillRect(sx + 8, sy - 2, 4, 4);
+            // Eyes
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sx + 10, sy - 1, 1, 1);
+            // Legs (4 small)
+            ctx.fillStyle = colors.body;
+            ctx.fillRect(sx - 6, sy + 5, 2, 3);
+            ctx.fillRect(sx + 4, sy + 5, 2, 3);
+            ctx.fillRect(sx - 6, sy - 6, 2, 3);
+            ctx.fillRect(sx + 4, sy - 6, 2, 3);
+            // Water ripple effect
+            ctx.globalAlpha = 0.15 + Math.sin(G.time * 4) * 0.1;
+            ctx.strokeStyle = colors.accent;
+            ctx.lineWidth = 1;
+            const ripR = 14 + Math.sin(G.time * 3) * 3;
+            ctx.beginPath(); ctx.arc(sx, sy, ripR, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = 1;
+            break;
+    }
+
+    // Trail particles (per-beast color)
     if (Math.random() < 0.4) {
         const side = Math.random() < 0.5 ? -1 : 1;
         spawnParticles(
             beast.x + side * 10 + rng(-2, 2),
             beast.y + rng(-2, 2),
-            Math.random() < 0.5 ? '#ff4400' : '#ffd700', 1, 8
+            Math.random() < 0.5 ? colors.body : colors.accent, 1, 8
         );
     }
 
@@ -3313,7 +3587,7 @@ function drawSacredBeast() {
     const timeLeft = Math.ceil(beast.timer);
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(sx - 10, sy + 12, 20, 9);
-    drawText(timeLeft + 's', sx, sy + 13, { font: 'bold 7px monospace', fill: '#ffd700', align: 'center' });
+    drawText(timeLeft + 's', sx, sy + 13, { font: 'bold 7px monospace', fill: colors.accent, align: 'center' });
 }
 
 // Extend drawHUD to include new elements
@@ -3743,6 +4017,159 @@ function drawShopScreen() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// P001: Purge Shrine — Remove an active blessing
+// ═══════════════════════════════════════════════════════════════
+
+function drawPurgeShrineScreen() {
+    if (G.state !== 'PURGE_SHRINE') return;
+    const blessings = (typeof BlessingState !== 'undefined') ? BlessingState.active : [];
+
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(20, 0, 30, 0.85)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    // Title
+    const titleY = 25;
+    const title = G.lang === 'en' ? '⛩️ PURGE SHRINE ⛩️' : '⛩️ ĐỀN THANH TẨY ⛩️';
+    const subtitle = G.lang === 'en' ? 'Select a blessing to REMOVE' : 'Chọn một phước lành để XÓA BỎ';
+    drawText(title, GAME_W / 2, titleY, { font: 'bold 14px monospace', fill: '#aa44ff', align: 'center' });
+    drawText(subtitle, GAME_W / 2, titleY + 16, { font: '9px monospace', fill: '#cc88ff', align: 'center' });
+
+    // Store button areas for click handling
+    G._purgeSlots = [];
+
+    if (blessings.length === 0) {
+        const noTxt = G.lang === 'en' ? 'No blessings to purge' : 'Không có phước lành để thanh tẩy';
+        drawText(noTxt, GAME_W / 2, GAME_H / 2, { font: '10px monospace', fill: '#888', align: 'center' });
+    } else {
+        // Grid layout
+        const cols = Math.min(3, blessings.length);
+        const cardW = 90, cardH = 55, gap = 8;
+        const totalW = cols * (cardW + gap) - gap;
+        const startX = (GAME_W - totalW) / 2;
+        const startY = titleY + 35;
+
+        blessings.forEach((b, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = startX + col * (cardW + gap);
+            const y = startY + row * (cardH + gap);
+
+            // Card background with purge-hover highlight
+            const elementColors = { WOOD: '#228833', FIRE: '#cc4422', EARTH: '#aa8833', METAL: '#888899', WATER: '#2266aa' };
+            const elColor = elementColors[b.deity] || '#555555';
+
+            ctx.fillStyle = 'rgba(30, 10, 40, 0.9)';
+            ctx.fillRect(x, y, cardW, cardH);
+
+            // Border — element colored
+            ctx.strokeStyle = elColor;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, cardW, cardH);
+
+            // Rarity indicator
+            const rarityColors = { common: '#aaa', rare: '#44f', epic: '#c4f', cursed: '#f22' };
+            ctx.fillStyle = rarityColors[b.rarity] || '#888';
+            ctx.fillRect(x + 2, y + 2, cardW - 4, 3);
+
+            // Icon
+            drawText(b.icon || '✨', x + 12, y + 16, { font: '14px monospace', fill: '#fff', align: 'center' });
+
+            // Name
+            const name = b.name ? (b.name[G.lang || 'vi'] || b.name.vi || b.id) : b.id;
+            drawText(name, x + 45, y + 14, { font: 'bold 7px monospace', fill: '#fff', align: 'center' });
+
+            // Element + Level
+            const lvTxt = 'Lv.' + (b.level || 1) + ' | ' + b.deity;
+            drawText(lvTxt, x + 45, y + 26, { font: '6px monospace', fill: elColor, align: 'center' });
+
+            // Description
+            const desc = b.desc ? (b.desc[G.lang || 'vi'] || b.desc.vi || '') : '';
+            if (desc) {
+                drawText(desc.substring(0, 22), x + 45, y + 38, { font: '5px monospace', fill: '#aaa', align: 'center' });
+            }
+
+            // "❌" indicator
+            drawText('❌', x + cardW - 10, y + 8, { font: '7px monospace', fill: '#ff4444', align: 'center' });
+
+            // Store clickable area
+            G._purgeSlots.push({ x, y, w: cardW, h: cardH, index: i });
+        });
+    }
+
+    // Skip button
+    const skipW = 100, skipH = 22;
+    const skipX = (GAME_W - skipW) / 2;
+    const skipY = GAME_H - 40;
+
+    ctx.fillStyle = 'rgba(40, 20, 60, 0.9)';
+    ctx.fillRect(skipX, skipY, skipW, skipH);
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(skipX, skipY, skipW, skipH);
+
+    const skipTxt = G.lang === 'en' ? '▷ Skip' : '▷ Bỏ qua';
+    drawText(skipTxt, GAME_W / 2, skipY + 7, { font: 'bold 9px monospace', fill: '#888', align: 'center' });
+
+    G._purgeSkipBtn = { x: skipX, y: skipY, w: skipW, h: skipH };
+}
+
+function handlePurgeShrineClick(mx, my) {
+    if (G.state !== 'PURGE_SHRINE') return;
+
+    // Check skip button
+    if (G._purgeSkipBtn) {
+        const s = G._purgeSkipBtn;
+        if (mx >= s.x && mx <= s.x + s.w && my >= s.y && my <= s.y + s.h) {
+            SFX.menuClick();
+            G.state = 'PLAYING';
+            G.roomState = 'DOOR_CHOICE';
+            generateDoorChoices();
+            return;
+        }
+    }
+
+    // Check blessing slots
+    if (G._purgeSlots) {
+        for (const slot of G._purgeSlots) {
+            if (mx >= slot.x && mx <= slot.x + slot.w && my >= slot.y && my <= slot.y + slot.h) {
+                const blessing = BlessingState.active[slot.index];
+                if (!blessing) return;
+
+                // Remove the blessing
+                const removed = BlessingState.active.splice(slot.index, 1)[0];
+
+                // Recalculate element affinity
+                if (removed.deity && BlessingState.affinity[removed.deity] > 0) {
+                    BlessingState.affinity[removed.deity]--;
+                }
+
+                // Recalculate set bonuses and archetypes
+                if (typeof checkSetBonuses === 'function') checkSetBonuses();
+                if (typeof checkDuoBlessings === 'function') checkDuoBlessings();
+                if (typeof checkArchetypes === 'function') checkArchetypes();
+
+                // Purge VFX — purple dissolve particles
+                spawnParticles(GAME_W / 2, GAME_H / 2, '#aa44ff', 25, 80);
+                spawnParticles(GAME_W / 2, GAME_H / 2, '#cc88ff', 15, 60);
+                if (typeof SFX !== 'undefined' && SFX.ultimateActivate) SFX.ultimateActivate();
+
+                // Announce
+                const purgedName = removed.name ? (removed.name[G.lang || 'vi'] || removed.name.vi || removed.id) : removed.id;
+                const annText = G.lang === 'en' ? '⛩️ Purged: ' + purgedName : '⛩️ Đã thanh tẩy: ' + purgedName;
+                G.floorAnnounce = { text: annText, timer: 2.0 };
+
+                // Return to playing
+                G.state = 'PLAYING';
+                G.roomState = 'DOOR_CHOICE';
+                generateDoorChoices();
+                return;
+            }
+        }
+    }
+}
+
 // K002: Wu Xing Blessing HUD — Choose & Display Active Blessings
 // ═══════════════════════════════════════════════════════════════
 
@@ -3779,7 +4206,7 @@ function drawBlessingChoiceScreen() {
         ctx.fillRect(x, startY, boxW, boxH);
 
         // Rarity border color
-        const rarityColors = { common: '#aaaaaa', rare: '#4488ff', epic: '#cc44ff' };
+        const rarityColors = { common: '#aaaaaa', rare: '#4488ff', epic: '#cc44ff', cursed: '#ff2222' };
         ctx.strokeStyle = rarityColors[b.rarity] || '#aaaaaa';
         ctx.lineWidth = b.rarity === 'epic' ? 2.5 : b.rarity === 'rare' ? 2 : 1.5;
         ctx.strokeRect(x, startY, boxW, boxH);
@@ -3800,8 +4227,8 @@ function drawBlessingChoiceScreen() {
         drawText(shortDesc, x + boxW / 2, startY + 62, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
 
         // Rarity tag
-        const rarityLabels = { common: 'Thường', rare: 'Hiếm', epic: 'Sử Thi' };
-        const rarityLabelsEn = { common: 'Common', rare: 'Rare', epic: 'Epic' };
+        const rarityLabels = { common: 'Thường', rare: 'Hiếm', epic: 'Sử Thi', cursed: '⚠ Nguyền Rủa' };
+        const rarityLabelsEn = { common: 'Common', rare: 'Rare', epic: 'Epic', cursed: '⚠ CURSED' };
         const rLabel = G.lang === 'en' ? (rarityLabelsEn[b.rarity] || 'Common') : (rarityLabels[b.rarity] || 'Thường');
         drawText('[' + rLabel + ']', x + boxW / 2, startY + 78, { font: 'bold 7px monospace', fill: rarityColors[b.rarity] || '#aaa', align: 'center', outlineWidth: 2 });
     }
@@ -3847,7 +4274,7 @@ function drawBlessingSelectScreen() {
         ctx.fillRect(x, startY, boxW, boxH);
 
         // Rarity border color
-        const rarityColors = { common: '#aaaaaa', rare: '#4488ff', epic: '#cc44ff' };
+        const rarityColors = { common: '#aaaaaa', rare: '#4488ff', epic: '#cc44ff', cursed: '#ff2222' };
         ctx.strokeStyle = rarityColors[b.rarity] || '#aaaaaa';
         ctx.lineWidth = b.rarity === 'epic' ? 2.5 : b.rarity === 'rare' ? 2 : 1.5;
         ctx.strokeRect(x, startY, boxW, boxH);
@@ -3869,8 +4296,8 @@ function drawBlessingSelectScreen() {
         drawText(shortDesc, x + boxW / 2, startY + 62, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
 
         // Rarity tag
-        const rarityLabels = { common: 'Thường', rare: 'Hiếm', epic: 'Sử Thi' };
-        const rarityLabelsEn = { common: 'Common', rare: 'Rare', epic: 'Epic' };
+        const rarityLabels = { common: 'Thường', rare: 'Hiếm', epic: 'Sử Thi', cursed: '⚠ Nguyền Rủa' };
+        const rarityLabelsEn = { common: 'Common', rare: 'Rare', epic: 'Epic', cursed: '⚠ CURSED' };
         const rLabel = G.lang === 'en' ? (rarityLabelsEn[b.rarity] || 'Common') : (rarityLabels[b.rarity] || 'Thường');
         drawText('[' + rLabel + ']', x + boxW / 2, startY + 78, { font: 'bold 7px monospace', fill: rarityColors[b.rarity] || '#aaa', align: 'center', outlineWidth: 2 });
     }
@@ -3911,3 +4338,117 @@ function drawRoomTransition() {
     ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
     ctx.fillRect(0, 0, GAME_W, GAME_H);
 }
+
+// ============================================================
+// S003: HEIRLOOM RELIC CHOICE SCREEN
+// ============================================================
+function drawRelicChoiceScreen() {
+    if (G.state !== 'RELIC_CHOICE' || !G.relicChoices) return;
+    const choices = G.relicChoices;
+
+    // Dark overlay with golden shimmer
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    // Title
+    drawText('🏺 ' + (G.lang === 'en' ? 'HEIRLOOM RELIC' : 'BẢO VẬT GIA TRUYỀN') + ' 🏺',
+        GAME_W / 2, GAME_H / 2 - 85, { font: 'bold 14px monospace', fill: '#ffd700', align: 'center', outlineWidth: 3 });
+    drawText(G.lang === 'en' ? 'Choose one powerful relic (one per run)' : 'Chọn một bảo vật mạnh mẽ (một mỗi lần chơi)',
+        GAME_W / 2, GAME_H / 2 - 68, { font: '8px monospace', fill: '#ccaa66', align: 'center', outlineWidth: 2 });
+
+    const boxW = 135, boxH = 105, gap = 14;
+    const totalW = choices.length * boxW + (choices.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 - 5;
+
+    for (let i = 0; i < choices.length; i++) {
+        const r = choices[i];
+        const x = startX + i * (boxW + gap);
+
+        // Card background with relic color gradient
+        const grad = ctx.createLinearGradient(x, startY, x, startY + boxH);
+        grad.addColorStop(0, (r.color || '#ffd700') + '33');
+        grad.addColorStop(0.5, '#0a0a0a');
+        grad.addColorStop(1, (r.color || '#ffd700') + '22');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, startY, boxW, boxH);
+
+        // Golden legendary border
+        ctx.strokeStyle = r.color || '#ffd700';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(x, startY, boxW, boxH);
+        // Inner glow
+        ctx.strokeStyle = (r.color || '#ffd700') + '44';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 2, startY + 2, boxW - 4, boxH - 4);
+
+        // Relic icon (large)
+        drawText(r.icon || '🏺', x + boxW / 2, startY + 20, { font: '20px serif', fill: r.color || '#ffd700', align: 'center' });
+
+        // Relic name
+        const rName = typeof r.name === 'object' ? r.name[G.lang || 'vi'] : r.name;
+        drawText(rName, x + boxW / 2, startY + 42, { font: 'bold 8px monospace', fill: '#ffffff', align: 'center', outlineWidth: 2 });
+
+        // Relic description (two lines)
+        const rDesc = typeof r.desc === 'object' ? r.desc[G.lang || 'vi'] : r.desc;
+        if (rDesc.length > 28) {
+            const mid = rDesc.lastIndexOf(' ', 28);
+            const line1 = rDesc.substring(0, mid > 0 ? mid : 28);
+            const line2 = rDesc.substring(mid > 0 ? mid + 1 : 28);
+            drawText(line1, x + boxW / 2, startY + 58, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
+            drawText(line2.length > 30 ? line2.substring(0, 29) + '…' : line2, x + boxW / 2, startY + 68, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
+        } else {
+            drawText(rDesc, x + boxW / 2, startY + 60, { font: '6px monospace', fill: '#cccccc', align: 'center', outlineWidth: 1 });
+        }
+
+        // Rarity tag
+        drawText('[LEGENDARY]', x + boxW / 2, startY + 85, { font: 'bold 7px monospace', fill: '#ffd700', align: 'center', outlineWidth: 2 });
+
+        // Number key hint
+        drawText('[' + (i + 1) + ']', x + boxW / 2, startY + 96, { font: '7px monospace', fill: '#888', align: 'center', outlineWidth: 1 });
+    }
+
+    // Instructions
+    drawText(G.lang === 'en' ? 'Click to select or press 1/2/3' : 'Click để chọn hoặc nhấn 1/2/3',
+        GAME_W / 2, GAME_H - 12, { font: '7px monospace', fill: '#666', align: 'center' });
+}
+
+function handleRelicChoiceClick(mx, my) {
+    if (G.state !== 'RELIC_CHOICE' || !G.relicChoices) return;
+    const choices = G.relicChoices;
+
+    const boxW = 135, boxH = 105, gap = 14;
+    const totalW = choices.length * boxW + (choices.length - 1) * gap;
+    const startX = (GAME_W - totalW) / 2;
+    const startY = GAME_H / 2 - boxH / 2 - 5;
+
+    for (let i = 0; i < choices.length; i++) {
+        const x = startX + i * (boxW + gap);
+        if (mx >= x && mx <= x + boxW && my >= startY && my <= startY + boxH) {
+            // Selected this relic!
+            if (typeof equipRelic === 'function') {
+                equipRelic(choices[i].id);
+            }
+            G.relicChoices = null;
+            G.state = 'VICTORY';
+            G.victoryTimer = 5;
+            if (typeof SFX !== 'undefined' && SFX.menuClick) SFX.menuClick();
+            return;
+        }
+    }
+}
+
+// Keyboard support for relic choice (1/2/3 keys)
+window.addEventListener('keydown', function (e) {
+    if (G.state !== 'RELIC_CHOICE' || !G.relicChoices) return;
+    const idx = parseInt(e.key) - 1;
+    if (idx >= 0 && idx < G.relicChoices.length) {
+        if (typeof equipRelic === 'function') {
+            equipRelic(G.relicChoices[idx].id);
+        }
+        G.relicChoices = null;
+        G.state = 'VICTORY';
+        G.victoryTimer = 5;
+        if (typeof SFX !== 'undefined' && SFX.menuClick) SFX.menuClick();
+    }
+});

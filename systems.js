@@ -13,14 +13,17 @@ function spawnEnemy(x, y, type) {
     const mandateHpMult = mandate.enemyHpMult || 1.0;
     const mandateSpdMult = mandate.enemySpeedMult || 1.0;
     const types = {
-        fodder: { hp: 5, speed: 25, dmg: 2, r: 4, xp: 1 },
-        grunt: { hp: 20, speed: 35, dmg: 5, r: 6, xp: 3 },
-        fast: { hp: 12, speed: 65, dmg: 3, r: 5, xp: 4 },
-        tank: { hp: 60, speed: 20, dmg: 10, r: 9, xp: 8 },
-        archer: { hp: 15, speed: 25, dmg: 7, r: 6, xp: 5 },
-        elite: { hp: 120, speed: 30, dmg: 15, r: 11, xp: 20 },
-        miniboss: { hp: 300, speed: 28, dmg: 18, r: 13, xp: 50 },
-        boss: { hp: 600, speed: 18, dmg: 25, r: 16, xp: 100 }
+        fodder: { hp: 12, speed: 28, dmg: 3, r: 4, xp: 1 },
+        grunt: { hp: 40, speed: 35, dmg: 6, r: 6, xp: 3 },
+        fast: { hp: 22, speed: 60, dmg: 4, r: 5, xp: 4 },
+        tank: { hp: 120, speed: 22, dmg: 12, r: 9, xp: 8 },
+        archer: { hp: 28, speed: 28, dmg: 8, r: 6, xp: 5 },
+        shaman: { hp: 35, speed: 20, dmg: 4, r: 6, xp: 7, healer: true },
+        bomber: { hp: 18, speed: 55, dmg: 20, r: 5, xp: 6, explodeOnDeath: true },
+        shieldwall: { hp: 80, speed: 18, dmg: 5, r: 8, xp: 6, frontShield: true },
+        elite: { hp: 250, speed: 32, dmg: 18, r: 11, xp: 20 },
+        miniboss: { hp: 600, speed: 28, dmg: 22, r: 14, xp: 50 },
+        boss: { hp: 1500, speed: 20, dmg: 30, r: 18, xp: 100 }
     };
     const t = types[type] || types.grunt;
     const enemy = {
@@ -30,7 +33,11 @@ function spawnEnemy(x, y, type) {
         r: t.r, el, color: elDef.color, lightColor: elDef.light,
         type, flash: 0, knockX: 0, knockY: 0, dead: false,
         attackCd: 0, spawnAnim: 0.4,
-        modifiers: [] // N003: Elite modifier slots
+        modifiers: [], // N003: Elite modifier slots
+        // New behavior flags
+        _healCd: type === 'shaman' ? 3.0 : 0,
+        _bombTimer: type === 'bomber' ? -1 : 0, // -1 = not triggered
+        _shieldFacing: type === 'shieldwall' ? 0 : 0
     };
     // N003: Assign random modifiers to elite/miniboss enemies
     if ((type === 'elite' || type === 'miniboss') && typeof ELITE_MODIFIERS !== 'undefined') {
@@ -58,16 +65,21 @@ function spawnEnemy(x, y, type) {
     }
     // Boss-specific phase tracking
     if (type === 'boss') {
-        enemy.phase = 1;
+        enemy.phase = 1;         // 3-phase boss: 1 (100-60%), 2 (60-30%), 3 (<30%)
         enemy.chargeTimer = 0;
-        enemy.chargeCd = 5;
-        enemy.shockwaveCd = 8;
-        enemy.entranceTimer = 1.5; // entrance freeze
+        enemy.chargeCd = 4;
+        enemy.shockwaveCd = 6;
+        enemy.summonCd = 12;     // Phase 2+: summon fodder adds
+        enemy.enrageCd = 0;      // Phase 3: berserk mode
+        enemy.entranceTimer = 2.0; // entrance freeze
         enemy.enraged = false;
+        enemy.bossName = '';
+        enemy.bossPhaseAnnounced = [false, false, false];
         // Boss entrance announcement
-        G.floorAnnounce = { text: '\u26a0 BOSS INCOMING \u26a0', timer: 2.5 };
-        triggerFlash('#ff0000', 0.3);
-        shake(4, 0.3);
+        G.floorAnnounce = { text: '⚠ BOSS INCOMING ⚠', timer: 3.0 };
+        triggerFlash('#ff0000', 0.4);
+        shake(6, 0.5);
+        if (typeof SFX !== 'undefined' && SFX.bossSpawn) SFX.bossSpawn();
     }
     // Mini-boss (The Generals) setup
     if (type === 'miniboss') {
@@ -298,10 +310,17 @@ function updateFinalBossAI(boss, dt) {
             // Damage
             const landDist = Math.hypot(P.x - boss.x, P.y - boss.y);
             if (landDist < 80) {
-                P.hp -= boss.dmg * 2; // Massive damage
+                let slamDmg = boss.dmg * 2;
+                // Equipment armor DR
+                if (P.dmgReduction > 0) slamDmg *= (1 - P.dmgReduction);
+                P.hp -= slamDmg;
                 P.invincible = 0.5;
-                spawnDmgNum(P.x, P.y, Math.floor(boss.dmg * 2), '#ff0000', true);
+                spawnDmgNum(P.x, P.y, Math.floor(slamDmg), '#ff0000', true);
                 shake(10, 0.4);
+                // Equipment reflect
+                if (P.reflectDmg > 0 && boss.hp > 0) {
+                    damageEnemy(boss, slamDmg * P.reflectDmg, P.element);
+                }
             }
 
             // Visuals
@@ -311,6 +330,11 @@ function updateFinalBossAI(boss, dt) {
                 radius: 10, maxRadius: 150, speed: 400,
                 color: '#ff4400', alpha: 0.8, lineWidth: 5, timer: 0.5
             });
+
+            // T-03: Boss slam creates scorched ground hazard
+            if (window.Physics && typeof Physics.spawnHazard === 'function') {
+                Physics.spawnHazard(boss.x, boss.y, 'SCORCHED', boss.phase === 3 ? 50 : 35);
+            }
         }
         return; // Don't do other updates while in air
     }
@@ -389,20 +413,29 @@ function updateFinalBossAI(boss, dt) {
 
 function spawnWave() {
     const cx = P.x, cy = P.y;
-    // DW-style: majority fodder + some officers
-    const fodderCount = 10 + G.floor * 2; // 12, 14, 16...
-    const officerCount = 3 + Math.floor(G.floor * 0.8); // 3, 4, 4...
+    // BALANCE: More enemies, better composition
+    const fodderCount = 12 + G.floor * 3; // 15, 18, 21...
+    const officerCount = 4 + Math.floor(G.floor * 1.2); // 5, 6, 7...
     const totalCount = fodderCount + officerCount;
 
-    // Spawn fodder
-    for (let i = 0; i < fodderCount; i++) {
-        const angle = rng(0, Math.PI * 2);
-        const d = rng(150, 280);
-        const x = clamp(cx + Math.cos(angle) * d, 30, G.arenaW - 30);
-        const y = clamp(cy + Math.sin(angle) * d, 30, G.arenaH - 30);
-        spawnEnemy(x, y, 'fodder');
+    // Spawn fodder in formation clusters (3-5 per cluster)
+    const clusterSize = 4;
+    const numClusters = Math.ceil(fodderCount / clusterSize);
+    for (let c = 0; c < numClusters; c++) {
+        const clusterAngle = rng(0, Math.PI * 2);
+        const clusterDist = rng(150, 280);
+        const clusterCx = cx + Math.cos(clusterAngle) * clusterDist;
+        const clusterCy = cy + Math.sin(clusterAngle) * clusterDist;
+        for (let i = 0; i < clusterSize && (c * clusterSize + i) < fodderCount; i++) {
+            const ox = rng(-20, 20);
+            const oy = rng(-20, 20);
+            const x = clamp(clusterCx + ox, 30, G.arenaW - 30);
+            const y = clamp(clusterCy + oy, 30, G.arenaH - 30);
+            spawnEnemy(x, y, 'fodder');
+        }
     }
-    // Spawn officers
+
+    // Spawn officers with diverse types
     for (let i = 0; i < officerCount; i++) {
         const angle = rng(0, Math.PI * 2);
         const d = rng(180, 320);
@@ -410,10 +443,13 @@ function spawnWave() {
         const y = clamp(cy + Math.sin(angle) * d, 30, G.arenaH - 30);
         const roll = Math.random();
         let type = 'grunt';
-        if (roll < 0.06 && G.floor >= 3) type = 'elite';
-        else if (roll < 0.15 && G.floor >= 2) type = 'archer';
-        else if (roll < 0.30) type = 'tank';
-        else if (roll < 0.55) type = 'fast';
+        if (roll < 0.04 && G.floor >= 3) type = 'elite';
+        else if (roll < 0.08 && G.floor >= 2) type = 'shaman';
+        else if (roll < 0.13 && G.floor >= 3) type = 'bomber';
+        else if (roll < 0.18 && G.floor >= 2) type = 'shieldwall';
+        else if (roll < 0.28 && G.floor >= 2) type = 'archer';
+        else if (roll < 0.45) type = 'tank';
+        else if (roll < 0.65) type = 'fast';
         spawnEnemy(x, y, type);
     }
 }
@@ -574,6 +610,70 @@ function updateEnemies(dt) {
             }
         }
 
+        // ===== NEW ENEMY TYPE BEHAVIORS =====
+        // Shaman: heals nearby wounded allies every 3s
+        if (e.type === 'shaman') {
+            e._healCd -= dt;
+            if (e._healCd <= 0) {
+                e._healCd = 3.0;
+                // Find nearby wounded ally (not self)
+                for (const ally of G.enemies) {
+                    if (ally === e || ally.dead) continue;
+                    const ad = Math.hypot(ally.x - e.x, ally.y - e.y);
+                    if (ad < 80 && ally.hp < ally.maxHp) {
+                        const healAmt = Math.floor(ally.maxHp * 0.15);
+                        ally.hp = Math.min(ally.hp + healAmt, ally.maxHp);
+                        spawnDmgNum(ally.x, ally.y - 10, '+' + healAmt, '#44ff44');
+                        // Green heal beam particles
+                        spawnParticles(e.x, e.y, '#44ff44', 3, 15);
+                        spawnParticles(ally.x, ally.y, '#44ff44', 3, 15);
+                        break; // Heal one ally per tick
+                    }
+                }
+            }
+            // Visual: green aura
+            if (Math.random() < 0.08) spawnParticles(e.x + rng(-6, 6), e.y + rng(-6, 6), '#44ff44', 1, 8);
+        }
+
+        // Bomber: charges at player and explodes on death (or proximity)
+        if (e.type === 'bomber') {
+            if (d < 25) {
+                // Self-destruct on contact
+                // AoE damage to player
+                if (!P.invincible) {
+                    let bomberDmg = e.dmg;
+                    if (P.dmgReduction > 0) bomberDmg *= (1 - P.dmgReduction);
+                    P.hp -= bomberDmg;
+                    shake(4, 0.2);
+                }
+                // Explosion VFX
+                G.skillEffects.push({
+                    type: 'shockwave', x: e.x, y: e.y,
+                    radius: 5, maxRadius: 50, speed: 200,
+                    color: '#ff6600', alpha: 0.7, lineWidth: 2, timer: 0.3
+                });
+                spawnParticles(e.x, e.y, '#ff4400', 15, 50);
+                spawnParticles(e.x, e.y, '#ffaa00', 10, 30);
+                e.hp = 0;
+                killEnemy(e);
+                G.enemies.splice(i, 1);
+                continue;
+            }
+            // Visual: glowing red pulsing
+            if (Math.random() < 0.15) spawnParticles(e.x + rng(-4, 4), e.y + rng(-4, 4), '#ff4400', 1, 10);
+        }
+
+        // Shieldwall: takes 70% less damage from frontal attacks
+        if (e.type === 'shieldwall') {
+            e._shieldFacing = Math.atan2(P.y - e.y, P.x - e.x); // Always face player
+            // Visual: shield shimmer
+            if (Math.random() < 0.05) {
+                const sx = e.x + Math.cos(e._shieldFacing) * 8;
+                const sy = e.y + Math.sin(e._shieldFacing) * 8;
+                spawnParticles(sx, sy, '#ccddff', 1, 6);
+            }
+        }
+
         // Chase player (with boss-specific AI)
         const dx = P.x - e.x, dy = P.y - e.y;
         const d = Math.hypot(dx, dy);
@@ -594,26 +694,60 @@ function updateEnemies(dt) {
             // Boss entrance freeze
             if (e.entranceTimer > 0) {
                 e.entranceTimer -= dt;
+                // Boss entrance VFX: dramatic particle ring
+                if (Math.random() < 0.4) {
+                    const angle = Math.random() * Math.PI * 2;
+                    spawnParticles(
+                        e.x + Math.cos(angle) * 20,
+                        e.y + Math.sin(angle) * 20,
+                        '#ff4444', 2, 25
+                    );
+                }
                 continue; // boss doesn't move during entrance
             }
 
-            // Phase transitions
+            // Phase transitions with dramatic effects
             const hpPct = e.hp / e.maxHp;
             if (hpPct < 0.3 && e.phase < 3) {
                 e.phase = 3;
                 e.enraged = true;
-                e.speed *= 2;
-                e.dmg *= 1.5;
-                G.floorAnnounce = { text: '\ud83d\udd25 BOSS ENRAGED! \ud83d\udd25', timer: 2 };
-                triggerFlash('#ff4400', 0.3);
-                triggerChromatic(3);
-                shake(5, 0.3);
-                spawnElementParticles(e.x, e.y, e.el, 20, 80);
+                e.speed = (e._origSpeed || e.speed) * 2.5;
+                e.dmg *= 1.8;
+                if (!e.bossPhaseAnnounced[2]) {
+                    e.bossPhaseAnnounced[2] = true;
+                    G.floorAnnounce = { text: '🔥 FINAL FURY! 🔥', subtitle: '— Boss Enraged —', timer: 2.5, color: '#ff2200' };
+                    triggerFlash('#ff2200', 0.5);
+                    if (typeof triggerChromatic === 'function') triggerChromatic(4);
+                    shake(8, 0.5);
+                    spawnElementParticles(e.x, e.y, e.el, 30, 100);
+                    // Spawn rage adds
+                    for (let a = 0; a < 6; a++) {
+                        const aa = (a / 6) * Math.PI * 2;
+                        spawnEnemy(
+                            clamp(e.x + Math.cos(aa) * 60, 30, G.arenaW - 30),
+                            clamp(e.y + Math.sin(aa) * 60, 30, G.arenaH - 30),
+                            'fast'
+                        );
+                    }
+                }
             } else if (hpPct < 0.6 && e.phase < 2) {
                 e.phase = 2;
-                e.speed *= 1.3;
-                G.floorAnnounce = { text: '\u26a1 BOSS PHASE 2 \u26a1', timer: 1.5 };
-                triggerFlash('#ffaa00', 0.2);
+                e.speed = (e._origSpeed || e.speed) * 1.5;
+                if (!e.bossPhaseAnnounced[1]) {
+                    e.bossPhaseAnnounced[1] = true;
+                    G.floorAnnounce = { text: '⚡ PHASE 2 ⚡', subtitle: '— Boss grows stronger —', timer: 2.0, color: '#ffaa00' };
+                    triggerFlash('#ffaa00', 0.3);
+                    shake(4, 0.3);
+                    // Phase 2: spawn some adds
+                    for (let a = 0; a < 4; a++) {
+                        const aa = (a / 4) * Math.PI * 2;
+                        spawnEnemy(
+                            clamp(e.x + Math.cos(aa) * 80, 30, G.arenaW - 30),
+                            clamp(e.y + Math.sin(aa) * 80, 30, G.arenaH - 30),
+                            'grunt'
+                        );
+                    }
+                }
             }
 
             // Boss charge attack (Phase 2+)
@@ -638,7 +772,9 @@ function updateEnemies(dt) {
                     // AoE shockwave damage to player if nearby
                     if (d < 80 && P.invincible <= 0) {
                         const dr = getBondDmgReduction();
-                        P.hp -= e.dmg * 0.5 * (1 - dr);
+                        let shockDmg = e.dmg * 0.5 * (1 - dr);
+                        if (P.dmgReduction > 0) shockDmg *= (1 - P.dmgReduction);
+                        P.hp -= shockDmg;
                         P.damageFlash = 0.2;
                         P.invincible = 0.5;
                         shake(4, 0.15);
@@ -948,6 +1084,11 @@ function updateEnemies(dt) {
                 // Equipment armor reduction
                 const eqArmor = G.equipment ? G.equipment.armor : null;
                 if (eqArmor && eqArmor.def) dmg *= (1 - eqArmor.def);
+                // S003: Relic damage reduction (Sacred Tortoise Shell)
+                if (typeof getRelicStats === 'function') {
+                    const relicS = getRelicStats();
+                    if (relicS.dmgReduction > 0) dmg *= (1 - relicS.dmgReduction);
+                }
                 // Phase G: Ally aura damage reduction
                 if (G.allyAura && G.allyAura.dmgReduction > 0) dmg *= (1 - G.allyAura.dmgReduction);
                 // Equipment armor reflect
@@ -1009,7 +1150,7 @@ function checkLevelUp() {
     if (P.xp >= P.xpNeeded) {
         P.xp -= P.xpNeeded;
         P.level++;
-        P.xpNeeded = Math.floor(20 * Math.pow(1.5, P.level - 1));
+        P.xpNeeded = Math.floor(25 * P.level * Math.pow(1.35, P.level - 1));
         // Small heal on level up (10% HP) - NOT full recovery
         P.hp = Math.min(P.hp + P.maxHp * 0.1, P.maxHp);
         G.state = 'LEVEL_UP';
@@ -1041,6 +1182,10 @@ function generateLevelUpChoices() {
         if (G.banishedWeapons && G.banishedWeapons.includes(w.id)) return false;
         // Filter out other heroes' signature weapons
         if (w.heroOnly && w.heroOnly !== P.heroId) return false;
+        // BALANCE: Class restriction — don't let a class pick another class's weapons
+        if (typeof canHeroUseWeapon === 'function' && !canHeroUseWeapon(w, P.heroId)) return false;
+        // BALANCE: Level-gated weapons — tier 2 requires minLevel
+        if (w.minLevel && P.level < w.minLevel) return false;
         // Can upgrade existing weapons
         const existing = G.weapons.find(ew => ew.id === w.id);
         if (existing && existing.level < 5) return true;
@@ -1238,11 +1383,132 @@ function updatePickups(dt) {
                 P.hp = Math.min(P.hp + p.val, P.maxHp);
                 spawnDmgNum(P.x, P.y - 10, p.val, '#ff4444', false);
                 SFX.hpPickup();
+            } else if (p.type === 'resource') {
+                // P006: Workshop resource pickup from gathering nodes
+                if (typeof addResource === 'function') {
+                    addResource(p.resourceId, p.val);
+                }
+                const rDef = (typeof WORKSHOP_RESOURCES !== 'undefined') ? WORKSHOP_RESOURCES[p.resourceId] : null;
+                const rName = rDef ? (rDef.icon + '+' + p.val) : ('+' + p.val);
+                spawnDmgNum(P.x, P.y - 15, rName, rDef ? rDef.color : '#44ffaa', true);
+                SFX.goldPickup();
             }
             G.pickups.splice(i, 1);
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// P006: Gathering Nodes — Breakable objects that drop Workshop resources
+// ═══════════════════════════════════════════════════════════════
+
+const GATHER_NODE_TYPES = [
+    { id: 'jade_deposit', icon: '💎', label: 'Jade', resource: 'spirit_jade', minDrop: 2, maxDrop: 5, color: '#44ffaa', bodyColor: '#22aa66' },
+    { id: 'war_scrap', icon: '⚔️', label: 'Iron', resource: 'war_iron', minDrop: 1, maxDrop: 3, color: '#cccccc', bodyColor: '#888899' },
+    { id: 'dragon_fossil', icon: '🦴', label: 'Bone', resource: 'dragon_bone', minDrop: 1, maxDrop: 2, color: '#ddbb88', bodyColor: '#997755' },
+    { id: 'phoenix_ember', icon: '🔥', label: 'Ash', resource: 'phoenix_ash', minDrop: 1, maxDrop: 2, color: '#ff6622', bodyColor: '#cc4411' },
+    { id: 'void_crystal', icon: '🔮', label: 'Ink', resource: 'void_ink', minDrop: 1, maxDrop: 2, color: '#aa44ff', bodyColor: '#772299' }
+];
+
+function spawnGatherNodes() {
+    G.gatherNodes = [];
+    // Only spawn in combat-oriented rooms
+    if (!G.roomType || G.roomType === 'SHOP' || G.roomType === 'PURGE') return;
+
+    const count = 3 + Math.floor(Math.random() * 3); // 3-5 nodes per room
+    const margin = 150; // Stay away from arena edges
+    for (let i = 0; i < count; i++) {
+        // Choose node type (weighted: jade is most common)
+        let nType;
+        const roll = Math.random();
+        if (roll < 0.35) nType = GATHER_NODE_TYPES[0]; // jade (35%)
+        else if (roll < 0.55) nType = GATHER_NODE_TYPES[1]; // iron (20%)
+        else if (roll < 0.70) nType = GATHER_NODE_TYPES[2]; // bone (15%)
+        else if (roll < 0.85) nType = GATHER_NODE_TYPES[3]; // ash (15%)
+        else nType = GATHER_NODE_TYPES[4]; // void_ink (15%)
+
+        // Random position within arena (avoiding center spawn where player appears)
+        let nx, ny, tooClose;
+        do {
+            nx = margin + Math.random() * (G.arenaW - margin * 2);
+            ny = margin + Math.random() * (G.arenaH - margin * 2);
+            tooClose = Math.hypot(nx - G.arenaW / 2, ny - G.arenaH / 2) < 100;
+        } while (tooClose);
+
+        G.gatherNodes.push({
+            ...nType,
+            x: nx, y: ny,
+            hp: 1, // Destroyed on first hit / proximity
+            bobTimer: Math.random() * Math.PI * 2 // Offset for bobbing animation
+        });
+    }
+}
+
+function updateGatherNodes(dt) {
+    if (!G.gatherNodes) return;
+    for (let i = G.gatherNodes.length - 1; i >= 0; i--) {
+        const n = G.gatherNodes[i];
+        n.bobTimer += dt * 2;
+
+        // Collect on proximity (player walks near)
+        const d = dist(P, n);
+        if (d < 25) {
+            // Determine drop amount
+            const dropAmt = n.minDrop + Math.floor(Math.random() * (n.maxDrop - n.minDrop + 1));
+
+            // Spawn resource pickup
+            G.pickups.push({
+                type: 'resource', resourceId: n.resource, val: dropAmt,
+                x: n.x, y: n.y, life: 8
+            });
+
+            // Break VFX
+            spawnParticles(n.x, n.y, n.color, 10, 30);
+            spawnParticles(n.x, n.y, n.bodyColor, 5, 20);
+            if (typeof SFX !== 'undefined' && SFX.hit) SFX.hit();
+
+            // Remove node
+            G.gatherNodes.splice(i, 1);
+        }
+    }
+}
+
+function drawGatherNodes() {
+    if (!G.gatherNodes) return;
+    for (const n of G.gatherNodes) {
+        const sx = n.x - G.camX + G.shakeX;
+        const sy = n.y - G.camY + G.shakeY;
+        if (sx < -20 || sx > GAME_W + 20 || sy < -20 || sy > GAME_H + 20) continue;
+
+        // Bobbing animation
+        const bob = Math.sin(n.bobTimer) * 2;
+
+        // Shadow
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy + 8, 7, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Body (crystal/deposit shape)
+        ctx.fillStyle = n.bodyColor;
+        ctx.fillRect(sx - 5, sy - 6 + bob, 10, 10);
+
+        // Highlight
+        ctx.fillStyle = n.color;
+        ctx.fillRect(sx - 3, sy - 8 + bob, 6, 4);
+
+        // Sparkle (periodically)
+        if (Math.sin(n.bobTimer * 3) > 0.7) {
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = 0.7;
+            ctx.fillRect(sx - 1, sy - 9 + bob, 2, 2);
+            ctx.globalAlpha = 1;
+        }
+    }
+}
+
 
 // --- Portal ---
 function updatePortal(dt) {
@@ -1276,6 +1542,29 @@ function nextFloor() {
     if (typeof saveRunState === 'function') saveRunState();
 }
 
+// Spawns environmental hazards for the current floor
+function spawnEnvironment() {
+    const numTraps = 3 + Math.floor(G.floor * 1.5); // 4, 6, 7...
+    const trapTypes = ['SPIKES', 'POISON_VENT', 'LAVA_POOL'];
+
+    for (let i = 0; i < numTraps; i++) {
+        // Pick random trap
+        const type = trapTypes[Math.floor(Math.random() * trapTypes.length)];
+        // Random position, avoiding center (safe zone)
+        let tx, ty, d;
+        do {
+            tx = rng(50, G.arenaW - 50);
+            ty = rng(50, G.arenaH - 50);
+            d = Math.hypot(tx - G.arenaW / 2, ty - G.arenaH / 2);
+        } while (d < 200); // Keep 200px radius clear around center
+
+        // Spawn via Physics
+        if (window.Physics && window.Physics.spawnHazard) {
+            window.Physics.spawnHazard(tx, ty, type, rng(40, 70));
+        }
+    }
+}
+
 function startNextFloor() {
     G.floor++;
     G.enemies = [];
@@ -1291,6 +1580,11 @@ function startNextFloor() {
     G.enemiesPerWave = 8 + G.floor * 2;
     P.x = G.arenaW / 2; P.y = G.arenaH / 2;
     P.hp = Math.min(P.hp + P.maxHp * 0.3, P.maxHp); // heal 30% between floors
+
+    // SPAWN ENVIRONMENT (Traps & Obstacles)
+    G.hazards = []; // Clear old hazards
+    if (typeof spawnEnvironment === 'function') spawnEnvironment();
+
     spawnParticles(P.x, P.y, '#ffff00', 30, 100);
     spawnElementParticles(P.x, P.y, P.element, 20, 80);
     shake(4, 0.2);
@@ -1478,6 +1772,18 @@ function updateArcherProjectiles(dt) {
             let dmg = b.dmg * (1 - dr);
             // Phase G: Ally aura damage reduction
             if (G.allyAura && G.allyAura.dmgReduction > 0) dmg *= (1 - G.allyAura.dmgReduction);
+            // Equipment armor DR
+            if (P.dmgReduction > 0) dmg *= (1 - P.dmgReduction);
+            // Reflect projectiles (Borrowed Arrows talisman)
+            if (P.reflectProjectiles) {
+                // Reverse the arrow back at sender
+                b.vx = -b.vx; b.vy = -b.vy;
+                b.reflected = true;
+                spawnDmgNum(P.x, P.y - 15, 'REFLECT!', '#ffaa00', true);
+                spawnParticles(P.x, P.y, '#ffaa00', 5, 25);
+                P.invincible = 0.1;
+                continue; // Skip damage
+            }
             P.hp -= dmg;
             P.damageFlash = 0.15;
             P.invincible = 0.3;
@@ -1518,7 +1824,8 @@ const ROOM_TYPES = {
     REST: { icon: '💚', name: { vi: 'Nghỉ Ngơi', en: 'Rest' }, color: '#44dd44' },
     TREASURE: { icon: '💎', name: { vi: 'Kho Báu', en: 'Treasure' }, color: '#44ddff' },
     BOSS: { icon: '👹', name: { vi: 'TRÙM', en: 'BOSS' }, color: '#ff0000' },
-    BLESSING: { icon: '✨', name: { vi: 'Phước Lành', en: 'Blessing' }, color: '#ffd700' }
+    BLESSING: { icon: '✨', name: { vi: 'Phước Lành', en: 'Blessing' }, color: '#ffd700' },
+    PURGE: { icon: '⛩️', name: { vi: 'Đền Thanh Tẩy', en: 'Purge Shrine' }, color: '#aa44ff' }
 };
 
 function generateRoomsForFloor() {
@@ -1545,6 +1852,10 @@ function generateDoorChoices() {
     typePool.push('SHOP');
     typePool.push('REST');
     typePool.push('TREASURE');
+    // P001: Purge Shrine — available from floor 3, only if player has active blessings
+    if (G.floor >= 3 && typeof BlessingState !== 'undefined' && BlessingState.active.length > 0) {
+        typePool.push('PURGE');
+    }
     typePool.push('BLESSING'); // 1x weight (was 2x)
 
     for (let i = 0; i < numDoors; i++) {
@@ -1561,6 +1872,7 @@ function generateDoorChoices() {
             case 'ELITE': reward = 'weapon'; break;
             case 'SHOP': reward = 'gold'; break;
             case 'REST': reward = 'hp'; break;
+            case 'PURGE': reward = 'purge'; break;
             case 'TREASURE': reward = 'item'; break;
             case 'BLESSING': reward = 'blessing'; break;
             default: reward = 'xp';
@@ -1645,6 +1957,9 @@ function setupRoom() {
     P.x = G.arenaW / 2;
     P.y = G.arenaH / 2;
 
+    // P006: Spawn gathering nodes for this room
+    if (typeof spawnGatherNodes === 'function') spawnGatherNodes();
+
     G.roomState = 'FIGHTING';
 
     switch (G.roomType) {
@@ -1709,6 +2024,13 @@ function setupRoom() {
             G.state = 'BLESSING_CHOICE';
             G.blessingChoices = (typeof generateBlessingChoices === 'function')
                 ? generateBlessingChoices(3) : [];
+            break;
+
+        case 'PURGE':
+            // P001: Purge Shrine — player can remove one active blessing
+            G.roomState = 'CLEARED';
+            G.roomCleared = true;
+            G.state = 'PURGE_SHRINE';
             break;
 
         case 'BOSS':
@@ -1882,3 +2204,245 @@ generateLevelUpChoices = function () {
         }
     }
 };
+
+// ═══════════════════════════════════════════════════════════════
+// P003: Battle Scars — Persistent buff/debuff from boss kills
+// ═══════════════════════════════════════════════════════════════
+
+const BATTLE_SCARS = [
+    {
+        id: 'berserker_fury', icon: '🔥',
+        name: { vi: 'Cuồng Nộ Chiến Binh', en: 'Berserker Fury' },
+        buff: { dmgMult: 0.15, desc: { vi: '+15% sát thương', en: '+15% damage' } },
+        debuff: { defMult: -0.10, desc: { vi: '-10% phòng thủ', en: '-10% defense' } },
+        color: '#ff4422'
+    },
+    {
+        id: 'iron_skin', icon: '🛡️',
+        name: { vi: 'Da Sắt', en: 'Iron Skin' },
+        buff: { defMult: 0.20, desc: { vi: '+20% phòng thủ', en: '+20% defense' } },
+        debuff: { spdMult: -0.10, desc: { vi: '-10% tốc độ', en: '-10% speed' } },
+        color: '#888899'
+    },
+    {
+        id: 'blood_pact', icon: '💉',
+        name: { vi: 'Giao Ước Máu', en: 'Blood Pact' },
+        buff: { lifesteal: 0.05, desc: { vi: '+5% hút máu', en: '+5% lifesteal' } },
+        debuff: { maxHpMult: -0.10, desc: { vi: '-10% HP tối đa', en: '-10% max HP' } },
+        color: '#cc2244'
+    },
+    {
+        id: 'windwalker', icon: '💨',
+        name: { vi: 'Bộ Phong', en: 'Windwalker' },
+        buff: { spdMult: 0.20, desc: { vi: '+20% tốc độ', en: '+20% speed' } },
+        debuff: { dmgMult: -0.08, desc: { vi: '-8% sát thương', en: '-8% damage' } },
+        color: '#44ddaa'
+    },
+    {
+        id: 'eagle_eye', icon: '🎯',
+        name: { vi: 'Mắt Diều Hâu', en: 'Eagle Eye' },
+        buff: { critChance: 0.10, desc: { vi: '+10% bạo kích', en: '+10% crit chance' } },
+        debuff: { atkSpdMult: -0.12, desc: { vi: '-12% tốc độ tấn công', en: '-12% attack speed' } },
+        color: '#ffcc00'
+    },
+    {
+        id: 'tremor_strike', icon: '💥',
+        name: { vi: 'Chấn Động', en: 'Tremor Strike' },
+        buff: { splashRadius: 20, desc: { vi: '+20 bán kính nổ', en: '+20 splash radius' } },
+        debuff: { defMult: -0.08, desc: { vi: '-8% phòng thủ', en: '-8% defense' } },
+        color: '#ff8844'
+    },
+    {
+        id: 'dragon_reach', icon: '🐉',
+        name: { vi: 'Tay Rồng', en: 'Dragon Reach' },
+        buff: { rangeMult: 0.15, desc: { vi: '+15% tầm đánh', en: '+15% range' } },
+        debuff: { dmgMult: -0.05, desc: { vi: '-5% sát thương', en: '-5% damage' } },
+        color: '#2288ff'
+    },
+    {
+        id: 'shadow_step', icon: '👻',
+        name: { vi: 'Bước Bóng', en: 'Shadow Step' },
+        buff: { dodgeChance: 0.08, desc: { vi: '+8% né tránh', en: '+8% dodge' } },
+        debuff: { maxHpMult: -0.05, desc: { vi: '-5% HP tối đa', en: '-5% max HP' } },
+        color: '#7744cc'
+    }
+];
+
+window.BattleScarState = {
+    scars: [],  // Array of scar IDs earned this run
+    active: []  // Full scar objects for display
+};
+
+function resetBattleScars() {
+    window.BattleScarState.scars = [];
+    window.BattleScarState.active = [];
+}
+
+function grantBattleScar() {
+    // Pick a random scar the player doesn't already have
+    const available = BATTLE_SCARS.filter(s => !window.BattleScarState.scars.includes(s.id));
+    if (available.length === 0) return null;
+
+    const scar = available[Math.floor(Math.random() * available.length)];
+    window.BattleScarState.scars.push(scar.id);
+    window.BattleScarState.active.push(scar);
+
+    // Apply max HP debuffs immediately
+    if (scar.debuff.maxHpMult) {
+        const hpLoss = Math.ceil(P.maxHp * Math.abs(scar.debuff.maxHpMult));
+        P.maxHp -= hpLoss;
+        P.hp = Math.min(P.hp, P.maxHp);
+    }
+
+    return scar;
+}
+
+function getBattleScarStats() {
+    const stats = {
+        dmgMult: 0, defMult: 0, spdMult: 0, atkSpdMult: 0,
+        lifesteal: 0, critChance: 0, dodgeChance: 0,
+        splashRadius: 0, rangeMult: 0
+    };
+    for (const scar of window.BattleScarState.active) {
+        for (const [key, val] of Object.entries(scar.buff)) {
+            if (key !== 'desc' && stats[key] !== undefined) stats[key] += val;
+        }
+        for (const [key, val] of Object.entries(scar.debuff)) {
+            if (key !== 'desc' && stats[key] !== undefined) stats[key] += val;
+        }
+    }
+    return stats;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// P005: Run History & Statistics
+// ═══════════════════════════════════════════════════════════════
+
+const RUN_HISTORY_KEY = 'dbd_runHistory';
+const RUN_HISTORY_MAX = 50;  // Keep last 50 runs
+
+window.RunHistory = {
+    runs: [],
+    _startTime: 0,
+
+    load() {
+        try {
+            const saved = localStorage.getItem(RUN_HISTORY_KEY);
+            this.runs = saved ? JSON.parse(saved) : [];
+        } catch (e) { this.runs = []; }
+    },
+
+    save() {
+        try {
+            localStorage.setItem(RUN_HISTORY_KEY, JSON.stringify(this.runs));
+        } catch (e) { /* silently fail */ }
+    },
+
+    startRun() {
+        this._startTime = Date.now();
+    },
+
+    recordRun(outcome) {
+        const duration = Math.floor((Date.now() - this._startTime) / 1000);  // seconds
+        const run = {
+            id: Date.now(),
+            hero: P.heroId || 'unknown',
+            floor: G.floor || 1,
+            kills: G.totalKills || G.enemiesKilled || 0,
+            score: G.score || 0,
+            combo: G.maxCombo || 0,
+            level: P.level || 1,
+            duration: duration,
+            outcome: outcome,  // 'victory' | 'defeat'
+            difficulty: G.difficulty || 0,
+            scars: window.BattleScarState ? window.BattleScarState.scars.length : 0,
+            blessings: (typeof BlessingState !== 'undefined') ? BlessingState.active.length : 0,
+            weapons: G.weapons ? G.weapons.length : 0,
+            date: new Date().toISOString()
+        };
+
+        this.runs.unshift(run);
+
+        // Cap history
+        if (this.runs.length > RUN_HISTORY_MAX) {
+            this.runs = this.runs.slice(0, RUN_HISTORY_MAX);
+        }
+
+        this.save();
+        return run;
+    },
+
+    getStats() {
+        const runs = this.runs;
+        if (runs.length === 0) {
+            return {
+                totalRuns: 0, totalKills: 0, bestFloor: 0, bestScore: 0,
+                winRate: 0, avgKills: 0, avgFloor: 0, totalPlaytime: 0,
+                bestCombo: 0, victories: 0
+            };
+        }
+
+        let totalKills = 0, totalFloors = 0, totalPlaytime = 0;
+        let bestFloor = 0, bestScore = 0, bestCombo = 0, victories = 0;
+
+        for (const r of runs) {
+            totalKills += r.kills || 0;
+            totalFloors += r.floor || 0;
+            totalPlaytime += r.duration || 0;
+            if (r.floor > bestFloor) bestFloor = r.floor;
+            if (r.score > bestScore) bestScore = r.score;
+            if ((r.combo || 0) > bestCombo) bestCombo = r.combo;
+            if (r.outcome === 'victory') victories++;
+        }
+
+        return {
+            totalRuns: runs.length,
+            totalKills,
+            bestFloor,
+            bestScore,
+            bestCombo,
+            victories,
+            winRate: Math.round((victories / runs.length) * 100),
+            avgKills: Math.round(totalKills / runs.length),
+            avgFloor: Math.round((totalFloors / runs.length) * 10) / 10,
+            totalPlaytime
+        };
+    },
+
+    getHeroStats(heroId) {
+        const heroRuns = this.runs.filter(r => r.hero === heroId);
+        if (heroRuns.length === 0) return null;
+
+        let totalKills = 0, bestFloor = 0, victories = 0;
+        for (const r of heroRuns) {
+            totalKills += r.kills || 0;
+            if (r.floor > bestFloor) bestFloor = r.floor;
+            if (r.outcome === 'victory') victories++;
+        }
+
+        return {
+            runs: heroRuns.length,
+            totalKills,
+            bestFloor,
+            victories,
+            winRate: Math.round((victories / heroRuns.length) * 100)
+        };
+    }
+};
+
+// Load on init
+window.RunHistory.load();
+
+function getRunHistory() { return window.RunHistory.runs; }
+function getRunStats() { return window.RunHistory.getStats(); }
+
+function formatPlaytime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm ' + s + 's';
+    return s + 's';
+}
+
+

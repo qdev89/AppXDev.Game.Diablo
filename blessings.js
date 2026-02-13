@@ -532,7 +532,20 @@ function getBlessingStats() {
         const e = b.effect;
         const lv = b.level || 1; // R002: Level multiplier for stacking
         switch (e.type) {
-            case 'dmg_mult': stats.dmgMult += e.value * lv; break;
+            case 'dmg_mult':
+                stats.dmgMult += e.value * lv;
+                // Cursed: Blood Oath halves max HP, Glass Cannon forces HP to 1
+                if (e.hpMult && !b._hpMutApplied) {
+                    P.maxHp = Math.max(1, Math.floor(P.maxHp * e.hpMult));
+                    P.hp = Math.min(P.hp, P.maxHp);
+                    b._hpMutApplied = true;
+                }
+                if (e.forceHp && !b._forceHpApplied) {
+                    P.maxHp = e.forceHp;
+                    P.hp = e.forceHp;
+                    b._forceHpApplied = true;
+                }
+                break;
             case 'dmg_reduction': stats.dmgReduction += e.value * lv; break;
             case 'crit_chance': stats.critChance += e.value * lv; break;
             case 'attack_speed': stats.attackSpeed += e.value * lv; break;
@@ -716,6 +729,22 @@ function generateBlessingChoices(count, guaranteedElement) {
         const hasAll = duo.requires.every(el => BlessingState.affinity[el] >= 1);
         if (hasAll && Math.random() < 0.3) {
             choices.push({ ...duo, deity: duo.elements[0], isDuo: true });
+        }
+    }
+
+    // O002: Inject cursed blessings (15% chance per slot, floor 3+)
+    if (G.floor >= 3) {
+        const availableCursed = CURSED_BLESSINGS.filter(c =>
+            !BlessingState.active.find(a => a.id === c.id)
+        );
+        if (availableCursed.length > 0) {
+            for (let i = 0; i < choices.length; i++) {
+                if (Math.random() < 0.15) {
+                    const curse = availableCursed[Math.floor(Math.random() * availableCursed.length)];
+                    choices[i] = { ...curse, isCursed: true };
+                    break; // Max 1 cursed per screen
+                }
+            }
         }
     }
 

@@ -160,10 +160,52 @@ const SACRED_BEASTS = {
         colors: { body: '#ff4400', accent: '#ffd700', glow: '#ff8800' },
         orbitRadius: 35, orbitSpeed: 2.5,
         attackRate: 1.8, attackRange: 120, boltSpeed: 130, boltDmg: 12,
+        behavior: 'orbit_shoot', // Orbits + fires bolts
         affinityThresholds: {
             50: { homing: true, desc: 'Fire bolts become homing' },
             75: { attackRate: 1.2, desc: 'Attack speed increased' },
             100: { revive: true, reviveHeal: 1.0, explodeDmg: 80, explodeRange: 100, desc: 'Revive on death + fire explosion' }
+        }
+    },
+    azure_dragon: {
+        id: 'azure_dragon', name: 'Thanh Long', title: 'Azure Dragon', element: 'WOOD',
+        colors: { body: '#22cc44', accent: '#88ff88', glow: '#44ff66' },
+        orbitRadius: 40, orbitSpeed: 2.0,
+        attackRate: 2.5, attackRange: 150, boltSpeed: 180, boltDmg: 15,
+        behavior: 'charge', // Charges through enemies in a line
+        chargeSpeed: 200, chargeWidth: 20,
+        healTrail: 1, // Heals player 1 HP per charge hit
+        affinityThresholds: {
+            50: { healTrail: 2, desc: 'Heal trail restores 2 HP' },
+            75: { attackRate: 1.8, desc: 'Charge speed increased' },
+            100: { aoeHeal: true, healPct: 0.05, desc: 'Full heal burst on expiry' }
+        }
+    },
+    white_tiger: {
+        id: 'white_tiger', name: 'Bạch Hổ', title: 'White Tiger', element: 'METAL',
+        colors: { body: '#cccccc', accent: '#ffffff', glow: '#aabbcc' },
+        orbitRadius: 30, orbitSpeed: 3.0,
+        attackRate: 2.0, attackRange: 100, boltSpeed: 0, boltDmg: 25,
+        behavior: 'lunge', // Lunges at strongest/nearest elite
+        lungeDmg: 25, executeThreshold: 0.10, // Execute enemies below 10% HP
+        affinityThresholds: {
+            50: { executeThreshold: 0.15, desc: 'Execute threshold raised to 15%' },
+            75: { lungeDmg: 40, desc: 'Lunge damage increased' },
+            100: { doubleStrike: true, desc: 'Double lunge on elites' }
+        }
+    },
+    black_tortoise: {
+        id: 'black_tortoise', name: 'Huyền Vũ', title: 'Black Tortoise', element: 'WATER',
+        colors: { body: '#2266aa', accent: '#44aaff', glow: '#3388cc' },
+        orbitRadius: 25, orbitSpeed: 1.5,
+        attackRate: 3.0, attackRange: 80, boltSpeed: 100, boltDmg: 8,
+        behavior: 'shield', // Orbits as shield, absorbs & reflects projectiles
+        dmgReduction: 0.15, // 15% DR while active
+        reflectChance: 0.30, // 30% chance to reflect projectile
+        affinityThresholds: {
+            50: { dmgReduction: 0.25, desc: 'Damage reduction increased to 25%' },
+            75: { reflectChance: 0.50, desc: 'Reflect chance increased to 50%' },
+            100: { iceArmor: true, freezeOnHit: 1.0, desc: 'Attackers are frozen for 1s' }
         }
     }
 };
@@ -193,3 +235,126 @@ function getCompanionsForBond(bondId) {
         return { ...def, name, bondId };
     }).filter(Boolean);
 }
+
+// ═══════════════════════════════════════════════════════════════
+// P004: Hero Mastery — Per-hero meta-progression
+// ═══════════════════════════════════════════════════════════════
+
+const MASTERY_LEVELS = [
+    { level: 1, xp: 0, reward: { hp: 5, desc: { vi: '+5 HP', en: '+5 HP' } } },
+    { level: 2, xp: 100, reward: { dmg: 0.05, desc: { vi: '+5% sát thương', en: '+5% damage' } } },
+    { level: 3, xp: 300, reward: { spd: 0.05, desc: { vi: '+5% tốc độ', en: '+5% speed' } } },
+    { level: 4, xp: 600, reward: { mp: 10, desc: { vi: '+10 MP', en: '+10 MP' } } },
+    { level: 5, xp: 1000, reward: { hp: 10, desc: { vi: '+10 HP', en: '+10 HP' } } },
+    { level: 6, xp: 1500, reward: { xpGain: 0.10, desc: { vi: '+10% XP', en: '+10% XP gain' } } },
+    { level: 7, xp: 2200, reward: { crit: 0.05, desc: { vi: '+5% bạo kích', en: '+5% crit' } } },
+    { level: 8, xp: 3000, reward: { dmg: 0.08, desc: { vi: '+8% sát thương', en: '+8% damage' } } },
+    { level: 9, xp: 4000, reward: { cdReduction: 0.10, desc: { vi: '-10% hồi chiêu', en: '-10% cooldown' } } },
+    { level: 10, xp: 5500, reward: { lifesteal: 0.03, desc: { vi: '+3% hút máu', en: '+3% lifesteal' } } }
+];
+
+const MASTERY_STORAGE_KEY = 'dbd_heroMastery';
+
+window.HeroMastery = {
+    data: {},  // { heroId: { xp: number, level: number } }
+
+    load() {
+        try {
+            const saved = localStorage.getItem(MASTERY_STORAGE_KEY);
+            this.data = saved ? JSON.parse(saved) : {};
+        } catch (e) { this.data = {}; }
+    },
+
+    save() {
+        try {
+            localStorage.setItem(MASTERY_STORAGE_KEY, JSON.stringify(this.data));
+        } catch (e) { /* silently fail */ }
+    },
+
+    getHeroData(heroId) {
+        if (!this.data[heroId]) {
+            this.data[heroId] = { xp: 0, level: 1 };
+        }
+        return this.data[heroId];
+    },
+
+    addXP(heroId, amount) {
+        const hd = this.getHeroData(heroId);
+        hd.xp += amount;
+
+        // Check level up
+        let leveled = false;
+        for (const ml of MASTERY_LEVELS) {
+            if (hd.xp >= ml.xp && hd.level < ml.level) {
+                hd.level = ml.level;
+                leveled = true;
+            }
+        }
+
+        this.save();
+        return leveled;
+    },
+
+    getLevel(heroId) {
+        return this.getHeroData(heroId).level;
+    },
+
+    getXP(heroId) {
+        return this.getHeroData(heroId).xp;
+    },
+
+    getNextLevelXP(heroId) {
+        const level = this.getLevel(heroId);
+        const next = MASTERY_LEVELS.find(ml => ml.level === level + 1);
+        return next ? next.xp : null; // null = max level
+    },
+
+    getStats(heroId) {
+        const level = this.getLevel(heroId);
+        const stats = { hp: 0, dmg: 0, spd: 0, mp: 0, xpGain: 0, crit: 0, cdReduction: 0, lifesteal: 0 };
+        for (const ml of MASTERY_LEVELS) {
+            if (ml.level <= level) {
+                for (const [key, val] of Object.entries(ml.reward)) {
+                    if (key !== 'desc' && stats[key] !== undefined) stats[key] += val;
+                }
+            }
+        }
+        return stats;
+    }
+};
+
+// Load mastery data on script init
+window.HeroMastery.load();
+
+// XP Grant functions — called from game events
+function grantMasteryXP(source) {
+    if (!P.heroId) return;
+    let amount = 0;
+    switch (source) {
+        case 'kill': amount = 1; break;
+        case 'floor_clear': amount = 50; break;
+        case 'boss_kill': amount = 200; break;
+        default: amount = 0;
+    }
+    if (amount <= 0) return;
+
+    const leveled = window.HeroMastery.addXP(P.heroId, amount);
+    if (leveled) {
+        const newLevel = window.HeroMastery.getLevel(P.heroId);
+        const ml = MASTERY_LEVELS.find(m => m.level === newLevel);
+        const rewardDesc = ml ? ml.reward.desc[G.lang || 'vi'] : '';
+        G.floorAnnounce = {
+            text: '⭐ ' + (G.lang === 'en' ? 'Mastery Level ' : 'Cấp Tinh Thông ') + newLevel + '!',
+            subtitle: rewardDesc,
+            timer: 2.5
+        };
+        spawnParticles(P.x, P.y, '#ffd700', 20, 60);
+        if (typeof SFX !== 'undefined' && SFX.levelUp) SFX.levelUp();
+    }
+}
+
+function getMasteryStats() {
+    if (!P.heroId) return { hp: 0, dmg: 0, spd: 0, mp: 0, xpGain: 0, crit: 0, cdReduction: 0, lifesteal: 0 };
+    return window.HeroMastery.getStats(P.heroId);
+}
+

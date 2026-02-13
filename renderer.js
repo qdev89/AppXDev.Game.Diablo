@@ -20,10 +20,14 @@ function drawGame() {
 
     // --- World layers ---
     if (typeof drawFloorTiles === 'function') drawFloorTiles();          // Biome-aware tiled floor
+    if (typeof drawEnvironmentDecorations === 'function') drawEnvironmentDecorations(); // T-05: Procedural biome decorations
     // Hazards (Mewgenics Integration)
     if (window.Physics && window.Physics.render) window.Physics.render(ctx, G.camX, G.camY);
 
     if (typeof drawAmbientParticles === 'function') drawAmbientParticles();    // Floating dust/embers
+
+    // P006: Gathering nodes (render behind pickups)
+    if (typeof drawGatherNodes === 'function') drawGatherNodes();
 
     drawPickups();
     drawPortal();
@@ -33,6 +37,9 @@ function drawGame() {
     // Y-Sorting for Player/Enemies? Usually handled by specialized function or simple order
     // Here we just draw player on top of enemies/bullets for clarity in this genre
     drawPlayer();
+
+    // P008: Omega charge bar above player
+    if (typeof drawOmegaChargeBar === 'function') drawOmegaChargeBar();
 
     // Visual Effects
     if (typeof drawSkillEffects === 'function') drawSkillEffects();

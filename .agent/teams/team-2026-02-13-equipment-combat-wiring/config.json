@@ -1,0 +1,37 @@
+{
+    "id": "team-2026-02-13-equipment-combat-wiring",
+    "template": "full-stack-feature",
+    "description": "Wire 4 equipment stat effects into actual gameplay combat/dodge systems",
+    "created": "2026-02-13T21:15:00+07:00",
+    "agents": [
+        {
+            "id": "armor-engineer",
+            "role": "Wire dmgReduction + reflectDmg into ALL damage paths",
+            "backend": "direct"
+        },
+        {
+            "id": "talisman-engineer",
+            "role": "Wire talismanProc effects (burn/slow/chain/reflect_proj/explode) into combat",
+            "backend": "direct"
+        },
+        {
+            "id": "mount-engineer",
+            "role": "Wire fireTrailOnDodge + dodgeCdBonus into dodge system",
+            "backend": "direct"
+        },
+        {
+            "id": "rarity-engineer",
+            "role": "Add RARITY_COLORS + RARITY_NAMES constants if missing",
+            "backend": "direct"
+        }
+    ],
+    "parallelization": {
+        "wave1": [
+            "armor-engineer",
+            "talisman-engineer",
+            "mount-engineer",
+            "rarity-engineer"
+        ],
+        "notes": "All independent — different code regions, no conflicts"
+    }
+}

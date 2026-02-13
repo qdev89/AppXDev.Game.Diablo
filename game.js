@@ -132,7 +132,7 @@ function clearRunState() {
 
 function saveRunState() {
     // Only save in valid states
-    if (G.state !== 'PLAYING' && G.state !== 'PAUSED' && G.state !== 'BLESSING_SELECT' && G.state !== 'SHOP' && G.state !== 'BLESSING_CHOICE') return;
+    if (G.state !== 'PLAYING' && G.state !== 'PAUSED' && G.state !== 'BLESSING_SELECT' && G.state !== 'SHOP' && G.state !== 'BLESSING_CHOICE' && G.state !== 'PURGE_SHRINE') return;
 
     try {
         const runData = {
@@ -267,6 +267,12 @@ function startGame() {
     G.state = 'PLAYING';
     G.floor = 1; G.score = 0; G.combo = 0; G.maxCombo = 0;
     G.enemies = []; G.bullets = []; G.particles = []; G.pickups = []; G.dmgNums = [];
+    // P003: Reset battle scars on new run
+    if (typeof resetBattleScars === 'function') resetBattleScars();
+    // P005: Start run timer
+    if (window.RunHistory) window.RunHistory.startRun();
+    // P007: Reset synergies
+    if (window.SynergyState) window.SynergyState.reset();
     G.weapons = [];
     G.spawnTimer = 0; G.spawnRate = 1.2; G.enemiesPerWave = 12;
     G.enemiesKilled = 0; G.enemiesNeeded = 40;
@@ -342,7 +348,7 @@ function startGame() {
     P.heroId = hero.id;
     P.x = G.arenaW / 2; P.y = G.arenaH / 2;
     P.hp = hero.hp; P.maxHp = hero.hp;
-    P.xp = 0; P.xpNeeded = 20; P.level = 1;
+    P.xp = 0; P.xpNeeded = 25; P.level = 1;
     P.speed = hero.speed;
     P.invincible = 0; P.damageFlash = 0;
     P.element = hero.element;
@@ -550,6 +556,13 @@ function updatePlayer(dt) {
         // Hero-specific dodge trail
         const hero = getHeroDef(P.heroId);
         if (Math.random() < 0.5) spawnParticles(P.x, P.y, hero.dodgeTrail || '#aaaaff', 1, 15);
+
+        // T-03: Red Hare mount — fire trail on dodge
+        if (P.fireTrailOnDodge && window.Physics && typeof Physics.spawnHazard === 'function') {
+            if (Math.random() < 0.3) {
+                Physics.spawnHazard(P.x, P.y, 'SCORCHED', 15);
+            }
+        }
     }
 
     // MP regeneration (pause after skill use)
@@ -597,6 +610,9 @@ function updatePlayer(dt) {
         G.killStreakAnnounce.timer -= dt;
         if (G.killStreakAnnounce.timer <= 0) G.killStreakAnnounce = null;
     }
+
+    // P001: Trap immunity timer
+    if (P._trapImmunity > 0) P._trapImmunity -= dt;
 
     // S001: Stationary timer (for Eternity DR + Siege charge)
     if (len > 0.1) {
@@ -702,6 +718,8 @@ function updatePlayer(dt) {
         if (G.enemiesKilled >= G.enemiesNeeded && !G.roomCleared) {
             G.roomCleared = true;
             G.roomState = 'CLEARED';
+            // P004: Hero Mastery XP on room clear
+            if (typeof grantMasteryXP === 'function') grantMasteryXP('floor_clear');
             const remaining = G.roomsPerFloor - G.room;
             if (remaining <= 1) {
                 // Last room before boss — show door choice (boss vs prepare)
@@ -776,6 +794,8 @@ function update(dt) {
             // Save high score
             if (typeof saveHighScore === 'function') saveHighScore();
             if (typeof updatePersistentStats === 'function') updatePersistentStats();
+            // P005: Record defeat
+            if (window.RunHistory) window.RunHistory.recordRun('defeat');
             spawnDeathExplosion(P.x, P.y, '#ff2222', '#ff6644', 12);
             spawnElementParticles(P.x, P.y, P.element, 20, 80);
             triggerFlash('#ff0000', 0.4);
@@ -800,6 +820,9 @@ function update(dt) {
     }
 
     updatePickups(dt);
+    if (typeof updateGatherNodes === 'function') updateGatherNodes(dt);
+    // P008: Omega charge update
+    if (typeof updateOmegaCharge === 'function') updateOmegaCharge(dt);
     updateYinYang(dt);
     updatePortal(dt);
     updateCamera();
@@ -888,10 +911,33 @@ function update(dt) {
         if (typeof spawnFinalBoss === 'function') spawnFinalBoss();
     }
 
-    // Check if final boss is defeated → VICTORY
+    // Check if final boss is defeated → RELIC CHOICE (if no relic yet) → VICTORY
     if (G.finalBoss && G.finalBoss.dead) {
-        G.state = 'VICTORY';
-        G.victoryTimer = 5; // 5 seconds of celebration
+        // Offer relic choice BEFORE victory, if player has no relic
+        if (!window.RelicState || !window.RelicState.active) {
+            if (typeof generateRelicChoices === 'function') {
+                const relicChoices = generateRelicChoices(3);
+                if (relicChoices && relicChoices.length > 0) {
+                    G.relicChoices = relicChoices;
+                    G.state = 'RELIC_CHOICE';
+                    // Epic VFX
+                    spawnParticles(P.x, P.y, '#ffd700', 40, 120);
+                    triggerFlash('#ffd700', 0.4);
+                    shake(6, 0.3);
+                    if (typeof SFX !== 'undefined' && SFX.levelUp) SFX.levelUp();
+                } else {
+                    // No relics available, go straight to victory
+                    G.state = 'VICTORY';
+                    G.victoryTimer = 5;
+                }
+            } else {
+                G.state = 'VICTORY';
+                G.victoryTimer = 5;
+            }
+        } else {
+            G.state = 'VICTORY';
+            G.victoryTimer = 5;
+        }
         // Dramatic celebration effects
         spawnParticles(P.x, P.y, '#ffd700', 60, 150);
         spawnParticles(P.x, P.y, '#ff8800', 40, 120);
@@ -902,6 +948,8 @@ function update(dt) {
         // Save stats
         if (typeof saveHighScore === 'function') saveHighScore();
         if (typeof updatePersistentStats === 'function') updatePersistentStats();
+        // P005: Record victory
+        if (window.RunHistory) window.RunHistory.recordRun('victory');
         // Unlock next difficulty
         if (typeof DIFFICULTY_TIERS !== 'undefined') {
             const nextDiff = (G.difficulty || 0) + 1;
@@ -918,6 +966,24 @@ function update(dt) {
         if (typeof recordMandateVictory === 'function') recordMandateVictory();
         // T002: Grant victory workshop resources
         if (typeof grantRunResources === 'function') grantRunResources('boss_kill');
+
+        // P004: Hero Mastery XP on boss kill
+        if (typeof grantMasteryXP === 'function') grantMasteryXP('boss_kill');
+
+        // P003: Grant a battle scar from the boss kill
+        if (typeof grantBattleScar === 'function') {
+            const scar = grantBattleScar();
+            if (scar) {
+                const scarName = scar.name[G.lang || 'vi'];
+                const buffDesc = scar.buff.desc[G.lang || 'vi'];
+                const debuffDesc = scar.debuff.desc[G.lang || 'vi'];
+                G.floorAnnounce = {
+                    text: scar.icon + ' ' + (G.lang === 'en' ? 'Battle Scar: ' : 'Vết Sẹo: ') + scarName,
+                    subtitle: buffDesc + ' | ' + debuffDesc,
+                    timer: 3.0
+                };
+            }
+        }
     }
 
     // L001: Combo notification timer
@@ -934,6 +1000,8 @@ function update(dt) {
     if (G._achCheckTimer >= 2.0) {
         G._achCheckTimer = 0;
         if (typeof AchievementState !== 'undefined') AchievementState.checkAll();
+        // P007: Check historical synergies every 2s
+        if (typeof checkSynergies === 'function') checkSynergies();
     }
     // M002: Achievement toast update
     if (typeof AchievementState !== 'undefined') AchievementState.updateToast(dt);
@@ -992,6 +1060,14 @@ function draw() {
         // N006: Stage Clear Blessing selection
         drawGame();
         if (typeof drawBlessingSelectScreen === 'function') drawBlessingSelectScreen();
+    } else if (G.state === 'RELIC_CHOICE') {
+        // S003: Relic choice after boss kill
+        drawGame();
+        if (typeof drawRelicChoiceScreen === 'function') drawRelicChoiceScreen();
+    } else if (G.state === 'PURGE_SHRINE') {
+        // P001: Purge Shrine UI
+        drawGame();
+        if (typeof drawPurgeShrineScreen === 'function') drawPurgeShrineScreen();
     } else if (G.state === 'GAME_OVER') {
         drawGame();
         drawGameOverScreen();

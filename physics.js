@@ -11,7 +11,12 @@ const HAZARD_TYPES = {
     ELECTRIFIED: { id: 'ELECTRIFIED', color: '#ffff0033', particles: '#ffff00', damage: 8, duration: 2.0, effect: 'stun' }, // Metal/Lightning
     OVERGROWN: { id: 'OVERGROWN', color: '#226622', particles: '#44aa44', heal: 2, duration: 5.0, effect: 'heal' },   // Wood
     STEAM: { id: 'STEAM', color: '#ffffff55', particles: '#ffffff', blind: true, duration: 3.0, effect: 'blind' },    // Fire + Water
-    ICE: { id: 'ICE', color: '#aaddff', particles: '#ffffff', slide: true, duration: 5.0, effect: 'slide' }           // Water + Ice (alt)
+    ICE: { id: 'ICE', color: '#aaddff', particles: '#ffffff', slide: true, duration: 5.0, effect: 'slide' },
+
+    // TRAPS (Environmental)
+    SPIKES: { id: 'SPIKES', color: '#333333', particles: '#880000', damage: 15, duration: -1, effect: 'bleed', interval: 1.5 },
+    POISON_VENT: { id: 'POISON_VENT', color: '#224422', particles: '#00ff00', damage: 4, duration: -1, effect: 'poison' },
+    LAVA_POOL: { id: 'LAVA_POOL', color: '#aa2200', particles: '#ffaa00', damage: 8, duration: -1, effect: 'burn' }
 };
 
 // Global State for Hazards (managed in G.hazards in engine.js)
@@ -24,16 +29,20 @@ window.Physics = {
         const def = HAZARD_TYPES[typeId];
         if (!def) return;
 
-        // Check for interactions with existing hazards
-        for (let i = G.hazards.length - 1; i >= 0; i--) {
-            const h = G.hazards[i];
-            const d = Math.hypot(h.x - x, h.y - y);
-            if (d < h.radius + radius) {
-                // Interaction Logic (Mewgenics Chaos)
-                if (this.checkInteraction(h, typeId, x, y)) {
-                    // Interaction consumed the old hazard
-                    G.hazards.splice(i, 1);
-                    return;
+        // Guard against infinite recursion: skip interaction checks when
+        // spawning a reaction hazard from within checkInteraction
+        if (!this._spawningFromInteraction) {
+            // Check for interactions with existing hazards
+            for (let i = G.hazards.length - 1; i >= 0; i--) {
+                const h = G.hazards[i];
+                const d = Math.hypot(h.x - x, h.y - y);
+                if (d < h.radius + radius) {
+                    // Interaction Logic (Mewgenics Chaos)
+                    if (this.checkInteraction(h, typeId, x, y)) {
+                        // Interaction consumed the old hazard
+                        G.hazards.splice(i, 1);
+                        return;
+                    }
                 }
             }
         }
@@ -56,7 +65,9 @@ window.Physics = {
 
         // Fire + Water = Steam
         if ((t1 === 'SCORCHED' && t2 === 'PUDDLE') || (t1 === 'PUDDLE' && t2 === 'SCORCHED')) {
+            this._spawningFromInteraction = true;
             this.spawnHazard(x, y, 'STEAM', existingZone.radius * 1.5);
+            this._spawningFromInteraction = false;
             spawnDmgNum(x, y, "STEAM!", '#ffffff', true);
             return true; // Consumed
         }
@@ -64,7 +75,9 @@ window.Physics = {
         // Water + Metal(Lightning) = Electrified Puddle
         // Assuming 'METAL' attacks might trigger 'ELECTRIFIED' directly, or we map Metal to Electrified
         if (t1 === 'PUDDLE' && t2 === 'ELECTRIFIED') {
+            this._spawningFromInteraction = true;
             this.spawnHazard(x, y, 'ELECTRIFIED', existingZone.radius);
+            this._spawningFromInteraction = false;
             spawnDmgNum(x, y, "ZAP!", '#ffff00', true);
             return true;
         }
@@ -100,19 +113,25 @@ window.Physics = {
 
         for (let i = G.hazards.length - 1; i >= 0; i--) {
             const h = G.hazards[i];
-            h.life -= dt;
+
+            // Traps don't expire if duration is -1
+            if (h.life > 0) {
+                h.life -= dt;
+            }
             h.tickTimer += dt;
 
             // Continuous Effects (Every Frame): Slow, Slide
             this.applyZoneEffects(h, false);
 
-            // Periodic Effects (Every 0.5s): Damage, Heal
-            if (h.tickTimer >= 0.5) {
+            // Periodic Effects: Damage, Heal
+            // Default interval is 0.5s, but traps can override (e.g. spikes slower)
+            const interval = h.def.interval || 0.5;
+            if (h.tickTimer >= interval) {
                 h.tickTimer = 0;
                 this.applyZoneEffects(h, true);
             }
 
-            if (h.life <= 0) {
+            if (h.life !== -1 && h.life <= 0) {
                 G.hazards.splice(i, 1);
             }
         }
@@ -143,7 +162,13 @@ window.Physics = {
             // Periodic: Damage, Heal
             if (def.damage) {
                 if (ent === P) {
-                    if (!ent.invincible) ent.hp -= def.damage;
+                    // Safety: if player hit by trap, brief immunity?
+                    if (!ent.invincible && (!ent._trapImmunity || ent._trapImmunity <= 0)) {
+                        P.hp -= def.damage;
+                        spawnDmgNum(P.x, P.y - 15, "-" + def.damage, '#ff0000');
+                        shake(2, 0.1);
+                        ent._trapImmunity = 1.0; // 1s immunity to traps
+                    }
                 } else {
                     if (typeof damageEnemy === 'function') {
                         damageEnemy(ent, def.damage, zone.type === 'SCORCHED' ? 'FIRE' : 'METAL');

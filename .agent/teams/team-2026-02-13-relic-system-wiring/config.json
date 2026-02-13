@@ -1,0 +1,35 @@
+{
+    "id": "team-2026-02-13-relic-system-wiring",
+    "template": "full-stack-feature",
+    "description": "Wire the dormant HEIRLOOM_RELICS system into gameplay - boss drops, choice UI, stat consumption, HUD display",
+    "created": "2026-02-13T21:58:00+07:00",
+    "agents": [
+        {
+            "id": "drop-engineer",
+            "role": "Wire relic drops to boss kill + treasure rooms",
+            "backend": "direct",
+            "files": [
+                "game.js",
+                "systems.js"
+            ]
+        },
+        {
+            "id": "ui-engineer",
+            "role": "Create relic choice screen + HUD display",
+            "backend": "direct",
+            "files": [
+                "hud.js"
+            ]
+        },
+        {
+            "id": "combat-engineer",
+            "role": "Wire relic stats into damage/defense/rewards",
+            "backend": "direct",
+            "files": [
+                "weapons.js",
+                "systems.js",
+                "game.js"
+            ]
+        }
+    ]
+}

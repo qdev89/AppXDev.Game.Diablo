@@ -1,0 +1,16 @@
+{
+  "teamId": "team-2026-02-13-core-systems-fix",
+  "template": "full-stack-feature",
+  "task": "Implement all core system fixes from audit: equipment, sprites, hazards, bonding, environment",
+  "created": "2026-02-13T20:56:13+07:00",
+  "agents": [
+    { "id": "equipment-engineer", "role": "implementer", "trust": "T2", "backend": "subagent", "scope": ["weapons.js", "heroes.js"] },
+    { "id": "sprite-artist", "role": "implementer", "trust": "T2", "backend": "subagent", "scope": ["sprites.js"] },
+    { "id": "hazard-engineer", "role": "implementer", "trust": "T2", "backend": "subagent", "scope": ["systems.js", "game.js"] },
+    { "id": "bonding-engineer", "role": "implementer", "trust": "T2", "backend": "subagent", "scope": ["hud.js", "engine.js"] },
+    { "id": "environment-artist", "role": "implementer", "trust": "T2", "backend": "subagent", "scope": ["postfx.js"] }
+  ],
+  "parallelization": {
+    "wave1": ["T-01", "T-02", "T-03", "T-04", "T-05"]
+  }
+}

@@ -5,144 +5,165 @@
 // --- Weapon Definitions ---
 window.WEAPON_DEFS = [
     // ===== HERO SIGNATURE WEAPONS (unique starting weapons) =====
+    // BALANCE: Damage reduced ~40% from original. heroClass restricts which classes can pick.
     {
         id: 'fire_halberd', name: '🔴 Sky Piercer', el: 'FIRE', type: 'melee',
         desc: 'Lu Bu\'s legendary halberd — wide devastating sweep',
-        dmg: 15, cd: 0.9, range: 48, arc: 120, tier: 1, heroOnly: 'berserker',
+        dmg: 9, cd: 1.0, range: 48, arc: 120, tier: 1, heroOnly: 'berserker', heroClass: 'berserker',
         evolvesTo: 'fire_halberd_evo', evolutionReq: { passive: 'atk_speed', level: 5 }
     },
     {
         id: 'wood_fan', name: '🟢 Feather Fan', el: 'WOOD', type: 'projectile',
         desc: 'Zhuge Liang\'s fan — fires 3 wind blades in spread',
-        dmg: 10, cd: 1.0, range: 140, speed: 180, spread: 3, spreadAngle: 25, tier: 1, heroOnly: 'strategist',
+        dmg: 6, cd: 1.1, range: 140, speed: 180, spread: 3, spreadAngle: 25, tier: 1, heroOnly: 'strategist', heroClass: 'strategist',
         evolvesTo: 'wood_fan_evo', evolutionReq: { passive: 'xp_gain', level: 5 }
     },
     {
         id: 'metal_twin', name: '🪙 Twin Blades', el: 'METAL', type: 'orbital',
         desc: 'Zhou Yu\'s dual swords — fast spinning orbit',
-        dmg: 6, cd: 0.3, range: 40, count: 2, tier: 1, heroOnly: 'assassin',
+        dmg: 4, cd: 0.35, range: 40, count: 2, tier: 1, heroOnly: 'assassin', heroClass: 'assassin',
         evolvesTo: 'metal_twin_evo', evolutionReq: { passive: 'move_spd', level: 5 }
     },
     {
         id: 'earth_spear', name: '🟤 Dragon Spear', el: 'EARTH', type: 'melee',
         desc: 'Zhao Yun\'s spear — long reach forward thrust',
-        dmg: 16, cd: 0.7, range: 55, arc: 45, tier: 1, heroOnly: 'vanguard',
+        dmg: 10, cd: 0.8, range: 55, arc: 45, tier: 1, heroOnly: 'vanguard', heroClass: 'vanguard',
         evolvesTo: 'earth_spear_evo', evolutionReq: { passive: 'max_hp', level: 5 }
     },
     {
         id: 'water_scepter', name: '🔵 Dark Scepter', el: 'WATER', type: 'projectile',
         desc: 'Sima Yi\'s scepter — homing frost bolts',
-        dmg: 15, cd: 1.0, range: 160, speed: 150, homing: true, tier: 1, heroOnly: 'mystic',
+        dmg: 9, cd: 1.1, range: 160, speed: 150, homing: true, tier: 1, heroOnly: 'mystic', heroClass: 'mystic',
         evolvesTo: 'water_scepter_evo', evolutionReq: { passive: 'pickup_range', level: 5 }
     },
     {
         id: 'wood_shuriken', name: '🌟 Wind Shuriken', el: 'WOOD', type: 'thrown',
         desc: 'Huang Zhong\'s shuriken — 3-fan spread + pierce',
-        dmg: 10, cd: 0.7, range: 170, speed: 220, spread: 3, spreadAngle: 30,
-        pierce: 1, tier: 1, heroOnly: 'ranger',
+        dmg: 6, cd: 0.8, range: 170, speed: 220, spread: 3, spreadAngle: 30,
+        pierce: 1, tier: 1, heroOnly: 'ranger', heroClass: 'ranger',
         evolvesTo: 'wood_shuriken_evo', evolutionReq: { passive: 'atk_speed', level: 5 }
     },
 
     // ===== GENERIC WEAPONS (loot/level-up pool) =====
+    // heroClass restricts which hero classes can pick them from level-up.
+    // No heroClass = any class can pick.
     {
         id: 'fire_sword', name: '🔴 Fire Sword', el: 'FIRE', type: 'melee', desc: 'Forward fire slash',
-        dmg: 12, cd: 0.8, range: 40, arc: 90, tier: 1
+        dmg: 7, cd: 0.9, range: 40, arc: 90, tier: 1, heroClass: 'berserker|vanguard'
     },
     {
         id: 'metal_blade', name: '🪙 Blade Storm', el: 'METAL', type: 'orbital', desc: 'Spinning blades orbit you',
-        dmg: 8, cd: 0.3, range: 50, count: 3, tier: 1
+        dmg: 5, cd: 0.35, range: 50, count: 3, tier: 1, heroClass: 'assassin|ranger'
     },
     {
         id: 'water_bolt', name: '🔵 Chain Frost', el: 'WATER', type: 'projectile', desc: 'Bounces between 3 enemies + slows',
-        dmg: 13, cd: 1.0, range: 160, speed: 240, chain: 3, slowPct: 0.3, slowDur: 1.5, tier: 1
+        dmg: 8, cd: 1.1, range: 160, speed: 240, chain: 3, slowPct: 0.3, slowDur: 1.5, tier: 1, heroClass: 'mystic|strategist'
     },
     {
         id: 'wood_vine', name: '🟢 Root Zone', el: 'WOOD', type: 'aoe', desc: 'Healing vines damage nearby foes',
-        dmg: 5, cd: 2.0, range: 60, duration: 3, tier: 1
+        dmg: 3, cd: 2.2, range: 60, duration: 3, tier: 1
     },
     {
         id: 'earth_wall', name: '🟤 Earth Shield', el: 'EARTH', type: 'shield', desc: 'Damage aura + defense up',
-        dmg: 3, cd: 0.5, range: 35, tier: 1
+        dmg: 2, cd: 0.5, range: 35, tier: 1, heroClass: 'vanguard|berserker'
     },
     {
         id: 'fire_pillar', name: '🔴 Fire Pillar', el: 'FIRE', type: 'projectile', desc: 'Erupting flame pillars',
-        dmg: 20, cd: 1.8, range: 120, speed: 0, tier: 2
+        dmg: 12, cd: 2.0, range: 120, speed: 0, tier: 2, minLevel: 5, heroClass: 'berserker|strategist'
     },
     {
         id: 'metal_rain', name: '🪙 Arrow Rain', el: 'METAL', type: 'aoe', desc: 'Raining metal shards',
-        dmg: 10, cd: 2.5, range: 100, tier: 2
+        dmg: 6, cd: 2.8, range: 100, tier: 2, minLevel: 5, heroClass: 'ranger|assassin'
     },
     {
         id: 'water_wave', name: '🔵 Tidal Wave', el: 'WATER', type: 'melee', desc: 'Wide water sweep',
-        dmg: 18, cd: 1.5, range: 60, arc: 180, tier: 2
+        dmg: 11, cd: 1.6, range: 60, arc: 180, tier: 2, minLevel: 5, heroClass: 'mystic|vanguard'
     },
     {
-        id: 'wood_heal', name: '🟢 Life Surge', el: 'WOOD', type: 'heal', desc: 'Heal 20% HP over time',
-        dmg: 0, cd: 8, healPct: 0.2, tier: 1
+        id: 'wood_heal', name: '🟢 Life Surge', el: 'WOOD', type: 'heal', desc: 'Heal 15% HP over time',
+        dmg: 0, cd: 10, healPct: 0.15, tier: 1
     },
     {
         id: 'earth_quake', name: '🟤 Earthquake', el: 'EARTH', type: 'aoe', desc: 'Ground slam, stuns nearby',
-        dmg: 25, cd: 3.0, range: 80, tier: 2
+        dmg: 15, cd: 3.5, range: 80, tier: 2, minLevel: 5, heroClass: 'vanguard|berserker'
     },
     // Thrown weapons (Ranger pool)
     {
         id: 'fire_kunai', name: '🔴 Flame Kunai', el: 'FIRE', type: 'thrown', desc: 'Piercing flame kunai + burn DOT',
-        dmg: 9, cd: 0.5, range: 130, speed: 260, spread: 2, spreadAngle: 15,
-        pierce: 2, burnDot: 3, tier: 1
+        dmg: 5, cd: 0.6, range: 130, speed: 260, spread: 2, spreadAngle: 15,
+        pierce: 2, burnDot: 2, tier: 1, heroClass: 'ranger|assassin'
     },
     {
         id: 'metal_crossbow', name: '🪙 Repeating Crossbow', el: 'METAL', type: 'thrown', desc: 'Rapid-fire piercing crossbow bolts',
-        dmg: 9, cd: 0.3, range: 140, speed: 300, spread: 2, spreadAngle: 12,
-        pierce: 1, tier: 2
+        dmg: 5, cd: 0.35, range: 140, speed: 300, spread: 2, spreadAngle: 12,
+        pierce: 1, tier: 2, minLevel: 5, heroClass: 'ranger|assassin'
     },
 
-    // ===== EVOLVED WEAPONS (Tier 3) =====
+    // ===== EVOLVED WEAPONS (Tier 3) — restricted to original hero class =====
     {
         id: 'fire_halberd_evo', name: '🔥 Inferno Dragon', el: 'FIRE', type: 'melee',
         desc: 'Lu Bu\'s ultimate halberd — leaves a trail of fire',
-        dmg: 45, cd: 0.8, range: 70, arc: 160, tier: 3
+        dmg: 32, cd: 0.85, range: 70, arc: 160, tier: 3, heroClass: 'berserker'
     },
     {
         id: 'wood_fan_evo', name: '🌪️ Storm Lord\'s Call', el: 'WOOD', type: 'projectile',
         desc: 'Summons giant tornadoes',
-        dmg: 35, cd: 0.9, range: 180, speed: 100, count: 5, spreadAngle: 60, tier: 3
+        dmg: 24, cd: 1.0, range: 180, speed: 100, count: 5, spreadAngle: 60, tier: 3, heroClass: 'strategist'
     },
     {
         id: 'metal_twin_evo', name: '⚔️ Blade Master\'s Flow', el: 'METAL', type: 'orbital',
         desc: 'Massive web of blades',
-        dmg: 25, cd: 0.2, range: 80, count: 8, tier: 3
+        dmg: 18, cd: 0.25, range: 80, count: 8, tier: 3, heroClass: 'assassin'
     },
     {
         id: 'earth_spear_evo', name: '🏔️ Mountain Crusher', el: 'EARTH', type: 'melee',
         desc: 'Shockwaves on every hit',
-        dmg: 50, cd: 0.6, range: 90, arc: 80, tier: 3
+        dmg: 35, cd: 0.65, range: 90, arc: 80, tier: 3, heroClass: 'vanguard'
     },
     {
         id: 'water_scepter_evo', name: '❄️ Frost Archon\'s Gaze', el: 'WATER', type: 'projectile',
         desc: 'Blizzard storm',
-        dmg: 40, cd: 1.2, range: 200, speed: 120, homing: true, tier: 3
+        dmg: 28, cd: 1.3, range: 200, speed: 120, homing: true, tier: 3, heroClass: 'mystic'
     },
     {
         id: 'wood_shuriken_evo', name: '🍃 Wind Shadow', el: 'WOOD', type: 'thrown',
         desc: '8-way shuriken burst',
-        dmg: 28, cd: 0.5, range: 250, spread: 8, spreadAngle: 360, pierce: 5, tier: 3
+        dmg: 20, cd: 0.55, range: 250, spread: 8, spreadAngle: 360, pierce: 5, tier: 3, heroClass: 'ranger'
     },
 
-    // Passives
-    { id: 'atk_speed', name: '⚡ Swift Strikes', type: 'passive', desc: '+20% attack speed', stat: 'atkSpd', val: 0.2 },
-    { id: 'max_hp', name: '❤️ Vitality', type: 'passive', desc: '+25 max HP', stat: 'maxHp', val: 25 },
-    { id: 'move_spd', name: '🏃 Fleet Foot', type: 'passive', desc: '+15% move speed', stat: 'moveSpd', val: 0.15 },
-    { id: 'pickup_range', name: '🧲 Magnet', type: 'passive', desc: '+50% pickup range', stat: 'pickupRange', val: 0.5 },
-    { id: 'xp_gain', name: '📚 Scholar', type: 'passive', desc: '+25% XP gain', stat: 'xpGain', val: 0.25 },
+    // Passives (no class restriction — any hero can pick)
+    { id: 'atk_speed', name: '⚡ Swift Strikes', type: 'passive', desc: '+15% attack speed', stat: 'atkSpd', val: 0.15 },
+    { id: 'max_hp', name: '❤️ Vitality', type: 'passive', desc: '+20 max HP', stat: 'maxHp', val: 20 },
+    { id: 'move_spd', name: '🏃 Fleet Foot', type: 'passive', desc: '+10% move speed', stat: 'moveSpd', val: 0.10 },
+    { id: 'pickup_range', name: '🧲 Magnet', type: 'passive', desc: '+40% pickup range', stat: 'pickupRange', val: 0.4 },
+    { id: 'xp_gain', name: '📚 Scholar', type: 'passive', desc: '+20% XP gain', stat: 'xpGain', val: 0.20 },
 ];
+
+// --- Weapon Class Check Helper ---
+// Returns true if the hero can use this weapon
+window.canHeroUseWeapon = function (weaponDef, heroId) {
+    if (!weaponDef.heroClass) return true; // No restriction = universal
+    if (weaponDef.heroOnly) return weaponDef.heroOnly === heroId; // Signature check
+    return weaponDef.heroClass.split('|').includes(heroId);
+};
+
+// --- Level-scaled Damage Recalculation ---
+window.recalcWeaponDmg = function (w) {
+    if (w.baseDmg !== undefined) {
+        w.dmg = Math.round(w.baseDmg * (1 + 0.15 * (w.level - 1)) * 10) / 10;
+    }
+};
 
 // Active weapon instances on player
 window.createWeapon = function (def) {
-    return {
+    const w = {
         ...def, timer: 0, level: 1, angle: 0,
         orbitAngle: Math.random() * Math.PI * 2,
         comboStep: 0, comboReset: 0
     };
+    w.baseDmg = def.dmg; // Store original base damage for scaling
+    w.dmg = w.baseDmg;   // Level 1 = 100% base damage
+    return w;
 }
 
 // Check if weapon can evolve
@@ -222,12 +243,19 @@ function updateWeapons(dt) {
     let spdMult = 1 + (window.passives ? window.passives.atkSpd : 0) + auraAtkSpd;
     // S001: Aspect attack speed multiplier (Shadow 3x, Eternity 0.6x, Siege 0.5x)
     if (P.aspectAtkSpdMult && P.aspectAtkSpdMult !== 1.0) spdMult *= P.aspectAtkSpdMult;
+    // S003: Relic attack speed modifier (Sky Piercer: -30%)
+    if (typeof getRelicStats === 'function') {
+        const relicS = getRelicStats();
+        if (relicS.atkSpeed !== 0) spdMult *= (1 + relicS.atkSpeed);
+    }
     // Berserker: Rage mode = 1.5x attack speed
     if (P.rageModeTimer > 0) {
         const hero = getHeroDef(P.heroId);
         spdMult *= (hero.ultimate.atkSpdMultiplier || 1.5);
     }
     for (const w of G.weapons) {
+        // Recalculate damage based on current weapon level
+        window.recalcWeaponDmg(w);
         w.timer -= dt * spdMult;
         if (w.comboReset > 0) w.comboReset -= dt;
         if (w.comboReset <= 0) w.comboStep = 0; // Reset combo if idle too long
@@ -864,6 +892,17 @@ function damageEnemy(e, dmg, el) {
         }
     }
 
+    // BALANCE: Shieldwall enemy — 70% DR from frontal attacks
+    if (e.type === 'shieldwall' && e._shieldFacing !== undefined) {
+        const attackAngle = Math.atan2(e.y - P.y, e.x - P.x);
+        const angleDiff = Math.abs(attackAngle - e._shieldFacing);
+        const normalizedDiff = angleDiff > Math.PI ? (2 * Math.PI - angleDiff) : angleDiff;
+        if (normalizedDiff < Math.PI / 4) { // Within 45° of facing = frontal
+            reducedDmg *= 0.3; // 70% reduction
+            spawnDmgNum(e.x, e.y - 15, 'BLOCKED', '#8899cc', false);
+        }
+    }
+
     // T001: Apply Mandate damage reduction
     if (mandateDR > 0) {
         reducedDmg *= (1 - mandateDR);
@@ -938,6 +977,37 @@ function damageEnemy(e, dmg, el) {
         spawnDmgNum(e.x, e.y - 25, '🔮 CURSE', '#cc44ff', false);
     }
 
+    // T-02: TALISMAN ON-HIT PROC EFFECTS
+    if (P.talismanProc && P.talismanProc.chance > 0 && Math.random() < P.talismanProc.chance) {
+        switch (P.talismanProc.type) {
+            case 'burn': // Flame Charm — burn 3s
+                e.burn = (e.burn || 0) + 3;
+                e.burnDps = Math.max(e.burnDps || 0, 5);
+                spawnDmgNum(e.x, e.y - 25, '🔥 BURN', '#ff4400', false);
+                spawnParticles(e.x, e.y, '#ff4400', 4, 20);
+                break;
+            case 'slow': // Frost Jade — slow 30% for 2s
+                e.slow = (e.slow || 0) + 2;
+                spawnDmgNum(e.x, e.y - 25, '❄ CHILL', '#44aaff', false);
+                spawnParticles(e.x, e.y, '#88ccff', 4, 20);
+                break;
+        }
+    }
+
+    // S003: RELIC DAMAGE MODIFIER
+    if (typeof getRelicStats === 'function') {
+        const relicS = getRelicStats();
+        if (relicS.dmgMult > 0) {
+            const bonus = reducedDmg * relicS.dmgMult;
+            e.hp -= bonus; // Extra damage from relic
+        }
+        // Combo damage bonus (Blood Jade)
+        if (relicS.comboDmgBonus > 0 && G.combo > 0) {
+            const comboBonus = reducedDmg * (relicS.comboDmgBonus * G.combo);
+            e.hp -= comboBonus;
+        }
+    }
+
     const elDef = ELEMENTS[el] || ELEMENTS.METAL;
     const dmgColor = isCrit ? '#ff4400' : mult > 1.2 ? '#ffff00' : elDef.light;
     spawnDmgNum(e.x + rng(-5, 5), e.y - 8, Math.ceil(reducedDmg), dmgColor, isCrit || mult > 1.2);
@@ -959,10 +1029,18 @@ function killEnemy(e) {
     e.dead = true;
     // K004: Apply difficulty reward multiplier
     const _rewardMult = (typeof DIFFICULTY_TIERS !== 'undefined' && DIFFICULTY_TIERS[G.difficulty]) ? DIFFICULTY_TIERS[G.difficulty].rewardMult : 1;
-    G.score += Math.floor(10 * _rewardMult);
+    let killGold = Math.floor(10 * _rewardMult);
+    // S003: Relic gold multiplier (Merchant's Compass: +100%)
+    if (typeof getRelicStats === 'function') {
+        const relicS = getRelicStats();
+        if (relicS.goldMult > 0) killGold = Math.floor(killGold * (1 + relicS.goldMult));
+    }
+    G.score += killGold;
     G.combo++;
     G.maxCombo = Math.max(G.maxCombo, G.combo);
     G.enemiesKilled++;
+    // P004: Hero Mastery XP on kill
+    if (typeof grantMasteryXP === 'function') grantMasteryXP('kill');
 
     // S001: Demon Aspect — restore MP on kill
     if (P.aspectMpOnKill > 0) {
@@ -1003,6 +1081,68 @@ function killEnemy(e) {
     // K002: Apply blessing on-kill effects (heal, explosion, spreading burn)
     if (typeof applyBlessingOnKill === 'function') applyBlessingOnKill(e);
 
+    // S003: RELIC ON-KILL EFFECTS
+    if (typeof getRelicStats === 'function') {
+        const relicS = getRelicStats();
+        // Blood Jade: heal 1% MaxHP on kill
+        if (relicS.healOnKillPct > 0) {
+            const heal = Math.ceil(P.maxHp * relicS.healOnKillPct);
+            P.hp = Math.min(P.hp + heal, P.maxHp);
+            if (Math.random() < 0.15) { // Show heal number occasionally (avoid spam)
+                spawnDmgNum(P.x, P.y - 15, '+' + heal, '#44ff44', false);
+            }
+        }
+    }
+
+    // T-02: TALISMAN ON-KILL PROC EFFECTS
+    if (P.talismanProc) {
+        const proc = P.talismanProc;
+        switch (proc.type) {
+            case 'chain': // Thunder Seal — 12% on kill: chain lightning ×3
+                if (proc.chance && Math.random() < proc.chance) {
+                    let chainTargets = 0;
+                    for (const ce of G.enemies) {
+                        if (ce.dead || chainTargets >= 3) break;
+                        const cd = Math.hypot(ce.x - e.x, ce.y - e.y);
+                        if (cd < 120) {
+                            if (typeof damageEnemy === 'function') damageEnemy(ce, 15 + G.floor * 2, 'METAL');
+                            // Lightning arc VFX
+                            G.skillEffects.push({
+                                type: 'lightning', x1: e.x, y1: e.y, x2: ce.x, y2: ce.y,
+                                color: '#ffff00', timer: 0.3
+                            });
+                            chainTargets++;
+                        }
+                    }
+                    if (chainTargets > 0) {
+                        spawnDmgNum(e.x, e.y - 25, '⚡ CHAIN ×' + chainTargets, '#ffff00', true);
+                        shake(2, 0.1);
+                    }
+                }
+                break;
+            case 'explode': // Void Stone — 5% on kill: enemy explodes AoE
+                if (proc.chance && Math.random() < proc.chance) {
+                    const aoeRadius = 60;
+                    for (const ae of G.enemies) {
+                        if (ae.dead) continue;
+                        const ad = Math.hypot(ae.x - e.x, ae.y - e.y);
+                        if (ad < aoeRadius) {
+                            if (typeof damageEnemy === 'function') damageEnemy(ae, 20 + G.floor * 3, e.el || 'FIRE');
+                        }
+                    }
+                    G.skillEffects.push({
+                        type: 'shockwave', x: e.x, y: e.y,
+                        radius: 5, maxRadius: aoeRadius, speed: 300,
+                        color: '#aa00ff', alpha: 0.7, lineWidth: 3, timer: 0.3
+                    });
+                    spawnDmgNum(e.x, e.y - 25, '💥 VOID BURST', '#aa00ff', true);
+                    spawnParticles(e.x, e.y, '#aa00ff', 15, 60);
+                    shake(4, 0.15);
+                }
+                break;
+        }
+    }
+
     // Phase E: Musou gauge fill
     const musouGain = e.type === 'fodder' ? 1 : e.type === 'elite' ? 8 : e.type === 'boss' ? 25 : e.type === 'miniboss' ? 15 : 3;
     P.musou = clamp((P.musou || 0) + musouGain, 0, P.musouMax || 100);
@@ -1026,15 +1166,19 @@ function killEnemy(e) {
             spawnDmgNum(e.x, e.y - 15, 'SPLIT!', '#44dd44', true);
             spawnParticles(e.x, e.y, '#44dd44', 12, 40);
         }
-        // Molten: Leave fire AoE on death
+        // Molten: Leave fire AoE on death — use Physics hazard system
         if (e.modifiers.includes('molten')) {
-            // Add a fire pool to bullets as an AoE hazard
-            G.bullets.push({
-                x: e.x, y: e.y, type: 'aoe_ring', r: 30,
-                color: '#ff6600', el: 'FIRE',
-                life: 3, maxLife: 3, dmg: e.dmg * 0.3,
-                _moltenPool: true
-            });
+            if (window.Physics && typeof Physics.spawnHazard === 'function') {
+                Physics.spawnHazard(e.x, e.y, 'LAVA_POOL', 30);
+            } else {
+                // Legacy fallback
+                G.bullets.push({
+                    x: e.x, y: e.y, type: 'aoe_ring', r: 30,
+                    color: '#ff6600', el: 'FIRE',
+                    life: 3, maxLife: 3, dmg: e.dmg * 0.3,
+                    _moltenPool: true
+                });
+            }
             spawnDmgNum(e.x, e.y - 15, 'MOLTEN!', '#ff6600', true);
             spawnParticles(e.x, e.y, '#ff6600', 15, 50);
             shake(2, 0.1);
@@ -1049,6 +1193,28 @@ function killEnemy(e) {
     const comboCharge = e.type === 'miniboss' ? 15 : e.type === 'boss' ? 25 : e.type === 'elite' ? 8 : 5;
     if (typeof chargeBrotherhoodGauge === 'function') chargeBrotherhoodGauge(comboCharge);
 
+    // T-03: HAZARD SPAWNING ON ENEMY DEATH
+    // Activate the Physics hazard system — element-based ground effects
+    if (window.Physics && typeof Physics.spawnHazard === 'function') {
+        // Map enemy element to hazard type
+        const EL_TO_HAZARD = {
+            'FIRE': 'SCORCHED', 'WATER': 'PUDDLE', 'EARTH': 'MUD',
+            'METAL': 'ELECTRIFIED', 'WOOD': 'OVERGROWN'
+        };
+        const hazardType = EL_TO_HAZARD[e.el];
+
+        // Elite+ enemies always leave ground hazards
+        if (hazardType && (e.type === 'elite' || e.type === 'miniboss' || e.type === 'boss' || e.type === 'finalboss')) {
+            const hazardRadius = e.type === 'finalboss' ? 45 : e.type === 'boss' ? 35 :
+                e.type === 'miniboss' ? 28 : 20;
+            Physics.spawnHazard(e.x, e.y, hazardType, hazardRadius);
+        }
+        // Regular enemies: 15% chance to leave small hazard
+        else if (hazardType && Math.random() < 0.15) {
+            Physics.spawnHazard(e.x, e.y, hazardType, 12);
+        }
+    }
+
     // Mini-boss kill rewards
     if (e.type === 'miniboss') {
         // Celebration
@@ -1060,33 +1226,47 @@ function killEnemy(e) {
         spawnElementParticles(e.x, e.y, e.el, 20, 100);
         spawnParticles(e.x, e.y, '#ffd700', 15, 60);
 
-        // Guaranteed equipment drop
-        const equipTypes = ['armor', 'talisman', 'mount'];
-        const eqType = equipTypes[Math.floor(Math.random() * 3)];
-        const quality = G.floor >= 10 ? 'rare' : G.floor >= 5 ? 'uncommon' : 'common';
-        const qualColor = { common: '#88ff88', uncommon: '#44bbff', rare: '#ff88ff' }[quality];
-        const statBonus = quality === 'rare' ? 3 : quality === 'uncommon' ? 2 : 1;
+        // Guaranteed equipment drop — uses rich EQUIPMENT_DEFS system
+        const maxRarity = G.floor >= 10 ? 4 : G.floor >= 7 ? 3 : G.floor >= 4 ? 2 : G.floor >= 2 ? 1 : 0;
+        const equip = (typeof getEquipmentByRarity === 'function') ? getEquipmentByRarity(maxRarity) : null;
 
-        // Apply equipment
-        if (!G.equipment) G.equipment = { armor: null, talisman: null, mount: null };
-        G.equipment[eqType] = {
-            type: eqType, quality, statBonus,
-            name: (e.generalName || 'General') + "'s " + eqType.charAt(0).toUpperCase() + eqType.slice(1),
-            el: e.el
-        };
+        if (equip) {
+            if (!G.equipment) G.equipment = { armor: null, talisman: null, mount: null };
+            const eqSlot = equip.slot;
+            const rarColor = (typeof RARITY_COLORS !== 'undefined') ? RARITY_COLORS[equip.rarity] : '#ffd700';
+            const rarName = (typeof RARITY_NAMES !== 'undefined') ? RARITY_NAMES[equip.rarity] : '';
 
-        // Apply stat bonuses
-        if (eqType === 'armor') {
-            P.maxHp += statBonus * 10;
-            P.hp = Math.min(P.hp + statBonus * 10, P.maxHp);
-        } else if (eqType === 'talisman') {
-            P.dmgMult = (P.dmgMult || 1) + statBonus * 0.05;
-        } else if (eqType === 'mount') {
-            P.speed += statBonus * 5;
+            // Store the full equipment definition with element from defeated general
+            G.equipment[eqSlot] = { ...equip, el: e.el, fromGeneral: e.generalName || 'General' };
+
+            // Apply equipment-specific stat bonuses
+            if (eqSlot === 'armor') {
+                if (equip.hp) { P.maxHp += equip.hp; P.hp = Math.min(P.hp + equip.hp, P.maxHp); }
+                if (equip.def) P.dmgReduction = (P.dmgReduction || 0) + equip.def;
+                if (equip.hpRegen) P.hpRegen = (P.hpRegen || 0) + equip.hpRegen;
+                if (equip.reflect) P.reflectDmg = (P.reflectDmg || 0) + equip.reflect;
+            } else if (eqSlot === 'talisman') {
+                if (equip.procChance) P.talismanProc = { chance: equip.procChance, type: equip.procType };
+                if (equip.procType === 'reflect_proj') P.reflectProjectiles = true;
+            } else if (eqSlot === 'mount') {
+                if (equip.speed) P.speed *= (1 + equip.speed);
+                if (equip.dodgeCdBonus) P.dodgeCdBonus = (P.dodgeCdBonus || 0) + equip.dodgeCdBonus;
+                if (equip.mpRegen) P.mpRegen = (P.mpRegen || 0) + equip.mpRegen;
+                if (equip.xpBonus) P.xpMult = (P.xpMult || 1) + equip.xpBonus;
+                if (equip.fireTrail) P.fireTrailOnDodge = true;
+            }
+
+            // Rich equipment pickup notification
+            spawnDmgNum(e.x, e.y - 30, rarName, rarColor, true);
+            spawnDmgNum(e.x, e.y - 18, equip.name, rarColor, false);
+            spawnDmgNum(e.x, e.y - 8, equip.desc, '#ccc', false);
+
+            // Element burst VFX for rare+ drops
+            if (equip.rarity >= 2) {
+                spawnElementParticles(e.x, e.y, e.el, 12, 60);
+                triggerFlash(rarColor, 0.2);
+            }
         }
-
-        // Equipment pickup notification
-        spawnDmgNum(e.x, e.y - 20, eqType.toUpperCase() + '!', qualColor, false);
 
         // Bonus gold
         G.score += 50 + G.floor * 10;
@@ -1162,3 +1342,175 @@ function killEnemy(e) {
         G.portal = { x: G.arenaW / 2, y: G.arenaH / 2, r: 20, pulse: 0 };
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// P008: Omega Attacks — Hold F to charge, release devastating AoE
+// ═══════════════════════════════════════════════════════════════
+
+const OMEGA_CONFIG = {
+    chargeTime: 0.8,     // Seconds to fully charge
+    mpCost: 25,          // MP consumed on release
+    dmgMultiplier: 3.0,  // Damage = base weapon dmg × this
+    radius: 120,         // AoE radius
+    cooldown: 5.0        // Cooldown between Omega attacks
+};
+
+// State
+window.OmegaState = {
+    charging: false,
+    chargeTimer: 0,
+    cooldown: 0,
+    ready: false  // True when fully charged
+};
+
+function startOmegaCharge() {
+    if (G.state !== 'PLAYING') return;
+    if (window.OmegaState.cooldown > 0) return;
+    if (P.mp < OMEGA_CONFIG.mpCost) return;
+
+    window.OmegaState.charging = true;
+    window.OmegaState.chargeTimer = 0;
+    window.OmegaState.ready = false;
+}
+
+function updateOmegaCharge(dt) {
+    const os = window.OmegaState;
+    if (os.cooldown > 0) os.cooldown -= dt;
+
+    if (!os.charging) return;
+
+    os.chargeTimer += dt;
+
+    // Charge particles (escalating intensity)
+    const intensity = Math.min(os.chargeTimer / OMEGA_CONFIG.chargeTime, 1);
+    if (Math.random() < intensity * 0.5) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 30 + Math.random() * 20;
+        spawnParticles(
+            P.x + Math.cos(angle) * dist,
+            P.y + Math.sin(angle) * dist,
+            intensity > 0.8 ? '#ffd700' : '#ffaa00',
+            1, 15
+        );
+    }
+
+    // Slow movement while charging
+    P.spdOverride = P.spd * (0.3 + 0.7 * (1 - intensity));
+
+    if (os.chargeTimer >= OMEGA_CONFIG.chargeTime && !os.ready) {
+        os.ready = true;
+        // Ready flash
+        triggerFlash('#ffd700', 0.1);
+        spawnParticles(P.x, P.y, '#ffd700', 10, 40);
+    }
+}
+
+function releaseOmegaAttack() {
+    const os = window.OmegaState;
+    if (!os.charging) return;
+
+    // Restore speed
+    P.spdOverride = undefined;
+
+    os.charging = false;
+
+    if (!os.ready) {
+        // Cancelled early — no attack, no cost
+        os.chargeTimer = 0;
+        return;
+    }
+
+    // Consume MP
+    if (P.mp < OMEGA_CONFIG.mpCost) {
+        os.chargeTimer = 0;
+        os.ready = false;
+        return;
+    }
+    P.mp -= OMEGA_CONFIG.mpCost;
+    P.mpRegenDelay = 2.0;
+    os.cooldown = OMEGA_CONFIG.cooldown;
+    os.chargeTimer = 0;
+    os.ready = false;
+
+    // Determine element from primary weapon
+    const primaryWeapon = G.weapons[0];
+    const el = primaryWeapon ? primaryWeapon.el : 'METAL';
+    const elDef = ELEMENTS[el] || ELEMENTS.METAL;
+    const baseDmg = primaryWeapon ? primaryWeapon.dmg : 10;
+    const omegaDmg = Math.ceil(baseDmg * OMEGA_CONFIG.dmgMultiplier);
+
+    // Hit all enemies in radius
+    const radius = OMEGA_CONFIG.radius;
+    let hitCount = 0;
+    for (const e of G.enemies) {
+        const d = Math.hypot(e.x - P.x, e.y - P.y);
+        if (d < radius) {
+            damageEnemy(e, omegaDmg, el);
+            // Knockback
+            const angle = Math.atan2(e.y - P.y, e.x - P.x);
+            e.vx += Math.cos(angle) * 200;
+            e.vy += Math.sin(angle) * 200;
+            hitCount++;
+        }
+    }
+
+    // Epic VFX
+    spawnParticles(P.x, P.y, elDef.light, 40, 120);
+    spawnParticles(P.x, P.y, elDef.dark || elDef.light, 25, 90);
+    spawnParticles(P.x, P.y, '#ffd700', 20, 100);
+
+    // Shockwave bullet (visual only)
+    G.bullets.push({
+        x: P.x, y: P.y, type: 'omega_wave',
+        angle: 0, range: radius, color: elDef.light,
+        el: el, life: 0.4, maxLife: 0.4, weaponId: 'omega'
+    });
+
+    // Screen effects
+    shake(8, 0.4);
+    hitStop(0.08);
+    triggerFlash(elDef.light, 0.3);
+    triggerChromatic(4);
+    triggerSpeedLines(1.0);
+
+    // Sound
+    if (typeof SFX !== 'undefined') {
+        if (SFX.ultimateActivate) SFX.ultimateActivate();
+        if (SFX.hit) SFX.hit();
+    }
+
+    // Announcement
+    const omegaName = G.lang === 'en' ? '⚡ OMEGA ATTACK!' : '⚡ ĐÒN TUYỆT CHIÊU!';
+    if (hitCount > 0) {
+        spawnDmgNum(P.x, P.y - 30, omegaName, '#ffd700', true);
+    }
+}
+
+function drawOmegaChargeBar() {
+    const os = window.OmegaState;
+    if (!os.charging) return;
+
+    const sx = P.x - G.camX + G.shakeX;
+    const sy = P.y - G.camY + G.shakeY - 25;
+    const barW = 30, barH = 4;
+    const progress = Math.min(os.chargeTimer / OMEGA_CONFIG.chargeTime, 1);
+
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(sx - barW / 2, sy, barW, barH);
+
+    // Fill (gold when ready, orange while charging)
+    ctx.fillStyle = progress >= 1 ? '#ffd700' : '#ff8800';
+    ctx.fillRect(sx - barW / 2, sy, barW * progress, barH);
+
+    // Border
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(sx - barW / 2, sy, barW, barH);
+
+    // Label
+    if (progress >= 1) {
+        drawText('OMEGA!', sx, sy - 4, { font: 'bold 6px monospace', fill: '#ffd700', align: 'center' });
+    }
+}
+

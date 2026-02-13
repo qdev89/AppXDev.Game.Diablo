@@ -362,5 +362,144 @@ function drawTorch(x, y) {
     drawGlow(x, y - 2, 25 + flicker * 5, biome.torch, 0.15 + flicker * 0.05);
 }
 
+// --- T-05: ENVIRONMENT DECORATIONS ---
+// Procedural decorative objects per biome, placed deterministically using position hash
+const DECO_SEED = 0x5DECD11;
+
+function hashPos(x, y) {
+    return ((x * 73856093) ^ (y * 19349663) ^ DECO_SEED) & 0x7fffffff;
+}
+
+function drawEnvironmentDecorations() {
+    const biome = getBiome();
+    const biomeIdx = (Math.floor((G.floor - 1) / 5)) % BIOMES.length;
+    const cellSize = 96; // Decoration grid cell size
+    const sx = Math.floor(G.camX / cellSize) * cellSize;
+    const sy = Math.floor(G.camY / cellSize) * cellSize;
+
+    for (let x = sx; x < G.camX + GAME_W + cellSize; x += cellSize) {
+        for (let y = sy; y < G.camY + GAME_H + cellSize; y += cellSize) {
+            // Skip cells outside arena
+            if (x < 20 || x > G.arenaW - 20 || y < 20 || y > G.arenaH - 20) continue;
+
+            const h = hashPos(x, y);
+            const decoChance = h % 100;
+
+            // ~35% of cells get a decoration
+            if (decoChance > 35) continue;
+
+            const decoType = (h >> 8) % 8;
+            const ox = (h >> 16) % (cellSize - 16) + 4;
+            const oy = (h >> 20) % (cellSize - 16) + 4;
+            const dx = x + ox;
+            const dy = y + oy;
+
+            // Avoid center where player spawns
+            const centerDist = Math.hypot(dx - G.arenaW / 2, dy - G.arenaH / 2);
+            if (centerDist < 80) continue;
+
+            ctx.globalAlpha = 0.6;
+
+            switch (decoType) {
+                case 0: // Stone pillar
+                    ctx.fillStyle = biome.wallColor;
+                    ctx.fillRect(dx - 3, dy - 6, 6, 10);
+                    ctx.fillStyle = biome.accent;
+                    ctx.fillRect(dx - 4, dy - 7, 8, 2);
+                    ctx.fillRect(dx - 4, dy + 3, 8, 2);
+                    break;
+
+                case 1: // Crate/Barrel
+                    ctx.fillStyle = '#554422';
+                    ctx.fillRect(dx - 4, dy - 4, 8, 8);
+                    ctx.strokeStyle = '#332211';
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeRect(dx - 4, dy - 4, 8, 8);
+                    ctx.fillStyle = '#443311';
+                    ctx.fillRect(dx - 4, dy, 8, 1);
+                    break;
+
+                case 2: // Skull/Bones (more in Crimson, Shadow)
+                    if (biomeIdx === 0 || biomeIdx === 1 || biomeIdx === 3) {
+                        ctx.fillStyle = '#aaaaaa';
+                        ctx.fillRect(dx - 2, dy - 2, 4, 3);
+                        ctx.fillStyle = '#888888';
+                        ctx.fillRect(dx - 1, dy - 1, 1, 1);
+                        ctx.fillRect(dx + 1, dy - 1, 1, 1);
+                        ctx.fillStyle = '#999999';
+                        ctx.fillRect(dx + 3, dy - 1, 5, 1);
+                    }
+                    break;
+
+                case 3: // Blood stain (Crimson Cavern heavy)
+                    if (biomeIdx === 1 || (h >> 4) % 3 === 0) {
+                        ctx.globalAlpha = 0.25;
+                        ctx.fillStyle = '#440000';
+                        ctx.beginPath();
+                        ctx.arc(dx, dy, 4 + (h % 4), 0, Math.PI * 2);
+                        ctx.fill();
+                        if (biomeIdx === 1) {
+                            ctx.beginPath();
+                            ctx.arc(dx + 3, dy + 2, 2, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                    break;
+
+                case 4: // Moss/Vine patch (Jade Temple heavy)
+                    if (biomeIdx === 2 || (h >> 4) % 4 === 0) {
+                        ctx.fillStyle = '#1a4422';
+                        ctx.fillRect(dx - 3, dy - 1, 7, 3);
+                        ctx.fillStyle = '#226633';
+                        ctx.fillRect(dx - 2, dy - 2, 2, 1);
+                        ctx.fillRect(dx + 1, dy - 2, 3, 1);
+                    }
+                    break;
+
+                case 5: // Rune circle (Shadow Realm heavy)
+                    if (biomeIdx === 3 || (h >> 4) % 5 === 0) {
+                        ctx.globalAlpha = 0.15 + Math.sin(G.time * 2 + dx * 0.1) * 0.08;
+                        ctx.strokeStyle = biome.torch;
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.arc(dx, dy, 8, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.fillStyle = biome.torch;
+                        for (let ri = 0; ri < 4; ri++) {
+                            const ra = ri * Math.PI / 2 + G.time * 0.5;
+                            ctx.fillRect(dx + Math.cos(ra) * 5, dy + Math.sin(ra) * 5, 1, 1);
+                        }
+                    }
+                    break;
+
+                case 6: // Rubble/rocks
+                    ctx.fillStyle = biome.wallColor;
+                    ctx.fillRect(dx - 2, dy, 3, 2);
+                    ctx.fillRect(dx + 1, dy - 1, 2, 2);
+                    ctx.fillStyle = biome.accent;
+                    ctx.fillRect(dx - 1, dy - 1, 2, 1);
+                    break;
+
+                case 7: // Banner/flag (wall-adjacent only)
+                    if (dy < 60 || dy > G.arenaH - 60 || dx < 60 || dx > G.arenaW - 60) {
+                        const bannerColor = biomeIdx === 0 ? '#334488' : biomeIdx === 1 ? '#883322' :
+                            biomeIdx === 2 ? '#228844' : '#663388';
+                        ctx.fillStyle = '#554433';
+                        ctx.fillRect(dx, dy - 8, 1, 12); // Pole
+                        ctx.fillStyle = bannerColor;
+                        const wave = Math.sin(G.time * 3 + dx * 0.1) * 1;
+                        ctx.fillRect(dx + 1, dy - 7, 5 + wave, 6);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.globalAlpha = 0.4;
+                        ctx.fillRect(dx + 2, dy - 5, 2, 2); // Symbol
+                    }
+                    break;
+            }
+        }
+    }
+
+    ctx.globalAlpha = 1;
+}
+
 // Init on load
 initAmbientParticles();
