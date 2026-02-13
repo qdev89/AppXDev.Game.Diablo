@@ -78,9 +78,28 @@
     <script>
         // Register Service Worker for PWA offline support
         if ('serviceWorker' in navigator) {
+            // Auto-reload when new SW activates (ensures latest code)
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    console.log('[PWA] New version detected, reloading...');
+                    window.location.reload();
+                }
+            });
+            // Listen for SW update messages
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'SW_UPDATED') {
+                    console.log('[PWA] Updated to:', event.data.version);
+                }
+            });
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('[PWA] SW registered:', reg.scope))
+                    .then(reg => {
+                        console.log('[PWA] SW registered:', reg.scope);
+                        // Check for updates periodically
+                        setInterval(() => reg.update(), 60 * 60 * 1000);
+                    })
                     .catch(err => console.log('[PWA] SW failed:', err));
             });
         }

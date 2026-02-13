@@ -420,6 +420,9 @@ function updateEnemies(dt) {
         const e = G.enemies[i];
         if (e.dead) { G.enemies.splice(i, 1); continue; }
 
+        // SAFETY NET: catch zombie enemies from ANY damage source
+        if (e.hp <= 0) { killEnemy(e); G.enemies.splice(i, 1); continue; }
+
         // Spawn animation timer
         if (e.spawnAnim > 0) e.spawnAnim -= dt;
 

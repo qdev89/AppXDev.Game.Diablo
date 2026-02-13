@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dbd-v1.2.4';
+const CACHE_NAME = 'dbd-v1.2.5';
 const ASSETS = [
     './',
     './index.html',
@@ -8,7 +8,14 @@ const ASSETS = [
     './sound.js',
     './sprites.js',
     './engine.js',
+    './physics.js',
     './blessings.js',
+    './mutations.js',
+    './aspects.js',
+    './mandate.js',
+    './relics.js',
+    './lineage.js',
+    './workshop.js',
     './weapons.js',
     './systems.js',
     './game.js',
@@ -27,27 +34,37 @@ const ASSETS = [
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            console.log('[SW] Caching app shell');
+            console.log('[SW] Caching app shell v1.2.5');
             return cache.addAll(ASSETS);
         })
     );
     self.skipWaiting();
 });
 
-// Activate — clean old caches
+// Activate — clean old caches and force refresh
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
             return Promise.all(
                 keys.filter((key) => key !== CACHE_NAME)
-                    .map((key) => caches.delete(key))
+                    .map((key) => {
+                        console.log('[SW] Deleting old cache:', key);
+                        return caches.delete(key);
+                    })
             );
+        }).then(() => {
+            // Force all clients to reload with new cache
+            return self.clients.matchAll({ type: 'window' }).then(clients => {
+                clients.forEach(client => {
+                    client.postMessage({ type: 'SW_UPDATED', version: CACHE_NAME });
+                });
+            });
         })
     );
     self.clients.claim();
 });
 
-// Fetch — cache-first strategy
+// Fetch — cache-first with network fallback
 self.addEventListener('fetch', (event) => {
     event.respondWith(
         caches.match(event.request).then((cached) => {

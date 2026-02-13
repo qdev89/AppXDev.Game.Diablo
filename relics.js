@@ -225,6 +225,7 @@ function summonDragon(dmg) {
         const dist = Math.hypot(e.x - P.x, e.y - P.y);
         if (dist <= 150) {
             e.hp -= dmg;
+            if (e.hp <= 0 && !e.dead) { killEnemy(e); continue; }
             e.burnTimer = Math.max(e.burnTimer || 0, 3);
             e.burnDps = Math.max(e.burnDps || 0, 10);
             e.flash = 0.2;

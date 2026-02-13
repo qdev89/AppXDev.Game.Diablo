@@ -636,6 +636,7 @@ function updateBlessings(dt) {
                 const dist = Math.hypot(e.x - P.x, e.y - P.y);
                 if (dist <= stats.fireAuraRadius) {
                     e.hp -= stats.fireAuraDps * 0.5;
+                    if (e.hp <= 0 && !e.dead) { killEnemy(e); continue; }
                     e.flash = 0.1;
                 }
             }
@@ -653,6 +654,7 @@ function updateBlessings(dt) {
                 const dist = Math.hypot(e.x - P.x, e.y - P.y);
                 if (dist <= stats.waveRadius) {
                     e.hp -= stats.waveDmg;
+                    if (e.hp <= 0 && !e.dead) { killEnemy(e); continue; }
                     e.flash = 0.2;
                     e.knockX += (e.x - P.x) / dist * 5;
                     e.knockY += (e.y - P.y) / dist * 5;
